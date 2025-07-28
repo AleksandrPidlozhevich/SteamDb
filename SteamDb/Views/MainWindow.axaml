@@ -1,0 +1,249 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SteamDb.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="SteamDb.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/gamedate.ico"
+        Title="SteamDb"
+		Height="400"
+		Width="750">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="Button.animated-button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2" />
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <Style Selector="Button.animated-button:pointerover">
+            <Style.Animations>
+                <Animation Duration="0:0:1" Easing="SineEaseInOut" IterationCount="Infinite">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="RotateTransform.Angle" Value="6" />
+                    </KeyFrame>
+                    <KeyFrame Cue="25%">
+                        <Setter Property="RotateTransform.Angle" Value="-6" />
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="RotateTransform.Angle" Value="6" />
+                    </KeyFrame>
+                    <KeyFrame Cue="75%">
+                        <Setter Property="RotateTransform.Angle" Value="-6" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="RotateTransform.Angle" Value="6" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <Style Selector="Button.ko-fi-button:pointerover">
+            <Setter Property="RenderTransform">
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Setter>
+            <Style.Animations>
+                <Animation Duration="0:0:0.8" Easing="SineEaseInOut" IterationCount="Infinite">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="ScaleTransform.ScaleX" Value="1" />
+                        <Setter Property="ScaleTransform.ScaleY" Value="1" />
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="ScaleTransform.ScaleX" Value="1.2" />
+                        <Setter Property="ScaleTransform.ScaleY" Value="1.2" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="ScaleTransform.ScaleX" Value="1" />
+                        <Setter Property="ScaleTransform.ScaleY" Value="1" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </Window.Styles>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="5" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="5" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="5" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="5" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="40" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="5" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="70" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="5" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+
+        </Grid.ColumnDefinitions>
+
+        <!-- First row -->
+        <Svg Grid.Row="1" Grid.Column="1" Width="48" Height="48" Path="/Assets/steam.svg" />
+        <TextBox Grid.Row="1" Grid.Column="3" Width="200" FontSize="10" Watermark="Steam API key"
+                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+                 Text="{Binding SteamApiKey, Mode=TwoWay}" />
+
+        <!-- First row, column 4 -->
+        <Button Grid.Row="1" Grid.Column="4" Margin="5,0,0,0"
+                Width="38" Height="38"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                Padding="0"
+                Classes="animated-button"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Command="{Binding OpenSteamApiKeyInfoCommand}">
+            <Viewbox>
+                <Image Source="{SvgImage /Assets/info.svg}" />
+            </Viewbox>
+        </Button>
+
+        <!-- Third row -->
+        <Svg Grid.Row="5" Grid.Column="1" Width="48" Height="48" Path="/Assets/notion.svg" />
+        <TextBox Grid.Row="5" Grid.Column="3" Width="200" FontSize="10" Watermark="Notion API integration token"
+                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+                 Text="{Binding NotionToken, Mode=TwoWay}" />
+
+        <!-- Second row, column 6,8 -->
+        <Svg Grid.Row="3" Grid.Column="6" Width="48" Height="48" Path="/Assets/google-sheets.svg" />
+        <TextBox Grid.Row="3" Grid.Column="8" Width="200" FontSize="10" Watermark="Google Sheets Table Name"
+                 UseFloatingWatermark="True"
+                 Text="{Binding GoogleSheetsTableName, Mode=TwoWay}" />
+
+        <!-- Second row -->
+        <Svg Grid.Row="3" Grid.Column="1" Width="48" Height="48" Path="/Assets/steam.svg" />
+        <TextBox Grid.Row="3" Grid.Column="3" Width="200" FontSize="10" Watermark="Steam ID"
+                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+                 Text="{Binding SteamId, Mode=TwoWay}" />
+
+        <!-- Second row, column 4 -->
+        <Button Grid.Row="3" Grid.Column="4" Margin="5,0,0,0"
+                Width="38" Height="38"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                Padding="0"
+                Classes="animated-button"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Command="{Binding OpenInfoLinkSteamIdCommand}">
+            <Viewbox>
+                <Image Source="{SvgImage /Assets/info.svg}" />
+            </Viewbox>
+        </Button>
+        <!-- Third row, column 8-->
+        <Button Grid.Row="5" Grid.Column="8" Margin="5,0,0,0"
+                Width="50" Height="50"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                Padding="0"
+                Classes="ko-fi-button"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Command="{Binding  OpenLinkKofi}">
+            <Viewbox>
+                <Image Source="{SvgImage /Assets/ko-fi.svg}" />
+            </Viewbox>
+        </Button>
+        <!-- Third row -->
+        <Svg Grid.Row="5" Grid.Column="1" Width="48" Height="48" Path="/Assets/notion.svg" />
+        <TextBox Grid.Row="5" Grid.Column="3" Width="200" FontSize="10" Watermark="Notion API integration token"
+                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+                 Text="{Binding NotionToken, Mode=TwoWay}" />
+
+        <!-- Third roww, column 4 -->
+        <Button Grid.Row="5" Grid.Column="4" Margin="5,0,0,0"
+                Width="38" Height="38"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                Padding="0"
+                Classes="animated-button"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Command="{Binding OpenInfoLinkNotionTokenCommand}">
+            <Viewbox>
+                <Image Source="{SvgImage /Assets/info.svg}" />
+            </Viewbox>
+        </Button>
+
+        <!-- Fourth row -->
+        <Svg Grid.Row="7" Grid.Column="1" Width="48" Height="48" Path="/Assets/notion.svg" />
+        <TextBox Grid.Row="7" Grid.Column="3" Width="200" FontSize="10" Watermark="Database ID"
+                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+                 Text="{Binding DbId, Mode=TwoWay}" />
+
+        <!-- Fourth row, column 4 -->
+        <Button Grid.Row="7" Grid.Column="4" Margin="5,0,0,0"
+                Width="38" Height="38"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                Padding="0"
+                Classes="animated-button"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Command="{Binding OpenInfoLinkNotionDbIdCommand}">
+            <Viewbox>
+                <Image Source="{SvgImage /Assets/info.svg}" />
+            </Viewbox>
+        </Button>
+
+        <!-- Fifth row, column 6,  -->
+        <Svg Grid.Row="1" Grid.Column="6" Width="48" Height="48" Path="/Assets/google-sheets.svg" />
+        <Button Grid.Row="1" Grid.Column="8" Width="200" Height="50" Content="Export to Google Sheets"
+                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                Command="{Binding ExportToGoogleSheetsCommand}" />
+
+        <!-- Fourth row, column 9 -->
+        <Button Grid.Row="1" Grid.Column="9" Margin="5,0,0,0"
+                Width="38" Height="38"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                Padding="0"
+                Classes="animated-button"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Command="{Binding OpenInfoGoogleSheetsCommand}">
+            <Viewbox>
+                <Image Source="{SvgImage /Assets/info.svg}" />
+            </Viewbox>
+        </Button>
+
+
+        <!-- Button  -->
+        <Canvas Width="850" Height="400">
+            <Button Content="Export to .csv" Canvas.Right="-120" Canvas.Bottom="-180"
+                    Command="{Binding ExportToCsvCommand}" />
+            <Button Content="Export to Notion" Canvas.Right="-260" Canvas.Bottom="-180"
+                    Command="{Binding ExportToNotionCommand}" />
+            <Button Content="Save settings" Canvas.Right="250" Canvas.Bottom="-180"
+                    Command="{Binding SaveSettingsCommand}" />
+            <Button Content="Import settings" Canvas.Right="120" Canvas.Bottom="-180"
+                    Command="{Binding ImportSettingsCommand}" />
+        </Canvas>
+    </Grid>
+
+</Window>
