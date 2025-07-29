@@ -19,20 +19,15 @@ namespace SteamDb.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-    [ObservableProperty]
-    private string? googleSheetsTableName;
+    [ObservableProperty] private string? googleSheetsTableName;
 
-    [ObservableProperty]
-    private string? steamApiKey;
+    [ObservableProperty] private string? steamApiKey;
 
-    [ObservableProperty]
-    private string? steamId;
+    [ObservableProperty] private string? steamId;
 
-    [ObservableProperty]
-    private string? notionToken;
+    [ObservableProperty] private string? notionToken;
 
-    [ObservableProperty]
-    private string? dbId;
+    [ObservableProperty] private string? dbId;
 
     public MainWindowViewModel()
     {
@@ -56,8 +51,8 @@ public partial class MainWindowViewModel : ViewModelBase
             Title = "Save CSV File",
             FileTypeChoices = new[]
             {
-            new FilePickerFileType("CSV files") { Patterns = new[] { "*.csv" } }
-        }
+                new FilePickerFileType("CSV files") { Patterns = new[] { "*.csv" } }
+            }
         });
 
         if (file != null)
@@ -172,7 +167,8 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 await notionApiClient.AddPagesToDatabaseParallel(batch);
                 Interlocked.Add(ref addedGames, batch.Count);
-                LogService.WriteInfo($"Batch {batchIndex + 1}: Added {batch.Count} games. Total:: {addedGames}/{totalNewGames}");
+                LogService.WriteInfo(
+                    $"Batch {batchIndex + 1}: Added {batch.Count} games. Total:: {addedGames}/{totalNewGames}");
             });
 
             var semaphore = new SemaphoreSlim(2, 2);
@@ -212,8 +208,8 @@ public partial class MainWindowViewModel : ViewModelBase
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-            new FilePickerFileType("CSV files") { Patterns = new[] { "*.csv" } }
-        }
+                new FilePickerFileType("CSV files") { Patterns = new[] { "*.csv" } }
+            }
         });
 
         var file = files.FirstOrDefault();
@@ -255,7 +251,8 @@ public partial class MainWindowViewModel : ViewModelBase
         string spreadsheetId = null;
 
         var listRequest = client.DriveService.Files.List();
-        listRequest.Q = $"mimeType='application/vnd.google-apps.spreadsheet' and name='{spreadsheetName}' and trashed = false";
+        listRequest.Q =
+            $"mimeType='application/vnd.google-apps.spreadsheet' and name='{spreadsheetName}' and trashed = false";
         listRequest.Spaces = "drive";
         listRequest.Fields = "files(id, name)";
         var fileList = await listRequest.ExecuteAsync();
@@ -358,22 +355,40 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenSteamApiKeyInfo() => LinkOpening("https://steamcommunity.com/dev/apikey");
+    private void OpenSteamApiKeyInfo()
+    {
+        LinkOpening("https://steamcommunity.com/dev/apikey");
+    }
 
     [RelayCommand]
-    private void OpenInfoLinkSteamId() => LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+    private void OpenInfoLinkSteamId()
+    {
+        LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+    }
 
     [RelayCommand]
-    private void OpenInfoLinkNotionToken() => LinkOpening("https://www.notion.so/profile/integrations");
+    private void OpenInfoLinkNotionToken()
+    {
+        LinkOpening("https://www.notion.so/profile/integrations");
+    }
 
     [RelayCommand]
-    private void OpenInfoLinkNotionDbId() => LinkOpening("https://developers.notion.com/reference/retrieve-a-database/");
+    private void OpenInfoLinkNotionDbId()
+    {
+        LinkOpening("https://developers.notion.com/reference/retrieve-a-database/");
+    }
 
     [RelayCommand]
-    private void OpenInfoGoogleSheets() => LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+    private void OpenInfoGoogleSheets()
+    {
+        LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+    }
 
     [RelayCommand]
-    public void OpenLinkKofi() => LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
+    public void OpenLinkKofi()
+    {
+        LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
+    }
 
     private void LinkOpening(string url)
     {

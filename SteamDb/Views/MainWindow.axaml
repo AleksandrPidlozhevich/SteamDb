@@ -8,8 +8,8 @@
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/gamedate.ico"
         Title="SteamDb"
-		Height="400"
-		Width="750">
+        Height="400"
+        Width="750">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
