@@ -373,7 +373,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void OpenInfoGoogleSheets() => LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
 
     [RelayCommand]
-    private void OpenLinkKofi() => LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
+    public void OpenLinkKofi() => LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
 
     private void LinkOpening(string url)
     {
