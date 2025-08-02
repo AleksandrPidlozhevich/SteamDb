@@ -84,3 +84,4 @@ MIT (or your actual license)
 ---
 
 ## Feedback and Issues
+aleksandr.pidlozhevich@gmail.com
