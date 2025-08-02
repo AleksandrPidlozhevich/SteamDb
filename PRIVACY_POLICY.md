@@ -1,6 +1,6 @@
 Privacy Policy
 
-This Privacy Policy describes how information is handled in relation to the use of my mobile application.
+This Privacy Policy describes how information is handled in relation to the use of my application.
 
 Information Collection and Use
 
