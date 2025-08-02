@@ -79,7 +79,7 @@ Authorization with Google Sheets is currently in progress.
 
 ## License
 
-MIT (or your actual license)
+MIT
 
 ---
 
