@@ -23,8 +23,8 @@ internal class NotionApiClient
 
     public NotionApiClient(string apiKey, string databaseId)
     {
-        _apiKey = apiKey;
-        _databaseId = databaseId;
+        _apiKey = apiKey?.Trim();
+        _databaseId = databaseId?.Trim();
         _httpClient = new HttpClient();
         _semaphore = new SemaphoreSlim(MaxConcurrentRequests, MaxConcurrentRequests);
         InitializeHttpClient();

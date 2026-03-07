@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -192,7 +192,7 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (Exception ex)
         {
             LogService.WriteError($"Data Export Failed to Notion: {ex.Message}");
-            throw;
+            await ShowErrorAsync("Export error in Notion", ex);
         }
     }
 
@@ -398,5 +398,29 @@ public partial class MainWindowViewModel : ViewModelBase
             Process.Start("xdg-open", url);
         else if (OperatingSystem.IsMacOS())
             Process.Start("open", url);
+    }
+
+    private async Task ShowErrorAsync(string title, Exception exception)
+    {
+        var mainWindow = (App.Current.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (mainWindow == null) return;
+
+        var message = BuildErrorMessage(exception);
+        var errorWindow = new SteamDb.Error(title, message);
+        await errorWindow.ShowDialog(mainWindow);
+    }
+
+    private static string BuildErrorMessage(Exception exception)
+    {
+        var messages = new List<string>();
+        var current = exception;
+        while (current != null)
+        {
+            if (!string.IsNullOrWhiteSpace(current.Message))
+                messages.Add(current.Message);
+            current = current.InnerException;
+        }
+
+        return messages.Count == 0 ? "Unknown error" : string.Join(Environment.NewLine, messages.Distinct());
     }
 }

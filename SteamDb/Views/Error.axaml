@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:SteamDb"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="260"
+        x:Class="SteamDb.Error"
+        x:DataType="local:Error"
+        Width="520"
+        Height="260"
+        WindowStartupLocation="CenterOwner"
+        Title="Error">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto">
+    <TextBlock Text="An error occurred" FontSize="16" FontWeight="SemiBold" />
+    <TextBlock Grid.Row="1" Margin="0,8,0,8" Text="Details:" />
+    <TextBox Grid.Row="2"
+             Text="{Binding Message}"
+             IsReadOnly="True"
+             TextWrapping="Wrap"
+             AcceptsReturn="True" />
+    <Button Grid.Row="3"
+            Content="OK"
+            Width="80"
+            HorizontalAlignment="Right"
+            Margin="0,12,0,0"
+            Click="CloseButtonClick" />
+  </Grid>
+</Window>
