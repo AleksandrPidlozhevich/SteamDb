@@ -10,8 +10,8 @@ With SteamDb, you can track your gaming progress and better manage your backlog.
 
 ## Download
 
-- [⬇️ Windows](https://example.com)  
-- [⬇️ MacOS](https://example.com)  
+- [⬇️ Windows](https://github.com/AleksandrPidlozhevich/SteamDb/releases)  
+- [⬇️ MacOS](https://github.com/AleksandrPidlozhevich/SteamDb/releases)  
 
 
 ---
@@ -73,25 +73,15 @@ Authorization with Google Sheets is currently in progress.
 
 🔧 We’re working on improving this — thank you for your patience!
 
-
-
 ## Main Features
 
-
----
-
-## Installation
-
-1. Download the version for your operating system.
-2. Unpack the archive.
-3. Run the executable file:
-   - `SteamDb.exe` on Windows
 ---
 
 ## License
 
-MIT (or your actual license)
+MIT
 
 ---
 
 ## Feedback and Issues
+aleksandr.pidlozhevich@gmail.com
