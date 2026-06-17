@@ -104,8 +104,8 @@
 
         <!-- First row -->
         <Svg Grid.Row="1" Grid.Column="1" Width="48" Height="48" Path="/Assets/steam.svg" />
-        <TextBox Grid.Row="1" Grid.Column="3" Width="200" FontSize="10" Watermark="Steam API key"
-                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+        <TextBox Grid.Row="1" Grid.Column="3" Width="200" FontSize="10" PlaceholderText="Steam API key"
+                 Classes="revealPasswordButton" UseFloatingPlaceholder="True" PasswordChar="*"
                  Text="{Binding SteamApiKey, Mode=TwoWay}" />
 
         <!-- First row, column 4 -->
@@ -125,20 +125,20 @@
 
         <!-- Third row -->
         <Svg Grid.Row="5" Grid.Column="1" Width="48" Height="48" Path="/Assets/notion.svg" />
-        <TextBox Grid.Row="5" Grid.Column="3" Width="200" FontSize="10" Watermark="Notion API integration token"
-                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+        <TextBox Grid.Row="5" Grid.Column="3" Width="200" FontSize="10" PlaceholderText="Notion API integration token"
+                 Classes="revealPasswordButton" UseFloatingPlaceholder="True" PasswordChar="*"
                  Text="{Binding NotionToken, Mode=TwoWay}" />
 
         <!-- Second row, column 6,8 -->
         <Svg Grid.Row="3" Grid.Column="6" Width="48" Height="48" Path="/Assets/google-sheets.svg" />
-        <TextBox Grid.Row="3" Grid.Column="8" Width="200" FontSize="10" Watermark="Google Sheets Table Name"
-                 UseFloatingWatermark="True"
+        <TextBox Grid.Row="3" Grid.Column="8" Width="200" FontSize="10" PlaceholderText="Google Sheets Table Name"
+                 UseFloatingPlaceholder="True"
                  Text="{Binding GoogleSheetsTableName, Mode=TwoWay}" />
 
         <!-- Second row -->
         <Svg Grid.Row="3" Grid.Column="1" Width="48" Height="48" Path="/Assets/steam.svg" />
-        <TextBox Grid.Row="3" Grid.Column="3" Width="200" FontSize="10" Watermark="Steam ID"
-                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+        <TextBox Grid.Row="3" Grid.Column="3" Width="200" FontSize="10" PlaceholderText="Steam ID"
+                 Classes="revealPasswordButton" UseFloatingPlaceholder="True" PasswordChar="*"
                  Text="{Binding SteamId, Mode=TwoWay}" />
 
         <!-- Second row, column 4 -->
@@ -171,8 +171,8 @@
         </Button>
         <!-- Third row -->
         <Svg Grid.Row="5" Grid.Column="1" Width="48" Height="48" Path="/Assets/notion.svg" />
-        <TextBox Grid.Row="5" Grid.Column="3" Width="200" FontSize="10" Watermark="Notion API integration token"
-                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+        <TextBox Grid.Row="5" Grid.Column="3" Width="200" FontSize="10" PlaceholderText="Notion API integration token"
+                 Classes="revealPasswordButton" UseFloatingPlaceholder="True" PasswordChar="*"
                  Text="{Binding NotionToken, Mode=TwoWay}" />
 
         <!-- Third roww, column 4 -->
@@ -192,8 +192,8 @@
 
         <!-- Fourth row -->
         <Svg Grid.Row="7" Grid.Column="1" Width="48" Height="48" Path="/Assets/notion.svg" />
-        <TextBox Grid.Row="7" Grid.Column="3" Width="200" FontSize="10" Watermark="Database ID"
-                 Classes="revealPasswordButton" UseFloatingWatermark="True" PasswordChar="*"
+        <TextBox Grid.Row="7" Grid.Column="3" Width="200" FontSize="10" PlaceholderText="Database ID"
+                 Classes="revealPasswordButton" UseFloatingPlaceholder="True" PasswordChar="*"
                  Text="{Binding DbId, Mode=TwoWay}" />
 
         <!-- Fourth row, column 4 -->

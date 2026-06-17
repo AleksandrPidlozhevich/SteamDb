@@ -5,17 +5,17 @@ namespace SteamDb.Models;
 
 public class SteamGamesResponse
 {
-    public SteamGamesInnerResponse Response { get; set; }
+    public SteamGamesInnerResponse? Response { get; set; }
 }
 
 public class SteamGamesInnerResponse
 {
-    public List<SteamGame> Games { get; set; }
+    public List<SteamGame>? Games { get; set; }
 }
 
 public class SteamGame
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [JsonProperty("appid")] public int GameID { get; set; }
 }

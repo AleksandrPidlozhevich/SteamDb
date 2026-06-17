@@ -21,10 +21,10 @@ internal class NotionApiClient
     private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _semaphore;
 
-    public NotionApiClient(string apiKey, string databaseId)
+    public NotionApiClient(string? apiKey, string? databaseId)
     {
-        _apiKey = apiKey?.Trim();
-        _databaseId = databaseId?.Trim();
+        _apiKey = apiKey?.Trim() ?? string.Empty;
+        _databaseId = databaseId?.Trim() ?? string.Empty;
         _httpClient = new HttpClient();
         _semaphore = new SemaphoreSlim(MaxConcurrentRequests, MaxConcurrentRequests);
         InitializeHttpClient();
@@ -53,7 +53,7 @@ internal class NotionApiClient
     public async Task<List<JObject>> QueryAllPagesAsync()
     {
         var allPages = new List<JObject>();
-        string nextCursor = null;
+        string? nextCursor = null;
 
         do
         {
@@ -76,7 +76,8 @@ internal class NotionApiClient
             var pages = result["results"] as JArray;
             if (pages != null)
                 foreach (var page in pages)
-                    allPages.Add(page as JObject);
+                    if (page is JObject pageObject)
+                        allPages.Add(pageObject);
 
             var hasMore = result["has_more"]?.Value<bool>() ?? false;
             nextCursor = hasMore ? result["next_cursor"]?.Value<string>() : null;

@@ -15,7 +15,7 @@ public class SteamApiClient
     private const int MaxRetries = 5;
     private static readonly HttpClient _httpClient = new();
 
-    public async Task<SteamGamesResponse> GetOwnedGames(string steamId, string apiKey)
+    public async Task<SteamGamesResponse> GetOwnedGames(string? steamId, string? apiKey)
     {
         apiKey = apiKey?.Trim();
         steamId = steamId?.Trim();

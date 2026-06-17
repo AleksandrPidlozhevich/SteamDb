@@ -42,7 +42,7 @@ public partial class MainWindowViewModel : ViewModelBase
                          $"NotionToken: {NotionToken}" + Environment.NewLine +
                          $"DbId: {DbId}" + Environment.NewLine;
 
-        var mainWindow = (App.Current.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        var mainWindow = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
         if (mainWindow == null) return;
 
         var file = await mainWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -74,21 +74,32 @@ public partial class MainWindowViewModel : ViewModelBase
             var steamApiClient = new SteamApiClient();
             var steamGamesResponse = await steamApiClient.GetOwnedGames(SteamId, SteamApiKey);
 
+            if (steamGamesResponse?.Response?.Games == null)
+                throw new Exception("Failed to receive a list of games from Steam.");
+
             var csvContent = "Name,Game ID" + Environment.NewLine;
             foreach (var game in steamGamesResponse.Response.Games)
                 csvContent += $"{game.Name},{game.GameID}" + Environment.NewLine;
 
-            var mainWindow = (App.Current.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+            var mainWindow = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
             if (mainWindow != null)
             {
-                var saveFileDialog = new SaveFileDialog
+                var file = await mainWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
                 {
-                    Filters = { new FileDialogFilter { Name = "CSV files", Extensions = { "csv" } } },
+                    SuggestedFileName = "dbgame.csv",
                     Title = "Save CSV File",
-                    InitialFileName = "dbgame.csv"
-                };
-                var filePath = await saveFileDialog.ShowAsync(mainWindow);
-                if (filePath != null) await File.WriteAllTextAsync(filePath, csvContent);
+                    FileTypeChoices = new[]
+                    {
+                        new FilePickerFileType("CSV files") { Patterns = new[] { "*.csv" } }
+                    }
+                });
+
+                if (file != null)
+                {
+                    await using var stream = await file.OpenWriteAsync();
+                    using var writer = new StreamWriter(stream);
+                    await writer.WriteAsync(csvContent);
+                }
             }
         }
         catch (UnauthorizedAccessException ex)
@@ -199,7 +210,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task ImportSettings()
     {
-        var mainWindow = (App.Current.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        var mainWindow = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
         if (mainWindow == null) return;
 
         var files = await mainWindow.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -241,16 +252,19 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var client = new GoogleSheetsApiClient();
 
-        if (!await client.ConnectAsync())
+        if (!await client.ConnectAsync() || client.DriveService == null || client.SheetsService == null)
         {
             LogService.WriteError("Authorization failed.");
             return;
         }
 
-        var spreadsheetName = GoogleSheetsTableName;
-        string spreadsheetId = null;
+        var driveService = client.DriveService;
+        var sheetsService = client.SheetsService;
 
-        var listRequest = client.DriveService.Files.List();
+        var spreadsheetName = GoogleSheetsTableName;
+        string? spreadsheetId = null;
+
+        var listRequest = driveService.Files.List();
         listRequest.Q =
             $"mimeType='application/vnd.google-apps.spreadsheet' and name='{spreadsheetName}' and trashed = false";
         listRequest.Spaces = "drive";
@@ -269,11 +283,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 MimeType = "application/vnd.google-apps.spreadsheet"
             };
 
-            var file = await client.DriveService.Files.Create(fileMetadata).ExecuteAsync();
+            var file = await driveService.Files.Create(fileMetadata).ExecuteAsync();
             spreadsheetId = file.Id;
         }
 
-        var existingDataRequest = client.SheetsService.Spreadsheets.Values.Get(spreadsheetId, "Sheet1!A2:B");
+        var existingDataRequest = sheetsService.Spreadsheets.Values.Get(spreadsheetId, "Sheet1!A2:B");
         var existingDataResponse = await existingDataRequest.ExecuteAsync();
 
         var existingGameIds =
@@ -307,7 +321,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         values.AddRange(newGames.Select(game => new List<object> { game.Name, game.GameID.ToString(), false }));
 
-        var appendRequest = client.SheetsService.Spreadsheets.Values.Append(
+        var appendRequest = sheetsService.Spreadsheets.Values.Append(
             new ValueRange { Values = values.Skip(1).ToList() },
             spreadsheetId,
             "Sheet1!A1");
@@ -349,7 +363,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Requests = requests
         };
 
-        await client.SheetsService.Spreadsheets
+        await sheetsService.Spreadsheets
             .BatchUpdate(batchUpdateRequest, spreadsheetId)
             .ExecuteAsync();
     }
@@ -402,7 +416,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task ShowErrorAsync(string title, Exception exception)
     {
-        var mainWindow = (App.Current.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        var mainWindow = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
         if (mainWindow == null) return;
 
         var message = BuildErrorMessage(exception);

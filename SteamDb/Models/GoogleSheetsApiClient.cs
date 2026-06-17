@@ -30,8 +30,8 @@ public class GoogleSheetsApiClient
         _tokenStoragePath = tokenStoragePath;
     }
 
-    public SheetsService SheetsService { get; private set; }
-    public DriveService DriveService { get; private set; }
+    public SheetsService? SheetsService { get; private set; }
+    public DriveService? DriveService { get; private set; }
 
     public async Task<bool> ConnectAsync()
     {

@@ -27,7 +27,7 @@ internal class NotionDataFetcher
                 .Where(page => page != null)
                 .Select(page => ExtractGameData(page))
                 .Where(data => data.HasValue)
-                .ToDictionary(data => data.Value.GameId, data => data.Value.Name);
+                .ToDictionary(data => data!.Value.GameId, data => data!.Value.Name);
             return gameData;
         }
         catch (Exception ex)
@@ -47,13 +47,14 @@ internal class NotionDataFetcher
 
             if (gameIdProperty?["number"] != null && nameProperty?["title"] != null)
             {
-                var gameId = gameIdProperty["number"].Value<int>();
+                var gameId = gameIdProperty["number"]!.Value<int>();
                 var titleArray = nameProperty["title"] as JArray;
 
                 if (titleArray != null && titleArray.Count > 0)
                 {
-                    var name = titleArray[0]["text"]["content"].Value<string>();
-                    return (gameId, name);
+                    var name = titleArray[0]["text"]?["content"]?.Value<string>();
+                    if (name != null)
+                        return (gameId, name);
                 }
             }
         }
