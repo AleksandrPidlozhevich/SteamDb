@@ -75,9 +75,15 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly StoreConnector _epicConnector;
     private readonly StoreConnector _gogConnector;
 
+    // Credentials (Steam key/id, Notion token, DB id) are remembered encrypted at rest.
+    private readonly ISecretStore _secrets = new MsalSecretStore();
+    private const string SettingsSecretKey = "app-settings";
+
     public MainWindowViewModel()
     {
         LogService.Initialize(nameof(MainWindowViewModel));
+
+        LoadPersistedSettings();
 
         _epicConnector = new StoreConnector(
             "Epic",
@@ -113,6 +119,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         var content = AppSettingsService.Serialize(new AppSettings(SteamApiKey, SteamId, NotionToken, DbId));
         await CsvFileService.WriteAsync(file, content);
+        PersistSettings();
     }
 
     [RelayCommand]
@@ -130,7 +137,26 @@ public partial class MainWindowViewModel : ViewModelBase
         SteamId = settings.SteamId ?? SteamId;
         NotionToken = settings.NotionToken ?? NotionToken;
         DbId = settings.DbId ?? DbId;
+        PersistSettings();
     }
+
+    /// <summary>Loads credentials remembered (encrypted) from a previous session.</summary>
+    private void LoadPersistedSettings()
+    {
+        var content = _secrets.Load(SettingsSecretKey);
+        if (string.IsNullOrEmpty(content)) return;
+
+        var settings = AppSettingsService.Parse(content);
+        SteamApiKey = settings.SteamApiKey ?? SteamApiKey;
+        SteamId = settings.SteamId ?? SteamId;
+        NotionToken = settings.NotionToken ?? NotionToken;
+        DbId = settings.DbId ?? DbId;
+    }
+
+    /// <summary>Persists the current credentials to the encrypted secret store.</summary>
+    private void PersistSettings()
+        => _secrets.Save(SettingsSecretKey,
+            AppSettingsService.Serialize(new AppSettings(SteamApiKey, SteamId, NotionToken, DbId)));
 
     [RelayCommand]
     private async Task ExportToCsv()

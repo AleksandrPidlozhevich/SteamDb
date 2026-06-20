@@ -6,7 +6,6 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
-using Google.Apis.Util.Store;
 
 namespace SteamDb.Models;
 
@@ -21,13 +20,13 @@ public class GoogleSheetsApiClient
         DriveService.Scope.Drive
     };
 
-    private readonly string _tokenStoragePath;
+    private readonly ISecretStore _secrets;
     private readonly string _userId;
 
-    public GoogleSheetsApiClient(string userId = "user", string tokenStoragePath = "TokenStorage")
+    public GoogleSheetsApiClient(string userId = "user", ISecretStore? secretStore = null)
     {
         _userId = userId;
-        _tokenStoragePath = tokenStoragePath;
+        _secrets = secretStore ?? new MsalSecretStore();
     }
 
     public SheetsService? SheetsService { get; private set; }
@@ -46,7 +45,7 @@ public class GoogleSheetsApiClient
                 _scopes,
                 _userId,
                 CancellationToken.None,
-                new FileDataStore(_tokenStoragePath, true));
+                new SecretDataStore(_secrets));
 
             SheetsService = new SheetsService(new BaseClientService.Initializer
             {

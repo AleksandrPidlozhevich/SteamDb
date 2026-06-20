@@ -38,6 +38,9 @@ public class GogApiClient : IStoreClient
     private const string FilteredProductsUrlTemplate =
         "https://embed.gog.com/account/getFilteredProducts?mediaType=1&page={0}";
 
+    // Key under which the refresh-token payload is kept in the secret store.
+    private const string SecretKey = "gog";
+
     private static readonly HttpClient _httpClient = CreateHttpClient();
 
     private static HttpClient CreateHttpClient()
@@ -49,7 +52,7 @@ public class GogApiClient : IStoreClient
         return client;
     }
 
-    private readonly string _tokenCachePath;
+    private readonly ISecretStore _secrets;
 
     // Serialises access-token refreshes so concurrent requests that hit a 401 don't fire
     // several refreshes at once (GOG rotates the refresh token on each use).
@@ -59,12 +62,30 @@ public class GogApiClient : IStoreClient
     private string? _refreshToken;
     private string? _userId;
 
-    public GogApiClient(string? tokenStorageFolder = null)
+    public GogApiClient(ISecretStore? secretStore = null)
     {
-        var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-        var folder = tokenStorageFolder ?? Path.Combine(exeDir, "GogTokenStorage");
-        if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
-        _tokenCachePath = Path.Combine(folder, "gog_token.json");
+        _secrets = secretStore ?? new MsalSecretStore();
+        MigrateLegacyTokenFile();
+    }
+    
+    private void MigrateLegacyTokenFile()
+    {
+        try
+        {
+            var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
+            var legacyPath = Path.Combine(exeDir, "GogTokenStorage", "gog_token.json");
+            if (!File.Exists(legacyPath)) return;
+
+            if (string.IsNullOrEmpty(_secrets.Load(SecretKey)))
+                _secrets.Save(SecretKey, File.ReadAllText(legacyPath));
+
+            File.Delete(legacyPath);
+            LogService.WriteInfo("GOG: migrated legacy plaintext token into encrypted store.");
+        }
+        catch (Exception ex)
+        {
+            LogService.WriteWarning($"GOG: legacy token migration failed: {ex.Message}");
+        }
     }
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken);
@@ -207,9 +228,7 @@ public class GogApiClient : IStoreClient
         if (!IsAuthenticated)
             throw new InvalidOperationException("GOG client is not authenticated. Call authenticate first.");
     }
-
-    // Sends a bearer-authorized request; if the access token has expired (401),
-    // refreshes it once and retries. The caller owns/disposes the returned response.
+    
     private async Task<HttpResponseMessage> SendAuthorizedAsync(Func<HttpRequestMessage> requestFactory)
     {
         var staleToken = _accessToken;
@@ -235,7 +254,6 @@ public class GogApiClient : IStoreClient
         await _refreshLock.WaitAsync();
         try
         {
-            // A concurrent request may already have refreshed while we waited on the lock.
             if (!string.IsNullOrEmpty(_accessToken) && _accessToken != staleAccessToken)
                 return true;
 
@@ -262,27 +280,18 @@ public class GogApiClient : IStoreClient
     {
         if (string.IsNullOrEmpty(refreshToken)) return;
         var payload = new { refresh_token = refreshToken, user_id = _userId };
-        File.WriteAllText(_tokenCachePath, JsonConvert.SerializeObject(payload));
+        _secrets.Save(SecretKey, JsonConvert.SerializeObject(payload));
     }
 
-    private void DeleteTokenCache()
-    {
-        try
-        {
-            if (File.Exists(_tokenCachePath)) File.Delete(_tokenCachePath);
-        }
-        catch (Exception ex)
-        {
-            LogService.WriteWarning($"GOG: failed to delete token cache: {ex.Message}");
-        }
-    }
+    private void DeleteTokenCache() => _secrets.Delete(SecretKey);
 
     private string? LoadRefreshTokenFromCache()
     {
-        if (!File.Exists(_tokenCachePath)) return null;
+        var content = _secrets.Load(SecretKey);
+        if (string.IsNullOrEmpty(content)) return null;
         try
         {
-            var json = JObject.Parse(File.ReadAllText(_tokenCachePath));
+            var json = JObject.Parse(content);
             _userId = json["user_id"]?.Value<string>();
             return json["refresh_token"]?.Value<string>();
         }

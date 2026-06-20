@@ -17,8 +17,7 @@ using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
-/// <summary>Progress of a store's library/catalog fetch. <paramref name="Stage"/> labels the
-/// step for the UI (e.g. "Loading Epic catalog", "GOG library").</summary>
+
 public readonly record struct StoreFetchProgress(int Completed, int Total, string Stage = "");
 
 /// <summary>Outcome of trying to authenticate a store from its cached refresh token.</summary>
@@ -44,9 +43,7 @@ public class EpicApiClient : IStoreClient
 
     private const string AssetsUrl =
         "https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/public/assets/Windows?label=Live";
-
-    // The bulk endpoint is per-namespace and accepts many ids per request, so we batch
-    // ids by namespace instead of issuing one request per game.
+    
     private const string CatalogBulkUrlTemplate =
         "https://catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/{0}/bulk/items";
 
@@ -58,11 +55,12 @@ public class EpicApiClient : IStoreClient
 
     private const string LoginUrl =
         "https://www.epicgames.com/id/login?redirectUrl=";
-
-    // Catalog requests are batched and throttled to stay under Epic's rate limits.
+    
     private const int CatalogMaxConcurrency = 8;
     private const int CatalogBatchSize = 50;
     private const int CatalogMaxRetries = 4;
+    
+    private const string SecretKey = "epic";
 
     private static readonly HttpClient _httpClient = CreateHttpClient();
 
@@ -74,22 +72,38 @@ public class EpicApiClient : IStoreClient
         return client;
     }
 
-    private readonly string _tokenCachePath;
-
-    // Serialises access-token refreshes so concurrent catalog requests that all hit a
-    // 401 don't fire several refreshes at once (Epic rotates the refresh token each time).
+    private readonly ISecretStore _secrets;
+    
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
 
     private string? _accessToken;
     private string? _refreshToken;
     private string? _accountId;
 
-    public EpicApiClient(string? tokenStorageFolder = null)
+    public EpicApiClient(ISecretStore? secretStore = null)
     {
-        var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-        var folder = tokenStorageFolder ?? Path.Combine(exeDir, "EpicTokenStorage");
-        if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
-        _tokenCachePath = Path.Combine(folder, "epic_token.json");
+        _secrets = secretStore ?? new MsalSecretStore();
+        MigrateLegacyTokenFile();
+    }
+    
+    private void MigrateLegacyTokenFile()
+    {
+        try
+        {
+            var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
+            var legacyPath = Path.Combine(exeDir, "EpicTokenStorage", "epic_token.json");
+            if (!File.Exists(legacyPath)) return;
+
+            if (string.IsNullOrEmpty(_secrets.Load(SecretKey)))
+                _secrets.Save(SecretKey, File.ReadAllText(legacyPath));
+
+            File.Delete(legacyPath);
+            LogService.WriteInfo("Epic: migrated legacy plaintext token into encrypted store.");
+        }
+        catch (Exception ex)
+        {
+            LogService.WriteWarning($"Epic: legacy token migration failed: {ex.Message}");
+        }
     }
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken);
@@ -161,9 +175,7 @@ public class EpicApiClient : IStoreClient
         if (!response.IsSuccessStatusCode)
         {
             LogService.WriteError($"Epic token request failed: {response.StatusCode}, {body}");
-
-            // A refresh-token grant rejected with a client error means the cached token
-            // is dead — drop it so we don't keep retrying a token that can't work.
+            
             if (form.TryGetValue("grant_type", out var grant) && grant == "refresh_token" &&
                 (int)response.StatusCode is >= 400 and < 500)
             {
@@ -218,9 +230,7 @@ public class EpicApiClient : IStoreClient
         var total = games.Count;
         var completed = 0;
         progress?.Report(new StoreFetchProgress(0, total, "Loading Epic catalog"));
-
-        // Original position per game, so output order is stable regardless of which
-        // batch finishes first (CatalogItemId is unique — games were deduped on it).
+        
         var orderByCatalogId = new Dictionary<string, int>();
         for (var i = 0; i < games.Count; i++)
             orderByCatalogId[games[i].CatalogItemId] = i;
@@ -270,9 +280,7 @@ public class EpicApiClient : IStoreClient
         games.Clear();
         games.AddRange(ownedGames.OrderBy(x => x.Order).Select(x => x.Game));
     }
-
-    // Groups games by namespace, then splits each namespace into chunks small enough
-    // to keep the request URL within sane limits.
+    
     private static List<(string Namespace, List<EpicGame> Games)> BuildCatalogBatches(List<EpicGame> games)
     {
         return games
@@ -323,14 +331,10 @@ public class EpicApiClient : IStoreClient
         if (item == null) return false;
 
         var categories = item["categories"]?.Children().ToList() ?? new List<JToken>();
-
-        // Base games live under the "games" category (e.g. "games", "games/edition/base").
-        // Note: games are ALSO categorised as "applications", so the presence of an
-        // "applications"/"software"/"editors" category must NOT disqualify them.
+        
         var isGame = categories.Any(c => CategoryPathStartsWith(c, "games"));
         if (!isGame) return false;
 
-        // Exclude DLC / add-ons: they sit under "addons" and reference a parent game.
         var isAddon = categories.Any(c => CategoryPathStartsWith(c, "addons"));
         if (isAddon) return false;
 
@@ -350,9 +354,7 @@ public class EpicApiClient : IStoreClient
         if (!IsAuthenticated)
             throw new InvalidOperationException("Epic client is not authenticated. Call authenticate first.");
     }
-
-    // Sends a bearer-authorized request; if the access token has expired (401),
-    // refreshes it once and retries. The caller owns/dispose the returned response.
+    
     private async Task<HttpResponseMessage> SendAuthorizedAsync(Func<HttpRequestMessage> requestFactory)
     {
         var staleToken = _accessToken;
@@ -378,7 +380,6 @@ public class EpicApiClient : IStoreClient
         await _refreshLock.WaitAsync();
         try
         {
-            // A concurrent request may already have refreshed while we waited on the lock.
             if (!string.IsNullOrEmpty(_accessToken) && _accessToken != staleAccessToken)
                 return true;
 
@@ -405,27 +406,18 @@ public class EpicApiClient : IStoreClient
     {
         if (string.IsNullOrEmpty(refreshToken)) return;
         var payload = new { refresh_token = refreshToken, account_id = _accountId };
-        File.WriteAllText(_tokenCachePath, JsonConvert.SerializeObject(payload));
+        _secrets.Save(SecretKey, JsonConvert.SerializeObject(payload));
     }
 
-    private void DeleteTokenCache()
-    {
-        try
-        {
-            if (File.Exists(_tokenCachePath)) File.Delete(_tokenCachePath);
-        }
-        catch (Exception ex)
-        {
-            LogService.WriteWarning($"Epic: failed to delete token cache: {ex.Message}");
-        }
-    }
+    private void DeleteTokenCache() => _secrets.Delete(SecretKey);
 
     private string? LoadRefreshTokenFromCache()
     {
-        if (!File.Exists(_tokenCachePath)) return null;
+        var content = _secrets.Load(SecretKey);
+        if (string.IsNullOrEmpty(content)) return null;
         try
         {
-            var json = JObject.Parse(File.ReadAllText(_tokenCachePath));
+            var json = JObject.Parse(content);
             _accountId = json["account_id"]?.Value<string>();
             return json["refresh_token"]?.Value<string>();
         }
