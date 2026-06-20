@@ -1,0 +1,163 @@
+using Avalonia.Input.Platform;
+using SteamDb.Models;
+using SteamDb.Services;
+using System;
+using System.Threading.Tasks;
+
+namespace SteamDb.ViewModels;
+
+/// <summary>
+/// Drives the shared "connect to a store" flow (Epic / GOG): restore a cached session,
+/// open the login page, watch the clipboard, and authorize automatically once a valid
+/// authorization code is pasted/typed. State lives in the ViewModel and is read/written
+/// through the supplied callbacks so it stays bindable.
+/// </summary>
+public sealed class StoreConnector
+{
+    private readonly string _name;
+    private readonly Func<IStoreClient> _clientFactory;
+    private readonly Func<string?, string?> _extractCode;
+    private readonly Action<bool> _setConnected;
+    private readonly Action<bool> _setCodeInputVisible;
+    private readonly Action<string?> _setCode;
+    private readonly Func<bool> _isConnected;
+    private readonly Func<IClipboard?> _getClipboard;
+    private readonly Func<string, Exception, Task> _showError;
+
+    private bool _authInProgress;
+
+    public StoreConnector(
+        string name,
+        Func<IStoreClient> clientFactory,
+        Func<string?, string?> extractCode,
+        Action<bool> setConnected,
+        Action<bool> setCodeInputVisible,
+        Action<string?> setCode,
+        Func<bool> isConnected,
+        Func<IClipboard?> getClipboard,
+        Func<string, Exception, Task> showError)
+    {
+        _name = name;
+        _clientFactory = clientFactory;
+        _extractCode = extractCode;
+        _setConnected = setConnected;
+        _setCodeInputVisible = setCodeInputVisible;
+        _setCode = setCode;
+        _isConnected = isConnected;
+        _getClipboard = getClipboard;
+        _showError = showError;
+    }
+
+    /// <summary>Restore a previously cached session (called on startup).</summary>
+    public async Task InitializeFromCacheAsync()
+    {
+        try
+        {
+            _setConnected(await _clientFactory().TryAuthenticateFromCacheAsync()
+                == StoreAuthFromCacheStatus.Authenticated);
+        }
+        catch (Exception ex)
+        {
+            _setConnected(false);
+            LogService.WriteWarning($"{_name}: failed to restore cached session. {ex.Message}");
+        }
+    }
+
+    /// <summary>Step 1: open the login page and reveal the code field (or finish if cached).</summary>
+    public async Task StartConnectAsync()
+    {
+        try
+        {
+            var client = _clientFactory();
+
+            // Already authorized in a previous session — nothing to do.
+            if (await client.TryAuthenticateFromCacheAsync() == StoreAuthFromCacheStatus.Authenticated)
+            {
+                _setConnected(true);
+                return;
+            }
+
+            client.OpenLoginPageInBrowser();
+            _setCodeInputVisible(true);
+
+            // Convenience: a copied code is picked up automatically; setting the field
+            // triggers OnCodeChanged below.
+            var clipboard = _getClipboard();
+            if (clipboard != null)
+            {
+                var code = await WaitForCodeFromClipboardAsync(clipboard, _extractCode);
+                if (code != null && !_isConnected())
+                    _setCode(code);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.WriteException(ex, $"{_name} connect failed");
+            await _showError($"{_name} connect error", ex);
+        }
+    }
+
+    /// <summary>Step 2: as soon as a valid code is present, authorize automatically.</summary>
+    public void OnCodeChanged(string? value)
+    {
+        if (_isConnected() || _authInProgress) return;
+
+        var code = _extractCode(value);
+        if (string.IsNullOrEmpty(code)) return;
+
+        _ = SubmitCodeAsync(code);
+    }
+
+    private async Task SubmitCodeAsync(string code)
+    {
+        if (_authInProgress) return;
+        _authInProgress = true;
+        try
+        {
+            var connected = await _clientFactory().AuthenticateWithAuthorizationCodeAsync(code);
+            _setConnected(connected);
+            if (!connected)
+                throw new Exception(
+                    $"{_name} authorization failed. The code is one-time — log in again and use a fresh code.");
+
+            _setCode(null);
+            _setCodeInputVisible(false);
+        }
+        catch (Exception ex)
+        {
+            _setConnected(false);
+            LogService.WriteException(ex, $"{_name} connect failed");
+            await _showError($"{_name} connect error", ex);
+        }
+        finally
+        {
+            _authInProgress = false;
+        }
+    }
+
+    // Watches the clipboard for new text and returns the first value from which
+    // the extractor can pull an authorization code.
+    private static async Task<string?> WaitForCodeFromClipboardAsync(
+        IClipboard clipboard, Func<string?, string?> extract, int timeoutSeconds = 180)
+    {
+        var lastText = await clipboard.TryGetTextAsync();
+        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(800);
+
+            var text = await clipboard.TryGetTextAsync();
+            if (string.IsNullOrWhiteSpace(text) || text == lastText)
+                continue;
+
+            lastText = text;
+
+            var code = extract(text);
+            if (code != null)
+                return code;
+        }
+
+        return null;
+    }
+}

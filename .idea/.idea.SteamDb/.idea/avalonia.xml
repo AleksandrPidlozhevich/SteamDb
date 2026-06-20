@@ -4,6 +4,7 @@
     <option name="projectPerEditor">
       <map>
         <entry key="SteamDb/App.axaml" value="SteamDb/SteamDb.csproj" />
+        <entry key="SteamDb/Views/Error.axaml" value="SteamDb/SteamDb.csproj" />
         <entry key="SteamDb/Views/MainWindow.axaml" value="SteamDb/SteamDb.csproj" />
       </map>
     </option>

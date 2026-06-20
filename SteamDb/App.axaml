@@ -9,6 +9,29 @@
         <local:ViewLocator />
     </Application.DataTemplates>
 
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SvgImage x:Key="EpicIcon" Source="/Assets/epic-games-light.svg" />
+                    <SvgImage x:Key="NotionIcon" Source="/Assets/notion-light.svg" />
+                    <SvgImage x:Key="InfoIcon" Source="/Assets/info-light.svg" />
+                    <SvgImage x:Key="CsvIcon" Source="/Assets/file-csv-light.svg" />
+                    <SvgImage x:Key="SettingsIcon" Source="/Assets/settings-light.svg" />
+                    <SvgImage x:Key="GogIcon" Source="/Assets/gog-com-light.svg" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SvgImage x:Key="EpicIcon" Source="/Assets/epic-games-dark.svg" />
+                    <SvgImage x:Key="NotionIcon" Source="/Assets/notion-dark.svg" />
+                    <SvgImage x:Key="InfoIcon" Source="/Assets/info-dark.svg" />
+                    <SvgImage x:Key="CsvIcon" Source="/Assets/file-csv-dark.svg" />
+                    <SvgImage x:Key="SettingsIcon" Source="/Assets/settings-dark.svg" />
+                    <SvgImage x:Key="GogIcon" Source="/Assets/gog-com-dark.svg" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>

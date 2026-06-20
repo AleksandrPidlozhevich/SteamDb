@@ -1,18 +1,15 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Google.Apis.Sheets.v4;
-using Google.Apis.Sheets.v4.Data;
 using SteamDb.Models;
 using SteamDb.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace SteamDb.ViewModels;
@@ -29,89 +26,239 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty] private string? dbId;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEpicConnectButton))]
+    [NotifyPropertyChangedFor(nameof(ShowEpicCodeInput))]
+    private bool isEpicConnected;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEpicConnectButton))]
+    [NotifyPropertyChangedFor(nameof(ShowEpicCodeInput))]
+    private bool isEpicCodeInputVisible;
+
+    [ObservableProperty] private string? epicAuthorizationCode;
+
+    /// <summary>Initial state: show the compact "Connect Epic" button.</summary>
+    public bool ShowEpicConnectButton => !IsEpicConnected && !IsEpicCodeInputVisible;
+
+    /// <summary>After clicking Connect: show the authorization-code field.</summary>
+    public bool ShowEpicCodeInput => !IsEpicConnected && IsEpicCodeInputVisible;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowGogConnectButton))]
+    [NotifyPropertyChangedFor(nameof(ShowGogCodeInput))]
+    private bool isGogConnected;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowGogConnectButton))]
+    [NotifyPropertyChangedFor(nameof(ShowGogCodeInput))]
+    private bool isGogCodeInputVisible;
+
+    [ObservableProperty] private string? gogAuthorizationCode;
+
+    /// <summary>Initial state: show the compact "Connect GOG" button.</summary>
+    public bool ShowGogConnectButton => !IsGogConnected && !IsGogCodeInputVisible;
+
+    /// <summary>After clicking Connect: show the authorization-code field.</summary>
+    public bool ShowGogCodeInput => !IsGogConnected && IsGogCodeInputVisible;
+
+    [ObservableProperty] private bool isBusy;
+
+    [ObservableProperty] private double progressValue;
+
+    [ObservableProperty] private double progressMaximum = 1;
+
+    [ObservableProperty] private bool progressIsIndeterminate;
+
+    [ObservableProperty] private string? progressStatus;
+
+    private readonly StoreConnector _epicConnector;
+    private readonly StoreConnector _gogConnector;
+
     public MainWindowViewModel()
     {
         LogService.Initialize(nameof(MainWindowViewModel));
+
+        _epicConnector = new StoreConnector(
+            "Epic",
+            () => new EpicApiClient(),
+            EpicAuthCodeParser.Extract,
+            v => IsEpicConnected = v,
+            v => IsEpicCodeInputVisible = v,
+            c => EpicAuthorizationCode = c,
+            () => IsEpicConnected,
+            () => MainWindow?.Clipboard,
+            ShowErrorAsync);
+
+        _gogConnector = new StoreConnector(
+            "GOG",
+            () => new GogApiClient(),
+            GogAuthCodeParser.Extract,
+            v => IsGogConnected = v,
+            v => IsGogCodeInputVisible = v,
+            c => GogAuthorizationCode = c,
+            () => IsGogConnected,
+            () => MainWindow?.Clipboard,
+            ShowErrorAsync);
+
+        _ = _epicConnector.InitializeFromCacheAsync();
+        _ = _gogConnector.InitializeFromCacheAsync();
     }
 
     [RelayCommand]
     private async Task SaveSettings()
     {
-        var csvContent = $"Steam API Key: {SteamApiKey}" + Environment.NewLine +
-                         $"Steam ID: {SteamId}" + Environment.NewLine +
-                         $"NotionToken: {NotionToken}" + Environment.NewLine +
-                         $"DbId: {DbId}" + Environment.NewLine;
+        var file = await PickSaveCsvAsync("seting_games.csv");
+        if (file == null) return;
 
-        var mainWindow = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-        if (mainWindow == null) return;
+        var content = AppSettingsService.Serialize(new AppSettings(SteamApiKey, SteamId, NotionToken, DbId));
+        await CsvFileService.WriteAsync(file, content);
+    }
 
-        var file = await mainWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            SuggestedFileName = "seting_games.csv",
-            Title = "Save CSV File",
-            FileTypeChoices = new[]
-            {
-                new FilePickerFileType("CSV files") { Patterns = new[] { "*.csv" } }
-            }
-        });
+    [RelayCommand]
+    private async Task ImportSettings()
+    {
+        var file = await PickOpenCsvAsync("Import CSV File");
+        if (file == null) return;
 
-        if (file != null)
-        {
-            await using var stream = await file.OpenWriteAsync();
-            using var writer = new StreamWriter(stream);
-            await writer.WriteAsync(csvContent);
-        }
+        var content = await CsvFileService.ReadAsync(file);
+        if (content == null) return;
+
+        // Only overwrite the fields actually present in the file.
+        var settings = AppSettingsService.Parse(content);
+        SteamApiKey = settings.SteamApiKey ?? SteamApiKey;
+        SteamId = settings.SteamId ?? SteamId;
+        NotionToken = settings.NotionToken ?? NotionToken;
+        DbId = settings.DbId ?? DbId;
     }
 
     [RelayCommand]
     private async Task ExportToCsv()
     {
+        if (IsBusy) return;
+        BeginBusy("Fetching games…");
         try
         {
-            if (string.IsNullOrWhiteSpace(SteamApiKey)) throw new Exception("Please enter steam api key");
-            if (string.IsNullOrWhiteSpace(SteamId)) throw new Exception("Please enter Steam ID");
+            var result = await new GameLibraryService()
+                .FetchAsync(SteamApiKey, SteamId, CreateStoreProgress(), SetIndeterminate);
+            IsEpicConnected = result.EpicAuthenticated;
+            IsGogConnected = result.GogAuthenticated;
+            await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
+            await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
 
-            var steamApiClient = new SteamApiClient();
-            var steamGamesResponse = await steamApiClient.GetOwnedGames(SteamId, SteamApiKey);
-
-            if (steamGamesResponse?.Response?.Games == null)
-                throw new Exception("Failed to receive a list of games from Steam.");
-
-            var csvContent = "Name,Game ID" + Environment.NewLine;
-            foreach (var game in steamGamesResponse.Response.Games)
-                csvContent += $"{game.Name},{game.GameID}" + Environment.NewLine;
-
-            var mainWindow = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-            if (mainWindow != null)
+            if (result.Rows.Count == 0)
             {
-                var file = await mainWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-                {
-                    SuggestedFileName = "dbgame.csv",
-                    Title = "Save CSV File",
-                    FileTypeChoices = new[]
-                    {
-                        new FilePickerFileType("CSV files") { Patterns = new[] { "*.csv" } }
-                    }
-                });
-
-                if (file != null)
-                {
-                    await using var stream = await file.OpenWriteAsync();
-                    using var writer = new StreamWriter(stream);
-                    await writer.WriteAsync(csvContent);
-                }
+                LogService.WriteInfo("No games found to export.");
+                if (!result.EpicSessionExpired && !result.GogSessionExpired)
+                    await ShowErrorAsync("Export to CSV",
+                        new Exception("No games found to export. Check your Steam credentials or Epic / GOG connection."));
+                return;
             }
+
+            var file = await PickSaveCsvAsync("dbgame.csv");
+            if (file == null) return;
+
+            // Export just writes a fresh file with the fetched games — no merging.
+            await CsvFileService.WriteAsync(file, CsvGameExportService.Serialize(result.Rows));
+            LogService.WriteInfo($"CSV created with {result.Rows.Count} rows.");
         }
         catch (UnauthorizedAccessException ex)
         {
             LogService.WriteException(ex, "Steam API authorization error");
-            throw new Exception("Steam Api Authorization Error.", ex);
+            await ShowErrorAsync("Steam authorization error", ex);
         }
         catch (Exception ex)
         {
             LogService.WriteException(ex, "Error exporting to CSV");
-            throw new Exception($"Export error: {ex.Message}", ex);
+            await ShowErrorAsync("CSV export error", ex);
         }
+        finally
+        {
+            EndBusy();
+        }
+    }
+
+    [RelayCommand]
+    private async Task UpdateCsv()
+    {
+        if (IsBusy) return;
+        BeginBusy("Fetching games…");
+        try
+        {
+            var file = await PickOpenCsvAsync("Select CSV File to Update");
+            if (file == null) return;
+
+            // Validate the chosen file is a SteamDb CSV before touching it.
+            var existingContent = await CsvFileService.ReadAsync(file);
+            var missingColumns = CsvGameExportService.GetMissingColumns(existingContent);
+            if (missingColumns.Count > 0)
+            {
+                var message =
+                    "The selected file is not a SteamDb CSV. Missing columns: " +
+                    string.Join(", ", missingColumns) +
+                    $".{Environment.NewLine}Expected header: {CsvGameExportService.Header}";
+                LogService.WriteWarning($"Update CSV aborted: missing columns {string.Join(", ", missingColumns)}.");
+                await ShowErrorAsync("Update CSV", new Exception(message));
+                return;
+            }
+
+            var result = await new GameLibraryService()
+                .FetchAsync(SteamApiKey, SteamId, CreateStoreProgress(), SetIndeterminate);
+            IsEpicConnected = result.EpicAuthenticated;
+            IsGogConnected = result.GogAuthenticated;
+            await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
+            await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
+
+            if (result.Rows.Count == 0)
+            {
+                LogService.WriteInfo("No games found to export.");
+                if (!result.EpicSessionExpired && !result.GogSessionExpired)
+                    await ShowErrorAsync("Update CSV",
+                        new Exception("No games found to export. Check your Steam credentials or Epic / GOG connection."));
+                return;
+            }
+
+            await CsvFileService.WriteMergedAsync(file, existingContent, result.Rows);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            LogService.WriteException(ex, "Steam API authorization error");
+            await ShowErrorAsync("Steam authorization error", ex);
+        }
+        catch (Exception ex)
+        {
+            LogService.WriteException(ex, "Error updating CSV");
+            await ShowErrorAsync("CSV update error", ex);
+        }
+        finally
+        {
+            EndBusy();
+        }
+    }
+
+    // Epic / GOG connect flow is shared — see StoreConnector. These thin members just
+    // bind the commands and the generated OnXChanged hooks to the right connector.
+
+    [RelayCommand]
+    private Task StartEpicConnect() => _epicConnector.StartConnectAsync();
+
+    partial void OnEpicAuthorizationCodeChanged(string? value) => _epicConnector.OnCodeChanged(value);
+
+    [RelayCommand]
+    private Task StartGogConnect() => _gogConnector.StartConnectAsync();
+
+    partial void OnGogAuthorizationCodeChanged(string? value) => _gogConnector.OnCodeChanged(value);
+
+    // Surfaces a clear message when a previously connected store session has expired,
+    // so the export isn't silently missing that store's games.
+    private Task NotifyStoreSessionExpiredAsync(string store, bool expired)
+    {
+        if (!expired) return Task.CompletedTask;
+
+        LogService.WriteWarning($"{store}: session expired — {store} games were skipped.");
+        return ShowErrorAsync($"{store} session expired",
+            new Exception($"Your {store} session has expired, so {store} games were skipped. " +
+                          $"Click \"Connect {store}\" to log in again."));
     }
 
     [RelayCommand]
@@ -119,86 +266,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            var steamApiClient = new SteamApiClient();
-            var notionApiClient = new NotionApiClient(NotionToken, DbId);
-            var notionDataFetcher = new NotionDataFetcher(notionApiClient);
-            var steamTask = steamApiClient.GetOwnedGames(SteamId, SteamApiKey);
-            var notionTask = notionDataFetcher.FetchGameDataAsync();
-
-            await Task.WhenAll(steamTask, notionTask);
-
-            var steamGamesResponse = await steamTask;
-            var existingGames = await notionTask;
-
-            if (steamGamesResponse?.Response?.Games == null)
-                throw new Exception("Не вдалося отримати ігри зі Steam");
-
-            var existingGameIds = new HashSet<int>(existingGames.Keys);
-
-            var newGames = steamGamesResponse.Response.Games
-                .Where(game => !existingGameIds.Contains(game.GameID))
-                .Select(game => new
-                {
-                    parent = new { database_id = DbId },
-                    properties = new
-                    {
-                        Name = new
-                        {
-                            title = new[]
-                            {
-                                new { text = new { content = game.Name } }
-                            }
-                        },
-                        GameID = new
-                        {
-                            number = game.GameID
-                        }
-                    }
-                })
-                .ToList();
-
-            if (!newGames.Any())
-            {
-                LogService.WriteInfo("New Games for Adding Not Found");
-                return;
-            }
-
-            LogService.WriteInfo($"Found {newGames.Count} new games to add");
-
-            var batches = newGames
-                .Select((item, index) => new { item, index })
-                .GroupBy(x => x.index / 10)
-                .Select(g => g.Select(x => x.item).ToList())
-                .ToList();
-
-            var totalNewGames = newGames.Count;
-            var addedGames = 0;
-
-            var batchTasks = batches.Select(async (batch, batchIndex) =>
-            {
-                await notionApiClient.AddPagesToDatabaseParallel(batch);
-                Interlocked.Add(ref addedGames, batch.Count);
-                LogService.WriteInfo(
-                    $"Batch {batchIndex + 1}: Added {batch.Count} games. Total:: {addedGames}/{totalNewGames}");
-            });
-
-            var semaphore = new SemaphoreSlim(2, 2);
-            var throttledTasks = batchTasks.Select(async task =>
-            {
-                await semaphore.WaitAsync();
-                try
-                {
-                    await task;
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-
-            await Task.WhenAll(throttledTasks);
-
-            LogService.WriteInfo($"Successfully added {totalNewGames} new games to Notion");
+            await new NotionGameExporter().ExportAsync(SteamApiKey, SteamId, NotionToken, DbId);
         }
         catch (Exception ex)
         {
@@ -208,203 +276,121 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task ImportSettings()
-    {
-        var mainWindow = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-        if (mainWindow == null) return;
-
-        var files = await mainWindow.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Import CSV File",
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType("CSV files") { Patterns = new[] { "*.csv" } }
-            }
-        });
-
-        var file = files.FirstOrDefault();
-        if (file == null) return;
-
-        await using var stream = await file.OpenReadAsync();
-        using var reader = new StreamReader(stream);
-
-        while (!reader.EndOfStream)
-        {
-            var line = await reader.ReadLineAsync();
-            if (line == null) continue;
-
-            var keyValue = line.Split(": ", 2);
-            if (keyValue.Length != 2) continue;
-
-            switch (keyValue[0])
-            {
-                case "Steam API Key": SteamApiKey = keyValue[1]; break;
-                case "Steam ID": SteamId = keyValue[1]; break;
-                case "NotionToken": NotionToken = keyValue[1]; break;
-                case "DbId": DbId = keyValue[1]; break;
-            }
-        }
-    }
-
-    [RelayCommand]
     private async Task ExportToGoogleSheets()
     {
-        var client = new GoogleSheetsApiClient();
-
-        if (!await client.ConnectAsync() || client.DriveService == null || client.SheetsService == null)
+        try
         {
-            LogService.WriteError("Authorization failed.");
-            return;
+            await new GoogleSheetsGameExporter().ExportAsync(GoogleSheetsTableName, SteamApiKey, SteamId);
         }
-
-        var driveService = client.DriveService;
-        var sheetsService = client.SheetsService;
-
-        var spreadsheetName = GoogleSheetsTableName;
-        string? spreadsheetId = null;
-
-        var listRequest = driveService.Files.List();
-        listRequest.Q =
-            $"mimeType='application/vnd.google-apps.spreadsheet' and name='{spreadsheetName}' and trashed = false";
-        listRequest.Spaces = "drive";
-        listRequest.Fields = "files(id, name)";
-        var fileList = await listRequest.ExecuteAsync();
-
-        if (fileList.Files != null && fileList.Files.Count > 0)
+        catch (Exception ex)
         {
-            spreadsheetId = fileList.Files[0].Id;
+            LogService.WriteException(ex, "Error exporting to Google Sheets");
+            await ShowErrorAsync("Google Sheets export error", ex);
         }
-        else
+    }
+
+    [RelayCommand]
+    private void OpenSteamApiKeyInfo() => LinkOpening("https://steamcommunity.com/dev/apikey");
+
+    [RelayCommand]
+    private void OpenInfoLinkSteamId() => LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+
+    [RelayCommand]
+    private void OpenInfoLinkNotionToken() => LinkOpening("https://www.notion.so/profile/integrations");
+
+    [RelayCommand]
+    private void OpenInfoLinkNotionDbId() => LinkOpening("https://developers.notion.com/reference/retrieve-a-database/");
+
+    [RelayCommand]
+    private void OpenInfoGoogleSheets() => LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+
+    [RelayCommand]
+    public void OpenLinkKofi() => LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
+
+    // ---- Progress / busy state -------------------------------------------------------
+
+    // One reporter for any store; the stage label comes from the progress payload.
+    private IProgress<StoreFetchProgress> CreateStoreProgress()
+    {
+        // Constructed on the UI thread, so callbacks marshal back to it automatically.
+        return new Progress<StoreFetchProgress>(p =>
         {
-            var fileMetadata = new Google.Apis.Drive.v3.Data.File
+            var stage = string.IsNullOrEmpty(p.Stage) ? "library" : p.Stage;
+
+            if (p.Total <= 0)
             {
-                Name = spreadsheetName,
-                MimeType = "application/vnd.google-apps.spreadsheet"
-            };
-
-            var file = await driveService.Files.Create(fileMetadata).ExecuteAsync();
-            spreadsheetId = file.Id;
-        }
-
-        var existingDataRequest = sheetsService.Spreadsheets.Values.Get(spreadsheetId, "Sheet1!A2:B");
-        var existingDataResponse = await existingDataRequest.ExecuteAsync();
-
-        var existingGameIds =
-            new HashSet<string>(
-                (existingDataResponse.Values?.Select(row => row.Count > 1 ? row[1].ToString() : null)
-                    .Where(id => !string.IsNullOrEmpty(id)) ?? Enumerable.Empty<string>())!);
-
-        var steamApiClient = new SteamApiClient();
-        var steamGamesResponse = await steamApiClient.GetOwnedGames(SteamId, SteamApiKey);
-
-        if (steamGamesResponse?.Response?.Games == null || !steamGamesResponse.Response.Games.Any())
-        {
-            LogService.WriteError("Failed to receive a steam game list.");
-            return;
-        }
-
-        var values = new List<IList<object>>
-        {
-            new List<object> { "Name", "Game ID", "Completed" }
-        };
-
-        var newGames = steamGamesResponse.Response.Games
-            .Where(game => !existingGameIds.Contains(game.GameID.ToString()))
-            .ToList();
-
-        if (newGames.Count == 0)
-        {
-            LogService.WriteLog("All games already exist in the table.");
-            return;
-        }
-
-        values.AddRange(newGames.Select(game => new List<object> { game.Name, game.GameID.ToString(), false }));
-
-        var appendRequest = sheetsService.Spreadsheets.Values.Append(
-            new ValueRange { Values = values.Skip(1).ToList() },
-            spreadsheetId,
-            "Sheet1!A1");
-        appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.RAW;
-        await appendRequest.ExecuteAsync();
-
-        var startRow = (existingDataResponse.Values?.Count ?? 0) + 1;
-        var endRow = startRow + newGames.Count;
-
-        var requests = new List<Request>
-        {
-            new()
-            {
-                SetDataValidation = new SetDataValidationRequest
-                {
-                    Range = new GridRange
-                    {
-                        SheetId = 0,
-                        StartRowIndex = startRow,
-                        EndRowIndex = endRow,
-                        StartColumnIndex = 2,
-                        EndColumnIndex = 3
-                    },
-                    Rule = new DataValidationRule
-                    {
-                        Condition = new BooleanCondition
-                        {
-                            Type = "BOOLEAN"
-                        },
-                        Strict = true,
-                        ShowCustomUi = true
-                    }
-                }
+                ProgressIsIndeterminate = true;
+                ProgressStatus = $"Loading {stage}…";
+                return;
             }
-        };
 
-        var batchUpdateRequest = new BatchUpdateSpreadsheetRequest
+            ProgressIsIndeterminate = false;
+            ProgressMaximum = p.Total;
+            ProgressValue = p.Completed;
+            ProgressStatus = $"Loading {stage}… {p.Completed}/{p.Total}";
+        });
+    }
+
+    private void BeginBusy(string status)
+    {
+        IsBusy = true;
+        ProgressIsIndeterminate = true;
+        ProgressValue = 0;
+        ProgressMaximum = 1;
+        ProgressStatus = status;
+    }
+
+    private void SetIndeterminate(string status)
+    {
+        ProgressIsIndeterminate = true;
+        ProgressStatus = status;
+    }
+
+    private void EndBusy()
+    {
+        IsBusy = false;
+        ProgressIsIndeterminate = false;
+        ProgressValue = 0;
+        ProgressStatus = null;
+    }
+
+    // ---- UI helpers ------------------------------------------------------------------
+
+    private static Window? MainWindow =>
+        (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+
+    private static readonly FilePickerFileType CsvFileType =
+        new("CSV files") { Patterns = ["*.csv"] };
+
+    private static async Task<IStorageFile?> PickSaveCsvAsync(string suggestedName)
+    {
+        var window = MainWindow;
+        if (window == null) return null;
+
+        return await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Requests = requests
-        };
-
-        await sheetsService.Spreadsheets
-            .BatchUpdate(batchUpdateRequest, spreadsheetId)
-            .ExecuteAsync();
+            SuggestedFileName = suggestedName,
+            Title = "Save CSV File",
+            FileTypeChoices = [CsvFileType]
+        });
     }
 
-    [RelayCommand]
-    private void OpenSteamApiKeyInfo()
+    private static async Task<IStorageFile?> PickOpenCsvAsync(string title)
     {
-        LinkOpening("https://steamcommunity.com/dev/apikey");
+        var window = MainWindow;
+        if (window == null) return null;
+
+        var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter = [CsvFileType]
+        });
+
+        return files.FirstOrDefault();
     }
 
-    [RelayCommand]
-    private void OpenInfoLinkSteamId()
-    {
-        LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
-    }
-
-    [RelayCommand]
-    private void OpenInfoLinkNotionToken()
-    {
-        LinkOpening("https://www.notion.so/profile/integrations");
-    }
-
-    [RelayCommand]
-    private void OpenInfoLinkNotionDbId()
-    {
-        LinkOpening("https://developers.notion.com/reference/retrieve-a-database/");
-    }
-
-    [RelayCommand]
-    private void OpenInfoGoogleSheets()
-    {
-        LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
-    }
-
-    [RelayCommand]
-    public void OpenLinkKofi()
-    {
-        LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
-    }
-
-    private void LinkOpening(string url)
+    private static void LinkOpening(string url)
     {
         if (OperatingSystem.IsWindows())
             Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
@@ -416,12 +402,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task ShowErrorAsync(string title, Exception exception)
     {
-        var mainWindow = (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-        if (mainWindow == null) return;
+        var window = MainWindow;
+        if (window == null) return;
 
-        var message = BuildErrorMessage(exception);
-        var errorWindow = new SteamDb.Error(title, message);
-        await errorWindow.ShowDialog(mainWindow);
+        var errorWindow = new Error(title, BuildErrorMessage(exception));
+        await errorWindow.ShowDialog(window);
     }
 
     private static string BuildErrorMessage(Exception exception)
