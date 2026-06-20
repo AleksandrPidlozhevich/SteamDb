@@ -264,14 +264,21 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task ExportToNotion()
     {
+        if (IsBusy) return;
+        BeginBusy("Fetching games…");
         try
         {
-            await new NotionGameExporter().ExportAsync(SteamApiKey, SteamId, NotionToken, DbId);
+            await new NotionGameExporter()
+                .ExportAsync(SteamApiKey, SteamId, NotionToken, DbId, CreateStoreProgress(), SetIndeterminate);
         }
         catch (Exception ex)
         {
             LogService.WriteError($"Data Export Failed to Notion: {ex.Message}");
             await ShowErrorAsync("Export error in Notion", ex);
+        }
+        finally
+        {
+            EndBusy();
         }
     }
 
@@ -315,19 +322,19 @@ public partial class MainWindowViewModel : ViewModelBase
         // Constructed on the UI thread, so callbacks marshal back to it automatically.
         return new Progress<StoreFetchProgress>(p =>
         {
-            var stage = string.IsNullOrEmpty(p.Stage) ? "library" : p.Stage;
+            var stage = string.IsNullOrEmpty(p.Stage) ? "Working" : p.Stage;
 
             if (p.Total <= 0)
             {
                 ProgressIsIndeterminate = true;
-                ProgressStatus = $"Loading {stage}…";
+                ProgressStatus = $"{stage}…";
                 return;
             }
 
             ProgressIsIndeterminate = false;
             ProgressMaximum = p.Total;
             ProgressValue = p.Completed;
-            ProgressStatus = $"Loading {stage}… {p.Completed}/{p.Total}";
+            ProgressStatus = $"{stage}… {p.Completed}/{p.Total}";
         });
     }
 

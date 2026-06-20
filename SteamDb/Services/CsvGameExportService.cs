@@ -33,6 +33,9 @@ public sealed class CsvGameExportRow
         !string.IsNullOrWhiteSpace(Namespace) ||
         GogId.HasValue;
 
+    /// <summary>Combined identifier cell with platform prefixes, e.g. "Steam:236870; GOG:123".</summary>
+    public string IdText => BuildIdField();
+
     public string ToCsvLine()
     {
         // Three columns only: Platform, Name, ID. Platform and all identifiers are each
@@ -189,6 +192,20 @@ public static class CsvGameExportService
         }
 
         return rows;
+    }
+
+    /// <summary>Builds a row from a platform label and a combined "platform:id" field
+    /// (used when importing existing rows back from an external target like Notion).</summary>
+    public static CsvGameExportRow CreateRow(string? platform, string name, string? idField)
+    {
+        var row = new CsvGameExportRow { Name = name };
+        ApplyIdField(row, idField ?? string.Empty);
+
+        row.HasSteam = PlatformIncludes(platform ?? string.Empty, "Steam") || row.SteamGameId.HasValue;
+        row.HasEpic = PlatformIncludes(platform ?? string.Empty, "Epic") ||
+                      (!string.IsNullOrEmpty(row.CatalogItemId) && !string.IsNullOrEmpty(row.Namespace));
+        row.HasGog = PlatformIncludes(platform ?? string.Empty, "GOG") || row.GogId.HasValue;
+        return row;
     }
 
     public static List<CsvGameExportRow> Parse(string content)
@@ -482,6 +499,19 @@ public static class CsvGameExportService
         normalized = Regex.Replace(normalized, @"[^\w\s]", " ");
         normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
         return normalized;
+    }
+
+    /// <summary>Reusable matcher over a set of rows using the same dedup keys as
+    /// <see cref="Merge"/>: Steam id, Epic namespace/catalog id, GOG id, then normalized name.</summary>
+    public sealed class RowMatcher
+    {
+        private readonly CsvIndexes _indexes;
+
+        public RowMatcher(IEnumerable<CsvGameExportRow> rows) => _indexes = CreateIndexes(rows);
+
+        public CsvGameExportRow? Match(CsvGameExportRow incoming) => FindMatch(_indexes, incoming);
+
+        public void Register(CsvGameExportRow row) => RegisterRow(_indexes, row);
     }
 
     private sealed class CsvIndexes

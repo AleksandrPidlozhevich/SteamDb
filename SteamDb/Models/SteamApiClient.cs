@@ -30,8 +30,10 @@ public class SteamApiClient
         while (true)
             try
             {
+                // include_played_free_games=1 so free games (e.g. demos/prologues) are returned too;
+                // without it Steam omits them and they never reach the export.
                 var url =
-                    $"https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={apiKey}&steamid={steamId}&format=json&include_appinfo=1";
+                    $"https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={apiKey}&steamid={steamId}&format=json&include_appinfo=1&include_played_free_games=1";
                 var response = await _httpClient.GetAsync(url);
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)

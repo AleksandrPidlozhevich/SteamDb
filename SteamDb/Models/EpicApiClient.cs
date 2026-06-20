@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 namespace SteamDb.Models;
 
 /// <summary>Progress of a store's library/catalog fetch. <paramref name="Stage"/> labels the
-/// step for the UI (e.g. "Epic catalog", "GOG library").</summary>
+/// step for the UI (e.g. "Loading Epic catalog", "GOG library").</summary>
 public readonly record struct StoreFetchProgress(int Completed, int Total, string Stage = "");
 
 /// <summary>Outcome of trying to authenticate a store from its cached refresh token.</summary>
@@ -217,7 +217,7 @@ public class EpicApiClient : IStoreClient
     {
         var total = games.Count;
         var completed = 0;
-        progress?.Report(new StoreFetchProgress(0, total, "Epic catalog"));
+        progress?.Report(new StoreFetchProgress(0, total, "Loading Epic catalog"));
 
         // Original position per game, so output order is stable regardless of which
         // batch finishes first (CatalogItemId is unique — games were deduped on it).
@@ -261,7 +261,7 @@ public class EpicApiClient : IStoreClient
             {
                 semaphore.Release();
                 progress?.Report(new StoreFetchProgress(
-                    Interlocked.Add(ref completed, batch.Games.Count), total, "Epic catalog"));
+                    Interlocked.Add(ref completed, batch.Games.Count), total, "Loading Epic catalog"));
             }
         });
 

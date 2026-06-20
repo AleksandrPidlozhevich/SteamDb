@@ -1,15 +1,24 @@
-﻿using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
 using SteamDb.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
+/// <summary>An existing Notion page flattened into a CSV-style row, plus its page id and the
+/// raw values stored in Notion (used to detect rows whose stored format is out of date).</summary>
+internal sealed record NotionGameRow(
+    CsvGameExportRow Row, string PageId, IReadOnlySet<string> Platforms, string GameId);
+
 internal class NotionDataFetcher
 {
+    // Property names as they exist in the user's Notion database.
+    public const string NameProperty = "Name";
+    public const string PlatformProperty = "Platform's";
+    public const string GameIdProperty = "GameID";
+
     private readonly NotionApiClient _notionApiClient;
 
     public NotionDataFetcher(NotionApiClient notionApiClient)
@@ -17,18 +26,16 @@ internal class NotionDataFetcher
         _notionApiClient = notionApiClient;
     }
 
-    public async Task<Dictionary<int, string>> FetchGameDataAsync()
+    public async Task<List<NotionGameRow>> FetchRowsAsync()
     {
         try
         {
             var allPages = await _notionApiClient.QueryAllPagesAsync();
-            var gameData = allPages
-                .AsParallel()
-                .Where(page => page != null)
-                .Select(page => ExtractGameData(page))
-                .Where(data => data.HasValue)
-                .ToDictionary(data => data!.Value.GameId, data => data!.Value.Name);
-            return gameData;
+            return allPages
+                .Select(ExtractRow)
+                .Where(row => row != null)
+                .Select(row => row!)
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -37,32 +44,80 @@ internal class NotionDataFetcher
         }
     }
 
-    private (int GameId, string Name)? ExtractGameData(JObject page)
+    private NotionGameRow? ExtractRow(JObject page)
     {
         try
         {
+            var pageId = page["id"]?.Value<string>();
+            if (string.IsNullOrEmpty(pageId)) return null;
+
             var properties = page["properties"];
-            var gameIdProperty = properties?["GameID"];
-            var nameProperty = properties?["Name"];
+            var name = ReadTitle(properties?[NameProperty]) ?? string.Empty;
+            var platforms = ReadMultiSelect(properties?[PlatformProperty]);
+            var idField = ReadGameId(properties?[GameIdProperty]);
 
-            if (gameIdProperty?["number"] != null && nameProperty?["title"] != null)
+            var row = CsvGameExportService.CreateRow(string.Join("/", platforms), name, idField);
+
+            // Back-compat: a bare numeric GameID (from the old Number column) has no
+            // platform prefix — attribute it to the tagged platform, defaulting to Steam.
+            if (!row.SteamGameId.HasValue && !row.GogId.HasValue &&
+                long.TryParse(idField, out var legacyId))
             {
-                var gameId = gameIdProperty["number"]!.Value<int>();
-                var titleArray = nameProperty["title"] as JArray;
-
-                if (titleArray != null && titleArray.Count > 0)
+                if (row.HasGog && !row.HasSteam)
+                    row.GogId = legacyId;
+                else
                 {
-                    var name = titleArray[0]["text"]?["content"]?.Value<string>();
-                    if (name != null)
-                        return (gameId, name);
+                    row.SteamGameId = (int)legacyId;
+                    row.HasSteam = true;
                 }
             }
+
+            return row.HasContent
+                ? new NotionGameRow(row, pageId, platforms, idField ?? string.Empty)
+                : null;
         }
         catch (Exception ex)
         {
             LogService.WriteError($"Page processing error {ex.Message}");
+            return null;
         }
+    }
 
-        return null;
+    private static string? ReadTitle(JToken? property) => JoinPlainText(property?["title"] as JArray);
+
+    // Reads GameID whether the column is Text (rich_text) or the legacy Number type.
+    private static string? ReadGameId(JToken? property)
+    {
+        if (property == null) return null;
+
+        var text = JoinPlainText(property["rich_text"] as JArray);
+        if (text != null) return text;
+
+        return property["number"]?.Value<long?>()?.ToString();
+    }
+
+    private static string? JoinPlainText(JArray? array)
+    {
+        if (array == null || array.Count == 0) return null;
+
+        var text = string.Concat(array.Select(item =>
+            item["plain_text"]?.Value<string>()
+            ?? item["text"]?["content"]?.Value<string>()
+            ?? string.Empty));
+
+        return string.IsNullOrEmpty(text) ? null : text;
+    }
+
+    private static HashSet<string> ReadMultiSelect(JToken? property)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (property?["multi_select"] is JArray array)
+            foreach (var item in array)
+            {
+                var name = item["name"]?.Value<string>();
+                if (!string.IsNullOrEmpty(name)) set.Add(name);
+            }
+
+        return set;
     }
 }

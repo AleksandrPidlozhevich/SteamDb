@@ -192,7 +192,7 @@ public class GogApiClient : IStoreClient
                     if (game.IsGame && !game.IsMovie)
                         byId[game.Id] = game;
 
-            progress?.Report(new StoreFetchProgress(page, totalPages, "GOG library"));
+            progress?.Report(new StoreFetchProgress(page, totalPages, "Loading GOG library"));
             page++;
         }
         while (page <= totalPages);
