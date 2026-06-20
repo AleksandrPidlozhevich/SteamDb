@@ -17,7 +17,6 @@ using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
-
 public readonly record struct StoreFetchProgress(int Completed, int Total, string Stage = "");
 
 /// <summary>Outcome of trying to authenticate a store from its cached refresh token.</summary>
@@ -43,7 +42,7 @@ public class EpicApiClient : IStoreClient
 
     private const string AssetsUrl =
         "https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/public/assets/Windows?label=Live";
-    
+
     private const string CatalogBulkUrlTemplate =
         "https://catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/{0}/bulk/items";
 
@@ -55,11 +54,11 @@ public class EpicApiClient : IStoreClient
 
     private const string LoginUrl =
         "https://www.epicgames.com/id/login?redirectUrl=";
-    
+
     private const int CatalogMaxConcurrency = 8;
     private const int CatalogBatchSize = 50;
     private const int CatalogMaxRetries = 4;
-    
+
     private const string SecretKey = "epic";
 
     private static readonly HttpClient _httpClient = CreateHttpClient();
@@ -73,7 +72,7 @@ public class EpicApiClient : IStoreClient
     }
 
     private readonly ISecretStore _secrets;
-    
+
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
 
     private string? _accessToken;
@@ -85,7 +84,7 @@ public class EpicApiClient : IStoreClient
         _secrets = secretStore ?? new MsalSecretStore();
         MigrateLegacyTokenFile();
     }
-    
+
     private void MigrateLegacyTokenFile()
     {
         try
@@ -175,7 +174,7 @@ public class EpicApiClient : IStoreClient
         if (!response.IsSuccessStatusCode)
         {
             LogService.WriteError($"Epic token request failed: {response.StatusCode}, {body}");
-            
+
             if (form.TryGetValue("grant_type", out var grant) && grant == "refresh_token" &&
                 (int)response.StatusCode is >= 400 and < 500)
             {
@@ -206,8 +205,7 @@ public class EpicApiClient : IStoreClient
     {
         EnsureAuthenticated();
 
-        using var response = await SendAuthorizedAsync(
-            () => new HttpRequestMessage(HttpMethod.Get, AssetsUrl));
+        using var response = await SendAuthorizedAsync(() => new HttpRequestMessage(HttpMethod.Get, AssetsUrl));
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadAsStringAsync();
@@ -230,7 +228,7 @@ public class EpicApiClient : IStoreClient
         var total = games.Count;
         var completed = 0;
         progress?.Report(new StoreFetchProgress(0, total, "Loading Epic catalog"));
-        
+
         var orderByCatalogId = new Dictionary<string, int>();
         for (var i = 0; i < games.Count; i++)
             orderByCatalogId[games[i].CatalogItemId] = i;
@@ -255,7 +253,8 @@ public class EpicApiClient : IStoreClient
 
                     if (!IsBaseGameCatalogItem(item))
                     {
-                        LogService.WriteInfo($"Epic: skipped non-game catalog item {game.CatalogItemId} ({game.AppName}).");
+                        LogService.WriteInfo(
+                            $"Epic: skipped non-game catalog item {game.CatalogItemId} ({game.AppName}).");
                         continue;
                     }
 
@@ -280,7 +279,7 @@ public class EpicApiClient : IStoreClient
         games.Clear();
         games.AddRange(ownedGames.OrderBy(x => x.Order).Select(x => x.Game));
     }
-    
+
     private static List<(string Namespace, List<EpicGame> Games)> BuildCatalogBatches(List<EpicGame> games)
     {
         return games
@@ -300,8 +299,7 @@ public class EpicApiClient : IStoreClient
 
         for (var attempt = 0; attempt < CatalogMaxRetries; attempt++)
         {
-            using var response = await SendAuthorizedAsync(
-                () => new HttpRequestMessage(HttpMethod.Get, url));
+            using var response = await SendAuthorizedAsync(() => new HttpRequestMessage(HttpMethod.Get, url));
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
@@ -331,7 +329,7 @@ public class EpicApiClient : IStoreClient
         if (item == null) return false;
 
         var categories = item["categories"]?.Children().ToList() ?? new List<JToken>();
-        
+
         var isGame = categories.Any(c => CategoryPathStartsWith(c, "games"));
         if (!isGame) return false;
 
@@ -354,7 +352,7 @@ public class EpicApiClient : IStoreClient
         if (!IsAuthenticated)
             throw new InvalidOperationException("Epic client is not authenticated. Call authenticate first.");
     }
-    
+
     private async Task<HttpResponseMessage> SendAuthorizedAsync(Func<HttpRequestMessage> requestFactory)
     {
         var staleToken = _accessToken;
@@ -409,7 +407,10 @@ public class EpicApiClient : IStoreClient
         _secrets.Save(SecretKey, JsonConvert.SerializeObject(payload));
     }
 
-    private void DeleteTokenCache() => _secrets.Delete(SecretKey);
+    private void DeleteTokenCache()
+    {
+        _secrets.Delete(SecretKey);
+    }
 
     private string? LoadRefreshTokenFromCache()
     {

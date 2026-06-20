@@ -54,13 +54,16 @@ public sealed class NotionGameExporter
         // the row's own Platform's tag already tells us the platform.
         var toUpdate = existing
             .Where(e => NotionSignature(e.Row) != StoredSignature(e))
-            .Select(e => (e.PageId, Properties: BuildProperties(e.Row, includeName: false)))
+            .Select(e => (e.PageId, Properties: BuildProperties(e.Row, false)))
             .ToList();
 
         var total = toCreate.Count + toUpdate.Count;
         var done = 0;
-        void ReportPage() =>
+
+        void ReportPage()
+        {
             progress?.Report(new StoreFetchProgress(Interlocked.Increment(ref done), total, "Exporting to Notion"));
+        }
 
         if (total > 0)
         {
@@ -78,20 +81,27 @@ public sealed class NotionGameExporter
     }
 
     // Desired Notion state for a row (tags + platform-prefixed id).
-    private static string NotionSignature(CsvGameExportRow row) =>
-        $"{row.HasSteam}{row.HasEpic}{row.HasGog}|{row.IdText}";
+    private static string NotionSignature(CsvGameExportRow row)
+    {
+        return $"{row.HasSteam}{row.HasEpic}{row.HasGog}|{row.IdText}";
+    }
 
     // What is currently stored on the Notion page (raw tags + raw GameID text), in the same
     // shape as NotionSignature so the two can be compared to decide whether an update is needed.
-    private static string StoredSignature(NotionGameRow info) =>
-        $"{info.Platforms.Contains("Steam")}{info.Platforms.Contains("Epic")}" +
-        $"{info.Platforms.Contains("GOG")}|{info.GameId}";
-
-    private static object BuildPage(string? dbId, CsvGameExportRow row) => new
+    private static string StoredSignature(NotionGameRow info)
     {
-        parent = new { database_id = dbId },
-        properties = BuildProperties(row, includeName: true)
-    };
+        return $"{info.Platforms.Contains("Steam")}{info.Platforms.Contains("Epic")}" +
+               $"{info.Platforms.Contains("GOG")}|{info.GameId}";
+    }
+
+    private static object BuildPage(string? dbId, CsvGameExportRow row)
+    {
+        return new
+        {
+            parent = new { database_id = dbId },
+            properties = BuildProperties(row, true)
+        };
+    }
 
     private static object BuildProperties(CsvGameExportRow row, bool includeName)
     {

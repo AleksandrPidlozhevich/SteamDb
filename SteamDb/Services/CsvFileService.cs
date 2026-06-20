@@ -21,7 +21,7 @@ public static class CsvFileService
         await using var stream = await file.OpenWriteAsync();
         // Write a UTF-8 BOM so Excel opens the file as UTF-8 (otherwise it assumes the
         // system ANSI codepage and garbles non-ASCII game names). Notepad is fine either way.
-        using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        using var writer = new StreamWriter(stream, new UTF8Encoding(true));
         await writer.WriteAsync(content);
     }
 

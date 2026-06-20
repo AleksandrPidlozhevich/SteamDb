@@ -59,12 +59,15 @@ public sealed class MsalSecretStore : ISecretStore
         }
     }
 
-    private Storage GetStorage(string key) => _byKey.GetOrAdd(key, BuildStorage);
+    private Storage GetStorage(string key)
+    {
+        return _byKey.GetOrAdd(key, BuildStorage);
+    }
 
     private Storage BuildStorage(string key)
     {
         var fileName = SafeFileName(key) + ".bin";
-        
+
         var props = new StorageCreationPropertiesBuilder(fileName, _folder)
             .WithMacKeyChain($"SteamDb.{key}", key)
             .WithLinuxKeyring(
@@ -77,7 +80,7 @@ public sealed class MsalSecretStore : ISecretStore
 
         return Storage.Create(props);
     }
-    
+
     private static string SafeFileName(string key)
     {
         var sb = new StringBuilder(key.Length);

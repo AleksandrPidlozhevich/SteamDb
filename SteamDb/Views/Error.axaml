@@ -10,19 +10,19 @@
         Height="260"
         WindowStartupLocation="CenterOwner"
         Title="Error">
-  <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto">
-    <TextBlock Text="An error occurred" FontSize="16" FontWeight="SemiBold" />
-    <TextBlock Grid.Row="1" Margin="0,8,0,8" Text="Details:" />
-    <TextBox Grid.Row="2"
-             Text="{Binding Message}"
-             IsReadOnly="True"
-             TextWrapping="Wrap"
-             AcceptsReturn="True" />
-    <Button Grid.Row="3"
-            Content="OK"
-            Width="80"
-            HorizontalAlignment="Right"
-            Margin="0,12,0,0"
-            Click="CloseButtonClick" />
-  </Grid>
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto">
+        <TextBlock Text="An error occurred" FontSize="16" FontWeight="SemiBold" />
+        <TextBlock Grid.Row="1" Margin="0,8,0,8" Text="Details:" />
+        <TextBox Grid.Row="2"
+                 Text="{Binding Message}"
+                 IsReadOnly="True"
+                 TextWrapping="Wrap"
+                 AcceptsReturn="True" />
+        <Button Grid.Row="3"
+                Content="OK"
+                Width="80"
+                HorizontalAlignment="Right"
+                Margin="0,12,0,0"
+                Click="CloseButtonClick" />
+    </Grid>
 </Window>

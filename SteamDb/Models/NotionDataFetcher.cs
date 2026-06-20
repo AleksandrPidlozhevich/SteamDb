@@ -10,7 +10,10 @@ namespace SteamDb.Models;
 /// <summary>An existing Notion page flattened into a CSV-style row, plus its page id and the
 /// raw values stored in Notion (used to detect rows whose stored format is out of date).</summary>
 internal sealed record NotionGameRow(
-    CsvGameExportRow Row, string PageId, IReadOnlySet<string> Platforms, string GameId);
+    CsvGameExportRow Row,
+    string PageId,
+    IReadOnlySet<string> Platforms,
+    string GameId);
 
 internal class NotionDataFetcher
 {
@@ -64,7 +67,9 @@ internal class NotionDataFetcher
                 long.TryParse(idField, out var legacyId))
             {
                 if (row.HasGog && !row.HasSteam)
+                {
                     row.GogId = legacyId;
+                }
                 else
                 {
                     row.SteamGameId = (int)legacyId;
@@ -83,7 +88,10 @@ internal class NotionDataFetcher
         }
     }
 
-    private static string? ReadTitle(JToken? property) => JoinPlainText(property?["title"] as JArray);
+    private static string? ReadTitle(JToken? property)
+    {
+        return JoinPlainText(property?["title"] as JArray);
+    }
 
     // Reads GameID whether the column is Text (rich_text) or the legacy Number type.
     private static string? ReadGameId(JToken? property)

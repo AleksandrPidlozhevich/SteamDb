@@ -25,14 +25,14 @@ public sealed class SecretDataStore : IDataStore
     {
         var json = NewtonsoftJsonSerializer.Instance.Serialize(value);
         _secrets.Save(SecretKey(key), json);
-        TrackKey(key, add: true);
+        TrackKey(key, true);
         return Task.CompletedTask;
     }
 
     public Task DeleteAsync<T>(string key)
     {
         _secrets.Delete(SecretKey(key));
-        TrackKey(key, add: false);
+        TrackKey(key, false);
         return Task.CompletedTask;
     }
 
@@ -53,7 +53,10 @@ public sealed class SecretDataStore : IDataStore
         return Task.CompletedTask;
     }
 
-    private string SecretKey(string key) => $"{_prefix}:{key}";
+    private string SecretKey(string key)
+    {
+        return $"{_prefix}:{key}";
+    }
 
     private void TrackKey(string key, bool add)
     {

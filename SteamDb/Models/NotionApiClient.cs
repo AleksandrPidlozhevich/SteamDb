@@ -165,11 +165,12 @@ internal class NotionApiClient
         for (var retry = 0; retry <= maxRetries; retry++)
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Patch, $"https://api.notion.com/v1/pages/{pageId}")
-                {
-                    Content = new StringContent(
-                        JsonConvert.SerializeObject(new { properties }), Encoding.UTF8, "application/json")
-                };
+                using var request =
+                    new HttpRequestMessage(HttpMethod.Patch, $"https://api.notion.com/v1/pages/{pageId}")
+                    {
+                        Content = new StringContent(
+                            JsonConvert.SerializeObject(new { properties }), Encoding.UTF8, "application/json")
+                    };
                 var response = await _httpClient.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)

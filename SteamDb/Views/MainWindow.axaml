@@ -144,7 +144,9 @@
                              Text="{Binding SteamApiKey, Mode=TwoWay}" />
                     <Button Classes="animated-button icon-button"
                             Command="{Binding OpenSteamApiKeyInfoCommand}">
-                        <Viewbox><Image Source="{DynamicResource InfoIcon}" /></Viewbox>
+                        <Viewbox>
+                            <Image Source="{DynamicResource InfoIcon}" />
+                        </Viewbox>
                     </Button>
                 </StackPanel>
 
@@ -155,18 +157,23 @@
                              Text="{Binding SteamId, Mode=TwoWay}" />
                     <Button Classes="animated-button icon-button"
                             Command="{Binding OpenInfoLinkSteamIdCommand}">
-                        <Viewbox><Image Source="{DynamicResource InfoIcon}" /></Viewbox>
+                        <Viewbox>
+                            <Image Source="{DynamicResource InfoIcon}" />
+                        </Viewbox>
                     </Button>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <Image Classes="icon" Source="{DynamicResource NotionIcon}" />
                     <TextBox Classes="field revealPasswordButton" VerticalAlignment="Center"
-                             PlaceholderText="Notion API integration token" UseFloatingPlaceholder="True" PasswordChar="*"
+                             PlaceholderText="Notion API integration token" UseFloatingPlaceholder="True"
+                             PasswordChar="*"
                              Text="{Binding NotionToken, Mode=TwoWay}" />
                     <Button Classes="animated-button icon-button"
                             Command="{Binding OpenInfoLinkNotionTokenCommand}">
-                        <Viewbox><Image Source="{DynamicResource InfoIcon}" /></Viewbox>
+                        <Viewbox>
+                            <Image Source="{DynamicResource InfoIcon}" />
+                        </Viewbox>
                     </Button>
                 </StackPanel>
 
@@ -177,7 +184,9 @@
                              Text="{Binding DbId, Mode=TwoWay}" />
                     <Button Classes="animated-button icon-button"
                             Command="{Binding OpenInfoLinkNotionDbIdCommand}">
-                        <Viewbox><Image Source="{DynamicResource InfoIcon}" /></Viewbox>
+                        <Viewbox>
+                            <Image Source="{DynamicResource InfoIcon}" />
+                        </Viewbox>
                     </Button>
                 </StackPanel>
 
@@ -202,7 +211,9 @@
                     </Panel>
                     <!-- Epic info (placeholder — no command yet) -->
                     <Button Classes="animated-button icon-button">
-                        <Viewbox><Image Source="{DynamicResource InfoIcon}" /></Viewbox>
+                        <Viewbox>
+                            <Image Source="{DynamicResource InfoIcon}" />
+                        </Viewbox>
                     </Button>
                 </StackPanel>
 
@@ -227,7 +238,9 @@
                     </Panel>
                     <!-- GOG info (placeholder — no command yet) -->
                     <Button Classes="animated-button icon-button">
-                        <Viewbox><Image Source="{DynamicResource InfoIcon}" /></Viewbox>
+                        <Viewbox>
+                            <Image Source="{DynamicResource InfoIcon}" />
+                        </Viewbox>
                     </Button>
                 </StackPanel>
             </StackPanel>
@@ -296,7 +309,9 @@
                             HorizontalAlignment="Right" VerticalAlignment="Center"
                             Margin="0,0,-50,0"
                             Command="{Binding OpenInfoGoogleSheetsCommand}">
-                        <Viewbox><Image Source="{DynamicResource InfoIcon}" /></Viewbox>
+                        <Viewbox>
+                            <Image Source="{DynamicResource InfoIcon}" />
+                        </Viewbox>
                     </Button>
                 </Grid>
 
@@ -305,7 +320,9 @@
                     <Border Classes="card" Margin="24,9,0,0" Padding="20,16,20,12">
                         <Button Classes="ko-fi-button icon-button" HorizontalAlignment="Center"
                                 Command="{Binding OpenLinkKofi}">
-                            <Viewbox><Image Source="{SvgImage /Assets/ko-fi.svg}" /></Viewbox>
+                            <Viewbox>
+                                <Image Source="{SvgImage /Assets/ko-fi.svg}" />
+                            </Viewbox>
                         </Button>
                     </Border>
                     <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="24,0,0,0"

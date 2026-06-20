@@ -134,8 +134,10 @@ public static class CsvGameExportService
             : ParseCsvFields(firstLine).Select(field => field.Trim()).ToList();
     }
 
-    private static bool HasColumn(List<string> headerFields, string name) =>
-        headerFields.Any(header => string.Equals(header, name, StringComparison.OrdinalIgnoreCase));
+    private static bool HasColumn(List<string> headerFields, string name)
+    {
+        return headerFields.Any(header => string.Equals(header, name, StringComparison.OrdinalIgnoreCase));
+    }
 
     public static List<CsvGameExportRow> BuildFromLibraries(
         IEnumerable<SteamGame>? steamGames,
@@ -146,7 +148,6 @@ public static class CsvGameExportService
         var indexes = CreateIndexes(rows);
 
         if (steamGames != null)
-        {
             foreach (var game in steamGames)
             {
                 var incoming = new CsvGameExportRow
@@ -158,10 +159,8 @@ public static class CsvGameExportService
 
                 AddOrMerge(rows, indexes, incoming);
             }
-        }
 
         if (epicGames != null)
-        {
             foreach (var game in epicGames)
             {
                 var incoming = new CsvGameExportRow
@@ -174,10 +173,8 @@ public static class CsvGameExportService
 
                 AddOrMerge(rows, indexes, incoming);
             }
-        }
 
         if (gogGames != null)
-        {
             foreach (var game in gogGames)
             {
                 var incoming = new CsvGameExportRow
@@ -189,7 +186,6 @@ public static class CsvGameExportService
 
                 AddOrMerge(rows, indexes, incoming);
             }
-        }
 
         return rows;
     }
@@ -314,14 +310,12 @@ public static class CsvGameExportService
 
         // Oldest format: Name, Game ID.
         if (fields.Count == 2)
-        {
             return new CsvGameExportRow
             {
                 Name = fields[0],
                 HasSteam = true,
                 SteamGameId = ParseInt(fields[1])
             };
-        }
 
         return null;
     }
@@ -333,7 +327,6 @@ public static class CsvGameExportService
             return;
 
         foreach (var part in idField.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-        {
             if (part.StartsWith("Steam:", StringComparison.OrdinalIgnoreCase))
             {
                 row.SteamGameId = ParseInt(part["Steam:".Length..]);
@@ -353,7 +346,6 @@ public static class CsvGameExportService
                 if (long.TryParse(part["GOG:".Length..].Trim(), out var gogId))
                     row.GogId = gogId;
             }
-        }
     }
 
     private static List<string> ParseCsvFields(string line)
@@ -460,17 +452,20 @@ public static class CsvGameExportService
             indexes.ByName[nameKey] = row;
     }
 
-    private static CsvGameExportRow CloneRow(CsvGameExportRow row) => new()
+    private static CsvGameExportRow CloneRow(CsvGameExportRow row)
     {
-        Name = row.Name,
-        HasSteam = row.HasSteam,
-        HasEpic = row.HasEpic,
-        HasGog = row.HasGog,
-        SteamGameId = row.SteamGameId,
-        CatalogItemId = row.CatalogItemId,
-        Namespace = row.Namespace,
-        GogId = row.GogId
-    };
+        return new CsvGameExportRow
+        {
+            Name = row.Name,
+            HasSteam = row.HasSteam,
+            HasEpic = row.HasEpic,
+            HasGog = row.HasGog,
+            SteamGameId = row.SteamGameId,
+            CatalogItemId = row.CatalogItemId,
+            Namespace = row.Namespace,
+            GogId = row.GogId
+        };
+    }
 
     private static string? BuildEpicKey(string? ns, string? catalogItemId)
     {
@@ -485,12 +480,16 @@ public static class CsvGameExportService
         return int.TryParse(value.Trim(), out var parsed) ? parsed : null;
     }
 
-    private static string? NullIfEmpty(string value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string? NullIfEmpty(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
 
-    private static bool PlatformIncludes(string platform, string token) =>
-        platform.Split(['/', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+    private static bool PlatformIncludes(string platform, string token)
+    {
+        return platform.Split(['/', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Any(part => string.Equals(part, token, StringComparison.OrdinalIgnoreCase));
+    }
 
     public static string NormalizeGameName(string name)
     {
@@ -507,11 +506,20 @@ public static class CsvGameExportService
     {
         private readonly CsvIndexes _indexes;
 
-        public RowMatcher(IEnumerable<CsvGameExportRow> rows) => _indexes = CreateIndexes(rows);
+        public RowMatcher(IEnumerable<CsvGameExportRow> rows)
+        {
+            _indexes = CreateIndexes(rows);
+        }
 
-        public CsvGameExportRow? Match(CsvGameExportRow incoming) => FindMatch(_indexes, incoming);
+        public CsvGameExportRow? Match(CsvGameExportRow incoming)
+        {
+            return FindMatch(_indexes, incoming);
+        }
 
-        public void Register(CsvGameExportRow row) => RegisterRow(_indexes, row);
+        public void Register(CsvGameExportRow row)
+        {
+            RegisterRow(_indexes, row);
+        }
     }
 
     private sealed class CsvIndexes

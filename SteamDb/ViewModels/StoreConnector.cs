@@ -54,7 +54,7 @@ public sealed class StoreConnector
         try
         {
             _setConnected(await _clientFactory().TryAuthenticateFromCacheAsync()
-                == StoreAuthFromCacheStatus.Authenticated);
+                          == StoreAuthFromCacheStatus.Authenticated);
         }
         catch (Exception ex)
         {

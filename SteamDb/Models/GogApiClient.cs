@@ -67,7 +67,7 @@ public class GogApiClient : IStoreClient
         _secrets = secretStore ?? new MsalSecretStore();
         MigrateLegacyTokenFile();
     }
-    
+
     private void MigrateLegacyTokenFile()
     {
         try
@@ -197,8 +197,8 @@ public class GogApiClient : IStoreClient
 
         do
         {
-            using var response = await SendAuthorizedAsync(
-                () => new HttpRequestMessage(HttpMethod.Get, string.Format(FilteredProductsUrlTemplate, page)));
+            using var response = await SendAuthorizedAsync(() =>
+                new HttpRequestMessage(HttpMethod.Get, string.Format(FilteredProductsUrlTemplate, page)));
             response.EnsureSuccessStatusCode();
 
             var body = await response.Content.ReadAsStringAsync();
@@ -215,8 +215,7 @@ public class GogApiClient : IStoreClient
 
             progress?.Report(new StoreFetchProgress(page, totalPages, "Loading GOG library"));
             page++;
-        }
-        while (page <= totalPages);
+        } while (page <= totalPages);
 
         var games = byId.Values.ToList();
         LogService.WriteInfo($"GOG: fetched {games.Count} owned games.");
@@ -228,7 +227,7 @@ public class GogApiClient : IStoreClient
         if (!IsAuthenticated)
             throw new InvalidOperationException("GOG client is not authenticated. Call authenticate first.");
     }
-    
+
     private async Task<HttpResponseMessage> SendAuthorizedAsync(Func<HttpRequestMessage> requestFactory)
     {
         var staleToken = _accessToken;
@@ -283,7 +282,10 @@ public class GogApiClient : IStoreClient
         _secrets.Save(SecretKey, JsonConvert.SerializeObject(payload));
     }
 
-    private void DeleteTokenCache() => _secrets.Delete(SecretKey);
+    private void DeleteTokenCache()
+    {
+        _secrets.Delete(SecretKey);
+    }
 
     private string? LoadRefreshTokenFromCache()
     {

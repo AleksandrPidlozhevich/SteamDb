@@ -155,8 +155,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Persists the current credentials to the encrypted secret store.</summary>
     private void PersistSettings()
-        => _secrets.Save(SettingsSecretKey,
+    {
+        _secrets.Save(SettingsSecretKey,
             AppSettingsService.Serialize(new AppSettings(SteamApiKey, SteamId, NotionToken, DbId)));
+    }
 
     [RelayCommand]
     private async Task ExportToCsv()
@@ -177,7 +179,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 LogService.WriteInfo("No games found to export.");
                 if (!result.EpicSessionExpired && !result.GogSessionExpired)
                     await ShowErrorAsync("Export to CSV",
-                        new Exception("No games found to export. Check your Steam credentials or Epic / GOG connection."));
+                        new Exception(
+                            "No games found to export. Check your Steam credentials or Epic / GOG connection."));
                 return;
             }
 
@@ -240,7 +243,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 LogService.WriteInfo("No games found to export.");
                 if (!result.EpicSessionExpired && !result.GogSessionExpired)
                     await ShowErrorAsync("Update CSV",
-                        new Exception("No games found to export. Check your Steam credentials or Epic / GOG connection."));
+                        new Exception(
+                            "No games found to export. Check your Steam credentials or Epic / GOG connection."));
                 return;
             }
 
@@ -266,14 +270,26 @@ public partial class MainWindowViewModel : ViewModelBase
     // bind the commands and the generated OnXChanged hooks to the right connector.
 
     [RelayCommand]
-    private Task StartEpicConnect() => _epicConnector.StartConnectAsync();
+    private Task StartEpicConnect()
+    {
+        return _epicConnector.StartConnectAsync();
+    }
 
-    partial void OnEpicAuthorizationCodeChanged(string? value) => _epicConnector.OnCodeChanged(value);
+    partial void OnEpicAuthorizationCodeChanged(string? value)
+    {
+        _epicConnector.OnCodeChanged(value);
+    }
 
     [RelayCommand]
-    private Task StartGogConnect() => _gogConnector.StartConnectAsync();
+    private Task StartGogConnect()
+    {
+        return _gogConnector.StartConnectAsync();
+    }
 
-    partial void OnGogAuthorizationCodeChanged(string? value) => _gogConnector.OnCodeChanged(value);
+    partial void OnGogAuthorizationCodeChanged(string? value)
+    {
+        _gogConnector.OnCodeChanged(value);
+    }
 
     // Surfaces a clear message when a previously connected store session has expired,
     // so the export isn't silently missing that store's games.
@@ -323,22 +339,40 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenSteamApiKeyInfo() => LinkOpening("https://steamcommunity.com/dev/apikey");
+    private void OpenSteamApiKeyInfo()
+    {
+        LinkOpening("https://steamcommunity.com/dev/apikey");
+    }
 
     [RelayCommand]
-    private void OpenInfoLinkSteamId() => LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+    private void OpenInfoLinkSteamId()
+    {
+        LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+    }
 
     [RelayCommand]
-    private void OpenInfoLinkNotionToken() => LinkOpening("https://www.notion.so/profile/integrations");
+    private void OpenInfoLinkNotionToken()
+    {
+        LinkOpening("https://www.notion.so/profile/integrations");
+    }
 
     [RelayCommand]
-    private void OpenInfoLinkNotionDbId() => LinkOpening("https://developers.notion.com/reference/retrieve-a-database/");
+    private void OpenInfoLinkNotionDbId()
+    {
+        LinkOpening("https://developers.notion.com/reference/retrieve-a-database/");
+    }
 
     [RelayCommand]
-    private void OpenInfoGoogleSheets() => LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+    private void OpenInfoGoogleSheets()
+    {
+        LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+    }
 
     [RelayCommand]
-    public void OpenLinkKofi() => LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
+    public void OpenLinkKofi()
+    {
+        LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
+    }
 
     // ---- Progress / busy state -------------------------------------------------------
 
