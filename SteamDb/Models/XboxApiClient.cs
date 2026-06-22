@@ -87,6 +87,13 @@ public class XboxApiClient : IXboxClient
 
     public Uri LoginRedirectUri => new(RedirectUri);
 
+    public void SignOut()
+    {
+        _refreshToken = _userToken = _xstsToken = _userHash = _xuid = null;
+        _secrets.Delete(SecretKey);
+        _log.WriteInfo("Xbox: signed out (cleared cached session).");
+    }
+
     public async Task<StoreAuthFromCacheStatus> TryAuthenticateFromCacheAsync()
     {
         var raw = _secrets.Load(SecretKey);

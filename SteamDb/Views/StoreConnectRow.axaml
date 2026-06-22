@@ -19,11 +19,15 @@
                      PlaceholderText="{Binding CodePlaceholder}"
                      UseFloatingPlaceholder="True"
                      Text="{Binding AuthorizationCode, Mode=TwoWay}" />
-            <CheckBox Content="Connected"
-                      VerticalAlignment="Center" HorizontalAlignment="Center"
-                      IsHitTestVisible="False" Focusable="False"
-                      IsVisible="{Binding IsConnected}"
-                      IsChecked="{Binding IsConnected, Mode=OneWay}" />
+            <StackPanel Orientation="Horizontal" Spacing="6"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        IsVisible="{Binding IsConnected}">
+                <Ellipse Width="9" Height="9" Fill="#3FB950" VerticalAlignment="Center" />
+                <TextBlock Text="Connected" VerticalAlignment="Center" />
+                <Button Content="Disconnect" FontSize="10" Padding="8,2" Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Command="{Binding DisconnectCommand}" />
+            </StackPanel>
         </Panel>
         <!-- Per-store info (placeholder — no command yet) -->
         <Button Classes="animated-button icon-button">

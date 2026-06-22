@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
@@ -26,5 +27,11 @@ public partial class Error : Window
     private void CloseButtonClick(object? sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private async void CopyButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (Clipboard is { } clipboard)
+            await clipboard.SetTextAsync(Message);
     }
 }

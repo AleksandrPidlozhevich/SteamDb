@@ -118,6 +118,23 @@ public sealed class StoreConnector
         }
     }
 
+    /// <summary>Forget the cached session so the store shows as disconnected again.</summary>
+    public void SignOut()
+    {
+        try
+        {
+            _clientFactory().SignOut();
+        }
+        catch (Exception ex)
+        {
+            _log.WriteWarning($"{_name}: sign-out failed. {ex.Message}");
+        }
+
+        _setConnected(false);
+        _setCodeInputVisible(false);
+        _setCode(null);
+    }
+
     /// <summary>Step 2: as soon as a valid code is present, authorize automatically.</summary>
     public void OnCodeChanged(string? value)
     {

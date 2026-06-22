@@ -105,6 +105,9 @@ public sealed partial class StoreConnectionViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    private void Disconnect() => _connector.SignOut();
+
     // Epic paste flow: authorize automatically as soon as a valid code is typed/pasted.
     partial void OnAuthorizationCodeChanged(string? value)
     {

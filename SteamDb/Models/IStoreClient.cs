@@ -12,6 +12,9 @@ public interface IStoreClient
 {
     Task<StoreAuthFromCacheStatus> TryAuthenticateFromCacheAsync();
 
+    /// <summary>Clears the cached session (forgets the refresh token) so the store is disconnected.</summary>
+    void SignOut();
+
     void OpenLoginPageInBrowser();
 
     Task<bool> AuthenticateWithAuthorizationCodeAsync(string authorizationCode);

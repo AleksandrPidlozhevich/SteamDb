@@ -93,6 +93,15 @@ public abstract class RefreshTokenStoreClient : IStoreClient
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(AccessToken);
 
+    public void SignOut()
+    {
+        AccessToken = null;
+        RefreshToken = null;
+        AccountId = null;
+        Secrets.Delete(SecretKey);
+        Log.WriteInfo($"{StoreName}: signed out (cleared cached session).");
+    }
+
     public void OpenLoginPageInBrowser()
     {
         SystemBrowser.Open(BrowserLoginUrl);

@@ -148,8 +148,10 @@
                     Command="{Binding Progress.CancelCommand}" />
         </Grid>
 
-        <!-- Two columns: credential inputs (left) and action cards (right) -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,56,Auto" VerticalAlignment="Top">
+        <!-- Two columns: credential inputs (left) and action cards (right).
+             Disabled while an export/connect is running (Cancel stays active in the row above). -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,56,Auto" VerticalAlignment="Top"
+              IsEnabled="{Binding !Progress.IsBusy}">
 
             <!-- ===== Left: credential inputs ===== -->
             <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="12">

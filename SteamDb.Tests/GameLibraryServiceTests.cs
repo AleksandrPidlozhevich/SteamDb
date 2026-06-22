@@ -152,6 +152,7 @@ file sealed class FakeFactory : IStoreClientFactory
 
 file abstract class FakeStoreClient
 {
+    public void SignOut() { }
     public void OpenLoginPageInBrowser() { }
     public Task<bool> AuthenticateWithAuthorizationCodeAsync(string authorizationCode) => Task.FromResult(true);
     public Uri LoginRequestUri => new("https://example.test");
