@@ -63,6 +63,7 @@ public class XboxApiClient : IStoreClient
     private static readonly HttpClient _httpClient = new();
 
     private readonly ISecretStore _secrets;
+    private readonly ILogService _log;
 
     // Serialises token refreshes so concurrent requests that hit a 401 don't fire several at once.
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
@@ -73,9 +74,10 @@ public class XboxApiClient : IStoreClient
     private string? _userHash;
     private string? _xuid;
 
-    public XboxApiClient(ISecretStore? secretStore = null)
+    public XboxApiClient(ISecretStore secretStore, ILogService log)
     {
-        _secrets = secretStore ?? new MsalSecretStore();
+        _secrets = secretStore;
+        _log = log;
     }
 
     public bool IsAuthenticated =>
@@ -109,7 +111,7 @@ public class XboxApiClient : IStoreClient
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"Xbox: cached session invalid, re-login required. {ex.Message}");
+            _log.WriteWarning($"Xbox: cached session invalid, re-login required. {ex.Message}");
             return StoreAuthFromCacheStatus.SessionExpired;
         }
     }
@@ -138,7 +140,7 @@ public class XboxApiClient : IStoreClient
     public void OpenLoginPageInBrowser()
     {
         SystemBrowser.Open(AuthorizeUrl);
-        LogService.WriteInfo("Xbox: opened login page in system browser.");
+        _log.WriteInfo("Xbox: opened login page in system browser.");
     }
 
     // The implicit flow returns the access + refresh tokens in the redirect URL fragment, so there
@@ -153,14 +155,14 @@ public class XboxApiClient : IStoreClient
 
         // Diagnostic only (no token values): tells us whether the redirect carried a refresh token
         // and whether persistence worked, without leaking secrets.
-        LogService.WriteInfo(
+        _log.WriteInfo(
             $"Xbox: implicit redirect parsed — access={(string.IsNullOrEmpty(accessToken) ? "no" : "yes")}, " +
             $"refresh={(string.IsNullOrEmpty(refreshToken) ? "no" : "yes")}, redirectLen={authorizationCode.Length}, " +
             $"refreshInRedirect={authorizationCode.Contains("refresh_token", StringComparison.OrdinalIgnoreCase)}");
 
         if (string.IsNullOrEmpty(accessToken))
         {
-            LogService.WriteError("Xbox: redirect has no access_token — sign in again.");
+            _log.WriteError("Xbox: redirect has no access_token — sign in again.");
             return false;
         }
 
@@ -169,7 +171,7 @@ public class XboxApiClient : IStoreClient
             return false;
 
         SaveSession(accessToken, refreshToken);
-        LogService.WriteInfo(
+        _log.WriteInfo(
             $"Xbox: session persisted — readback={(string.IsNullOrEmpty(_secrets.Load(SecretKey)) ? "FAILED" : "ok")}");
         return true;
     }
@@ -234,13 +236,13 @@ public class XboxApiClient : IStoreClient
 
         if (!response.IsSuccessStatusCode)
         {
-            LogService.WriteError($"Xbox MSA token request failed: {response.StatusCode}, {body}");
+            _log.WriteError($"Xbox MSA token request failed: {response.StatusCode}, {body}");
 
             // A refresh-token grant rejected with a client error means the cached token is dead.
             if (form.TryGetValue("grant_type", out var grant) && grant == "refresh_token" &&
                 (int)response.StatusCode is >= 400 and < 500)
             {
-                LogService.WriteWarning("Xbox: cached refresh token rejected — clearing token cache.");
+                _log.WriteWarning("Xbox: cached refresh token rejected — clearing token cache.");
                 _secrets.Delete(SecretKey);
             }
 
@@ -253,7 +255,7 @@ public class XboxApiClient : IStoreClient
 
         if (string.IsNullOrEmpty(accessToken))
         {
-            LogService.WriteError("Xbox MSA token response has no access_token.");
+            _log.WriteError("Xbox MSA token response has no access_token.");
             return null;
         }
 
@@ -281,7 +283,7 @@ public class XboxApiClient : IStoreClient
         _userToken = userJson?["Token"]?.Value<string>();
         if (string.IsNullOrEmpty(_userToken))
         {
-            LogService.WriteError("Xbox: user.auth returned no Token.");
+            _log.WriteError("Xbox: user.auth returned no Token.");
             return false;
         }
 
@@ -292,7 +294,7 @@ public class XboxApiClient : IStoreClient
         _userHash = xsts.Value.UserHash;
         _xuid = xsts.Value.Xuid;
 
-        LogService.WriteInfo($"Xbox: authenticated as XUID {_xuid}.");
+        _log.WriteInfo($"Xbox: authenticated as XUID {_xuid}.");
         return true;
     }
 
@@ -319,7 +321,7 @@ public class XboxApiClient : IStoreClient
         var xErr = json["XErr"]?.Value<long>();
         if (xErr.HasValue)
         {
-            LogService.WriteError($"Xbox: XSTS denied ({relyingParty}): {DescribeXErr(xErr.Value)}");
+            _log.WriteError($"Xbox: XSTS denied ({relyingParty}): {DescribeXErr(xErr.Value)}");
             return null;
         }
 
@@ -330,7 +332,7 @@ public class XboxApiClient : IStoreClient
 
         if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(uhs))
         {
-            LogService.WriteError($"Xbox: XSTS response missing Token/uhs ({relyingParty}).");
+            _log.WriteError($"Xbox: XSTS response missing Token/uhs ({relyingParty}).");
             return null;
         }
 
@@ -342,33 +344,34 @@ public class XboxApiClient : IStoreClient
     /// owned set so Game Pass titles can be flagged. If the owned lookup yields nothing, no title is
     /// flagged as Game Pass.
     /// </summary>
-    public async Task<List<XboxGame>> GetGamesAsync(IProgress<StoreFetchProgress>? progress = null)
+    public async Task<List<XboxGame>> GetGamesAsync(
+        IProgress<StoreFetchProgress>? progress = null, CancellationToken ct = default)
     {
         EnsureAuthenticated();
 
         progress?.Report(new StoreFetchProgress(0, 1, "Loading Xbox library"));
-        var played = await GetPlayedGamesAsync();
-        var ownedTitleIds = await TryGetOwnedTitleIdsAsync();
+        var played = await GetPlayedGamesAsync(ct);
+        var ownedTitleIds = await TryGetOwnedTitleIdsAsync(ct);
 
         if (ownedTitleIds.Count > 0)
             foreach (var game in played)
                 game.IsGamePass = !ownedTitleIds.Contains(game.TitleId);
         else
-            LogService.WriteWarning("Xbox: owned set unavailable — Game Pass titles not flagged.");
+            _log.WriteWarning("Xbox: owned set unavailable — Game Pass titles not flagged.");
 
         progress?.Report(new StoreFetchProgress(1, 1, "Loading Xbox library"));
-        LogService.WriteInfo($"Xbox: fetched {played.Count} played titles " +
+        _log.WriteInfo($"Xbox: fetched {played.Count} played titles " +
                              $"({played.Count(g => g.IsGamePass)} flagged Game Pass).");
         return played;
     }
 
-    private async Task<List<XboxGame>> GetPlayedGamesAsync()
+    private async Task<List<XboxGame>> GetPlayedGamesAsync(CancellationToken ct)
     {
         var url = string.Format(TitleHistoryUrlTemplate, _xuid);
-        using var response = await SendAuthorizedAsync(() => BuildXboxApiRequest(HttpMethod.Get, url));
+        using var response = await SendAuthorizedAsync(() => BuildXboxApiRequest(HttpMethod.Get, url), ct);
         response.EnsureSuccessStatusCode();
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(ct);
         var titles = JObject.Parse(body)["titles"] as JArray ?? new JArray();
 
         var games = new List<XboxGame>();
@@ -394,7 +397,7 @@ public class XboxApiClient : IStoreClient
 
     // Best-effort fetch of owned title ids from the legacy inventory service. Returns an empty set
     // on any failure (the endpoint is deprecated and often returns nothing).
-    private async Task<HashSet<string>> TryGetOwnedTitleIdsAsync()
+    private async Task<HashSet<string>> TryGetOwnedTitleIdsAsync(CancellationToken ct)
     {
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
@@ -406,14 +409,14 @@ public class XboxApiClient : IStoreClient
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("XBL3.0", $"x={xsts.Value.UserHash};{xsts.Value.Token}");
 
-            using var response = await _httpClient.SendAsync(request);
+            using var response = await _httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
-                LogService.WriteWarning($"Xbox: inventory request failed: {response.StatusCode}.");
+                _log.WriteWarning($"Xbox: inventory request failed: {response.StatusCode}.");
                 return ids;
             }
 
-            var items = JObject.Parse(await response.Content.ReadAsStringAsync())["items"] as JArray;
+            var items = JObject.Parse(await response.Content.ReadAsStringAsync(ct))["items"] as JArray;
             if (items != null)
                 foreach (var item in items)
                 {
@@ -423,7 +426,7 @@ public class XboxApiClient : IStoreClient
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"Xbox: owned inventory lookup failed: {ex.Message}");
+            _log.WriteWarning($"Xbox: owned inventory lookup failed: {ex.Message}");
         }
 
         return ids;
@@ -437,20 +440,21 @@ public class XboxApiClient : IStoreClient
 
     // Sends an XBL3.0-authorized request; on a 401 it rebuilds the session once (from the cached
     // refresh token) and retries. The caller owns/disposes the returned response.
-    private async Task<HttpResponseMessage> SendAuthorizedAsync(Func<HttpRequestMessage> requestFactory)
+    private async Task<HttpResponseMessage> SendAuthorizedAsync(
+        Func<HttpRequestMessage> requestFactory, CancellationToken ct = default)
     {
         var staleToken = _xstsToken;
 
         var request = requestFactory();
         request.Headers.Authorization = new AuthenticationHeaderValue("XBL3.0", $"x={_userHash};{_xstsToken}");
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
 
         if (response.StatusCode == HttpStatusCode.Unauthorized && await TryReauthenticateAsync(staleToken))
         {
             response.Dispose();
             request = requestFactory();
             request.Headers.Authorization = new AuthenticationHeaderValue("XBL3.0", $"x={_userHash};{_xstsToken}");
-            response = await _httpClient.SendAsync(request);
+            response = await _httpClient.SendAsync(request, ct);
         }
 
         return response;
@@ -473,7 +477,7 @@ public class XboxApiClient : IStoreClient
             }
             catch (Exception ex)
             {
-                LogService.WriteWarning($"Xbox: re-authentication after 401 failed. {ex.Message}");
+                _log.WriteWarning($"Xbox: re-authentication after 401 failed. {ex.Message}");
                 return false;
             }
         }
@@ -494,7 +498,7 @@ public class XboxApiClient : IStoreClient
     // POSTs a JSON body to an Xbox auth endpoint and returns the parsed response. When
     // <paramref name="allowErrorBody"/> is set, a non-success response is still parsed (used for
     // XSTS, whose denials carry an XErr code in the body).
-    private static async Task<JObject?> PostXboxJsonAsync(string url, JObject body, bool allowErrorBody = false)
+    private async Task<JObject?> PostXboxJsonAsync(string url, JObject body, bool allowErrorBody = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
@@ -508,7 +512,7 @@ public class XboxApiClient : IStoreClient
 
         if (!response.IsSuccessStatusCode && !allowErrorBody)
         {
-            LogService.WriteError($"Xbox auth request to {url} failed: {response.StatusCode}, {responseBody}");
+            _log.WriteError($"Xbox auth request to {url} failed: {response.StatusCode}, {responseBody}");
             return null;
         }
 
@@ -518,7 +522,7 @@ public class XboxApiClient : IStoreClient
         }
         catch (Exception ex)
         {
-            LogService.WriteError($"Xbox: failed to parse response from {url}: {ex.Message}");
+            _log.WriteError($"Xbox: failed to parse response from {url}: {ex.Message}");
             return null;
         }
     }

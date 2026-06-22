@@ -3,19 +3,20 @@ using SteamDb.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
 /// <summary>An existing Notion page flattened into a CSV-style row, plus its page id and the
 /// raw values stored in Notion (used to detect rows whose stored format is out of date).</summary>
-internal sealed record NotionGameRow(
+public sealed record NotionGameRow(
     CsvGameExportRow Row,
     string PageId,
     IReadOnlySet<string> Platforms,
     string GameId);
 
-internal class NotionDataFetcher
+public class NotionDataFetcher
 {
     // Property names as they exist in the user's Notion database.
     public const string NameProperty = "Name";
@@ -23,17 +24,19 @@ internal class NotionDataFetcher
     public const string GameIdProperty = "GameID";
 
     private readonly NotionApiClient _notionApiClient;
+    private readonly ILogService _log;
 
-    public NotionDataFetcher(NotionApiClient notionApiClient)
+    public NotionDataFetcher(NotionApiClient notionApiClient, ILogService log)
     {
         _notionApiClient = notionApiClient;
+        _log = log;
     }
 
-    public async Task<List<NotionGameRow>> FetchRowsAsync()
+    public async Task<List<NotionGameRow>> FetchRowsAsync(CancellationToken ct = default)
     {
         try
         {
-            var allPages = await _notionApiClient.QueryAllPagesAsync();
+            var allPages = await _notionApiClient.QueryAllPagesAsync(ct);
             return allPages
                 .Select(ExtractRow)
                 .Where(row => row != null)
@@ -42,7 +45,7 @@ internal class NotionDataFetcher
         }
         catch (Exception ex)
         {
-            LogService.WriteError($"Data Error with Notion: {ex.Message}");
+            _log.WriteError($"Data Error with Notion: {ex.Message}");
             throw;
         }
     }
@@ -83,7 +86,7 @@ internal class NotionDataFetcher
         }
         catch (Exception ex)
         {
-            LogService.WriteError($"Page processing error {ex.Message}");
+            _log.WriteError($"Page processing error {ex.Message}");
             return null;
         }
     }

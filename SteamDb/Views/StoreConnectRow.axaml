@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SteamDb.ViewModels"
+             xmlns:views="using:SteamDb.Views"
+             x:Class="SteamDb.Views.StoreConnectRow"
+             x:DataType="vm:StoreConnectionViewModel">
+
+    <!-- Connect button → (paste-flow) code input → Connected, swapped in the same 220-wide slot. -->
+    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Image Classes="icon"
+               Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=views:StoreConnectRow}}" />
+        <Panel Width="220" VerticalAlignment="Center">
+            <Button Content="{Binding ConnectLabel}" Height="44"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                    IsVisible="{Binding ShowConnectButton}"
+                    Command="{Binding StartConnectCommand}" />
+            <TextBox Classes="field" IsVisible="{Binding ShowCodeInput}"
+                     PlaceholderText="{Binding CodePlaceholder}"
+                     UseFloatingPlaceholder="True"
+                     Text="{Binding AuthorizationCode, Mode=TwoWay}" />
+            <CheckBox Content="Connected"
+                      VerticalAlignment="Center" HorizontalAlignment="Center"
+                      IsHitTestVisible="False" Focusable="False"
+                      IsVisible="{Binding IsConnected}"
+                      IsChecked="{Binding IsConnected, Mode=OneWay}" />
+        </Panel>
+        <!-- Per-store info (placeholder — no command yet) -->
+        <Button Classes="animated-button icon-button">
+            <Viewbox>
+                <Image Source="{DynamicResource InfoIcon}" />
+            </Viewbox>
+        </Button>
+    </StackPanel>
+</UserControl>

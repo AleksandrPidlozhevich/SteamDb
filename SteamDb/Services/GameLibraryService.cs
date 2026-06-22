@@ -1,6 +1,7 @@
 using SteamDb.Models;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SteamDb.Services;
@@ -21,17 +22,20 @@ public sealed record GameLibraryResult(
 public sealed class GameLibraryService
 {
     private readonly IStoreClientFactory _clients;
+    private readonly ILogService _log;
 
-    public GameLibraryService(IStoreClientFactory clients)
+    public GameLibraryService(IStoreClientFactory clients, ILogService log)
     {
         _clients = clients;
+        _log = log;
     }
 
     public async Task<GameLibraryResult> FetchAsync(
         string? steamApiKey,
         string? steamId,
         IProgress<StoreFetchProgress>? progress = null,
-        Action<string>? onStatus = null)
+        Action<string>? onStatus = null,
+        CancellationToken ct = default)
     {
         var hasSteamCredentials = !string.IsNullOrWhiteSpace(steamApiKey) && !string.IsNullOrWhiteSpace(steamId);
 
@@ -43,16 +47,22 @@ public sealed class GameLibraryService
         if (hasSteamCredentials)
         {
             onStatus?.Invoke("Loading Steam library…");
-            steamTask = new SteamApiClient().GetOwnedGames(steamId, steamApiKey);
+            steamTask = new SteamApiClient(_log).GetOwnedGames(steamId, steamApiKey, ct);
         }
 
-        var epicStatus = await epicClient.TryAuthenticateFromCacheAsync();
+        // The three cached-session checks are independent network calls — run them together.
+        var epicAuthTask = epicClient.TryAuthenticateFromCacheAsync();
+        var gogAuthTask = gogClient.TryAuthenticateFromCacheAsync();
+        var xboxAuthTask = xboxClient.TryAuthenticateFromCacheAsync();
+        await Task.WhenAll(epicAuthTask, gogAuthTask, xboxAuthTask);
+
+        var epicStatus = await epicAuthTask;
         var isEpicAuthenticated = epicStatus == StoreAuthFromCacheStatus.Authenticated;
 
-        var gogStatus = await gogClient.TryAuthenticateFromCacheAsync();
+        var gogStatus = await gogAuthTask;
         var isGogAuthenticated = gogStatus == StoreAuthFromCacheStatus.Authenticated;
 
-        var xboxStatus = await xboxClient.TryAuthenticateFromCacheAsync();
+        var xboxStatus = await xboxAuthTask;
         var isXboxAuthenticated = xboxStatus == StoreAuthFromCacheStatus.Authenticated;
 
         List<SteamGame>? steamGames = null;
@@ -71,21 +81,21 @@ public sealed class GameLibraryService
         if (isEpicAuthenticated)
         {
             onStatus?.Invoke("Loading Epic library…");
-            epicGames = await epicClient.GetOwnedGamesAsync(progress);
+            epicGames = await epicClient.GetOwnedGamesAsync(progress, ct);
         }
 
         List<GogGame>? gogGames = null;
         if (isGogAuthenticated)
         {
             onStatus?.Invoke("Loading GOG library…");
-            gogGames = await gogClient.GetOwnedGamesAsync(progress);
+            gogGames = await gogClient.GetOwnedGamesAsync(progress, ct);
         }
 
         List<XboxGame>? xboxGames = null;
         if (isXboxAuthenticated)
         {
             onStatus?.Invoke("Loading Xbox library…");
-            xboxGames = await xboxClient.GetGamesAsync(progress);
+            xboxGames = await xboxClient.GetGamesAsync(progress, ct);
         }
 
         if (!hasSteamCredentials && !isEpicAuthenticated && !isGogAuthenticated && !isXboxAuthenticated)

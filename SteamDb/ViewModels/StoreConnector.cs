@@ -23,6 +23,7 @@ public sealed class StoreConnector
     private readonly Func<bool> _isConnected;
     private readonly Func<IClipboard?> _getClipboard;
     private readonly Func<string, Exception, Task> _showError;
+    private readonly ILogService _log;
     private readonly IWebAuthenticator? _webAuth;
 
     private bool _authInProgress;
@@ -37,6 +38,7 @@ public sealed class StoreConnector
         Func<bool> isConnected,
         Func<IClipboard?> getClipboard,
         Func<string, Exception, Task> showError,
+        ILogService log,
         IWebAuthenticator? webAuth = null)
     {
         _name = name;
@@ -48,6 +50,7 @@ public sealed class StoreConnector
         _isConnected = isConnected;
         _getClipboard = getClipboard;
         _showError = showError;
+        _log = log;
         _webAuth = webAuth;
     }
 
@@ -62,7 +65,7 @@ public sealed class StoreConnector
         catch (Exception ex)
         {
             _setConnected(false);
-            LogService.WriteWarning($"{_name}: failed to restore cached session. {ex.Message}");
+            _log.WriteWarning($"{_name}: failed to restore cached session. {ex.Message}");
         }
     }
 
@@ -110,7 +113,7 @@ public sealed class StoreConnector
         }
         catch (Exception ex)
         {
-            LogService.WriteException(ex, $"{_name} connect failed");
+            _log.WriteException(ex, $"{_name} connect failed");
             await _showError($"{_name} connect error", ex);
         }
     }
@@ -144,7 +147,7 @@ public sealed class StoreConnector
         catch (Exception ex)
         {
             _setConnected(false);
-            LogService.WriteException(ex, $"{_name} connect failed");
+            _log.WriteException(ex, $"{_name} connect failed");
             await _showError($"{_name} connect error", ex);
         }
         finally

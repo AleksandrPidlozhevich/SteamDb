@@ -19,15 +19,17 @@ public interface IStoreClientFactory
 public sealed class StoreClientFactory : IStoreClientFactory
 {
     private readonly ISecretStore _secrets;
+    private readonly ILogService _log;
 
-    public StoreClientFactory(ISecretStore secrets)
+    public StoreClientFactory(ISecretStore secrets, ILogService log)
     {
         _secrets = secrets;
+        _log = log;
     }
 
-    public EpicApiClient CreateEpic() => new(_secrets);
+    public EpicApiClient CreateEpic() => new(_secrets, _log);
 
-    public GogApiClient CreateGog() => new(_secrets);
+    public GogApiClient CreateGog() => new(_secrets, _log);
 
-    public XboxApiClient CreateXbox() => new(_secrets);
+    public XboxApiClient CreateXbox() => new(_secrets, _log);
 }

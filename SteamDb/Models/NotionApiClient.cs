@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
-internal class NotionApiClient
+public class NotionApiClient
 {
     private const int DelayBetweenRequests = 334;
     private const int MaxConcurrentRequests = 3;
@@ -50,7 +50,7 @@ internal class NotionApiClient
         return await response.Content.ReadAsStringAsync();
     }
 
-    public async Task<List<JObject>> QueryAllPagesAsync()
+    public async Task<List<JObject>> QueryAllPagesAsync(CancellationToken ct = default)
     {
         var allPages = new List<JObject>();
         string? nextCursor = null;
@@ -66,11 +66,12 @@ internal class NotionApiClient
             var queryUrl = $"https://api.notion.com/v1/databases/{_databaseId}/query";
             var response = await _httpClient.PostAsync(
                 queryUrl,
-                new StringContent(JsonConvert.SerializeObject(queryPayload), Encoding.UTF8, "application/json")
+                new StringContent(JsonConvert.SerializeObject(queryPayload), Encoding.UTF8, "application/json"),
+                ct
             );
 
             response.EnsureSuccessStatusCode();
-            var responseContent = await response.Content.ReadAsStringAsync();
+            var responseContent = await response.Content.ReadAsStringAsync(ct);
             var result = JObject.Parse(responseContent);
 
             var pages = result["results"] as JArray;
@@ -82,41 +83,43 @@ internal class NotionApiClient
             var hasMore = result["has_more"]?.Value<bool>() ?? false;
             nextCursor = hasMore ? result["next_cursor"]?.Value<string>() : null;
 
-            if (nextCursor != null) await Task.Delay(DelayBetweenRequests);
+            if (nextCursor != null) await Task.Delay(DelayBetweenRequests, ct);
         } while (nextCursor != null);
 
         return allPages;
     }
 
-    public async Task AddPagesToDatabaseParallel(IEnumerable<object> pages, Action? onPageDone = null)
+    public async Task AddPagesToDatabaseParallel(
+        IEnumerable<object> pages, Action? onPageDone = null, CancellationToken ct = default)
     {
-        var tasks = pages.Select(page => AddPageWithThrottling(page, onPageDone)).ToList();
+        var tasks = pages.Select(page => AddPageWithThrottling(page, onPageDone, ct)).ToList();
         await Task.WhenAll(tasks);
     }
 
-    private async Task AddPageWithThrottling(object page, Action? onPageDone)
+    private async Task AddPageWithThrottling(object page, Action? onPageDone, CancellationToken ct)
     {
-        await _semaphore.WaitAsync();
+        await _semaphore.WaitAsync(ct);
         try
         {
-            await AddPageToDatabaseWithRetry(page);
+            await AddPageToDatabaseWithRetry(page, ct);
             onPageDone?.Invoke();
         }
         finally
         {
             _semaphore.Release();
-            await Task.Delay(DelayBetweenRequests);
+            await Task.Delay(DelayBetweenRequests, ct);
         }
     }
 
-    private async Task AddPageToDatabaseWithRetry(object newPageData, int maxRetries = 3)
+    private async Task AddPageToDatabaseWithRetry(object newPageData, CancellationToken ct, int maxRetries = 3)
     {
         for (var retry = 0; retry <= maxRetries; retry++)
             try
             {
                 var response = await _httpClient.PostAsync(
                     "https://api.notion.com/v1/pages",
-                    new StringContent(JsonConvert.SerializeObject(newPageData), Encoding.UTF8, "application/json")
+                    new StringContent(JsonConvert.SerializeObject(newPageData), Encoding.UTF8, "application/json"),
+                    ct
                 );
 
                 if (response.IsSuccessStatusCode)
@@ -125,42 +128,45 @@ internal class NotionApiClient
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
                     var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(Math.Pow(2, retry));
-                    await Task.Delay(retryAfter);
+                    await Task.Delay(retryAfter, ct);
                     continue;
                 }
 
-                var content = await response.Content.ReadAsStringAsync();
+                var content = await response.Content.ReadAsStringAsync(ct);
                 throw new HttpRequestException($"Status: {response.StatusCode}, Content: {content}");
             }
             catch (HttpRequestException) when (retry < maxRetries)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retry)));
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retry)), ct);
             }
     }
 
     public async Task UpdatePagesParallel(
-        IEnumerable<(string PageId, object Properties)> updates, Action? onPageDone = null)
+        IEnumerable<(string PageId, object Properties)> updates,
+        Action? onPageDone = null,
+        CancellationToken ct = default)
     {
-        var tasks = updates.Select(u => UpdatePageWithThrottling(u.PageId, u.Properties, onPageDone)).ToList();
+        var tasks = updates.Select(u => UpdatePageWithThrottling(u.PageId, u.Properties, onPageDone, ct)).ToList();
         await Task.WhenAll(tasks);
     }
 
-    private async Task UpdatePageWithThrottling(string pageId, object properties, Action? onPageDone)
+    private async Task UpdatePageWithThrottling(
+        string pageId, object properties, Action? onPageDone, CancellationToken ct)
     {
-        await _semaphore.WaitAsync();
+        await _semaphore.WaitAsync(ct);
         try
         {
-            await UpdatePageWithRetry(pageId, properties);
+            await UpdatePageWithRetry(pageId, properties, ct);
             onPageDone?.Invoke();
         }
         finally
         {
             _semaphore.Release();
-            await Task.Delay(DelayBetweenRequests);
+            await Task.Delay(DelayBetweenRequests, ct);
         }
     }
 
-    private async Task UpdatePageWithRetry(string pageId, object properties, int maxRetries = 3)
+    private async Task UpdatePageWithRetry(string pageId, object properties, CancellationToken ct, int maxRetries = 3)
     {
         for (var retry = 0; retry <= maxRetries; retry++)
             try
@@ -171,7 +177,7 @@ internal class NotionApiClient
                         Content = new StringContent(
                             JsonConvert.SerializeObject(new { properties }), Encoding.UTF8, "application/json")
                     };
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, ct);
 
                 if (response.IsSuccessStatusCode)
                     return;
@@ -179,16 +185,16 @@ internal class NotionApiClient
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
                     var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(Math.Pow(2, retry));
-                    await Task.Delay(retryAfter);
+                    await Task.Delay(retryAfter, ct);
                     continue;
                 }
 
-                var content = await response.Content.ReadAsStringAsync();
+                var content = await response.Content.ReadAsStringAsync(ct);
                 throw new HttpRequestException($"Status: {response.StatusCode}, Content: {content}");
             }
             catch (HttpRequestException) when (retry < maxRetries)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retry)));
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retry)), ct);
             }
     }
 

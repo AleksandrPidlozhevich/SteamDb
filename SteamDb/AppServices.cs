@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SteamDb.Models;
 using SteamDb.Services;
 using SteamDb.ViewModels;
+using SteamDb.Views;
 
 namespace SteamDb;
 
@@ -19,16 +20,19 @@ public static class AppServices
     {
         var services = new ServiceCollection();
 
+        services.AddSingleton<ILogService, FileLogService>();
         services.AddSingleton<ISecretStore, MsalSecretStore>();
         services.AddSingleton<IStoreClientFactory, StoreClientFactory>();
         services.AddSingleton<IDialogService, WindowDialogService>();
         services.AddSingleton<IWebAuthenticator>(_ => new EmbeddedWebViewAuthenticator(MainWindow));
+        services.AddSingleton<CsvFileService>();
 
         services.AddSingleton<GameLibraryService>();
         services.AddSingleton<NotionGameExporter>();
         services.AddSingleton<GoogleSheetsGameExporter>();
 
         services.AddSingleton<MainWindowViewModel>();
+        services.AddSingleton<MainWindow>();
 
         return services.BuildServiceProvider();
     }

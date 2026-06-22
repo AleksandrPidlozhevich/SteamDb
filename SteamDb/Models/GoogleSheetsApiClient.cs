@@ -21,12 +21,14 @@ public class GoogleSheetsApiClient
     };
 
     private readonly ISecretStore _secrets;
+    private readonly ILogService _log;
     private readonly string _userId;
 
-    public GoogleSheetsApiClient(string userId = "user", ISecretStore? secretStore = null)
+    public GoogleSheetsApiClient(ISecretStore secrets, ILogService log, string userId = "user")
     {
+        _secrets = secrets;
+        _log = log;
         _userId = userId;
-        _secrets = secretStore ?? new MsalSecretStore();
     }
 
     public SheetsService? SheetsService { get; private set; }
@@ -63,7 +65,7 @@ public class GoogleSheetsApiClient
         }
         catch (Exception ex)
         {
-            LogService.WriteError("Google authorization failed: " + ex.Message);
+            _log.WriteError("Google authorization failed: " + ex.Message);
             return false;
         }
     }

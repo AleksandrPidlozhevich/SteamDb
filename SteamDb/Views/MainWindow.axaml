@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SteamDb.ViewModels"
+        xmlns:views="using:SteamDb.Views"
         xmlns:wv="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -129,17 +130,23 @@
                           HorizontalAlignment="Left" VerticalAlignment="Top"
                           Source="about:blank" />
 
-        <!-- Progress bar (shown while fetching games) -->
-        <Panel Grid.Row="0" Height="16" Margin="0,0,0,14" IsVisible="{Binding IsBusy}">
-            <ProgressBar Height="16"
-                         IsIndeterminate="{Binding ProgressIsIndeterminate}"
-                         Minimum="0"
-                         Maximum="{Binding ProgressMaximum}"
-                         Value="{Binding ProgressValue}" />
-            <TextBlock FontSize="9"
-                       VerticalAlignment="Center" HorizontalAlignment="Center"
-                       Text="{Binding ProgressStatus}" />
-        </Panel>
+        <!-- Progress bar (shown while fetching games) + Cancel -->
+        <Grid Grid.Row="0" Height="16" Margin="0,0,0,14" ColumnDefinitions="*,Auto"
+              IsVisible="{Binding IsBusy}">
+            <Panel Grid.Column="0">
+                <ProgressBar Height="16"
+                             IsIndeterminate="{Binding ProgressIsIndeterminate}"
+                             Minimum="0"
+                             Maximum="{Binding ProgressMaximum}"
+                             Value="{Binding ProgressValue}" />
+                <TextBlock FontSize="9"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Text="{Binding ProgressStatus}" />
+            </Panel>
+            <Button Grid.Column="1" Content="Cancel" FontSize="9" Padding="8,0" Margin="8,0,0,0"
+                    VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                    Command="{Binding CancelCommand}" />
+        </Grid>
 
         <!-- Two columns: credential inputs (left) and action cards (right) -->
         <Grid Grid.Row="1" ColumnDefinitions="Auto,56,Auto" VerticalAlignment="Top">
@@ -200,78 +207,10 @@
                     </Button>
                 </StackPanel>
 
-                <!-- Epic Games: Connect button → code input → Connected (same slot) -->
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Image Classes="icon" Source="{DynamicResource EpicIcon}" />
-                    <Panel Width="220" VerticalAlignment="Center">
-                        <Button Content="Connect Epic" Height="44"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                IsVisible="{Binding ShowEpicConnectButton}"
-                                Command="{Binding StartEpicConnectCommand}" />
-                        <TextBox Classes="field" IsVisible="{Binding ShowEpicCodeInput}"
-                                 PlaceholderText="Epic authorization code"
-                                 UseFloatingPlaceholder="True"
-                                 Text="{Binding EpicAuthorizationCode, Mode=TwoWay}" />
-                        <CheckBox Content="Connected"
-                                  VerticalAlignment="Center" HorizontalAlignment="Center"
-                                  IsHitTestVisible="False" Focusable="False"
-                                  IsVisible="{Binding IsEpicConnected}"
-                                  IsChecked="{Binding IsEpicConnected, Mode=OneWay}" />
-                    </Panel>
-                    <!-- Epic info (placeholder — no command yet) -->
-                    <Button Classes="animated-button icon-button">
-                        <Viewbox>
-                            <Image Source="{DynamicResource InfoIcon}" />
-                        </Viewbox>
-                    </Button>
-                </StackPanel>
-
-                <!-- GOG: Connect button → code input → Connected (same slot) -->
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Image Classes="icon" Source="{DynamicResource GogIcon}" />
-                    <Panel Width="220" VerticalAlignment="Center">
-                        <Button Content="Connect GOG" Height="44"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                IsVisible="{Binding ShowGogConnectButton}"
-                                Command="{Binding StartGogConnectCommand}" />
-                        <CheckBox Content="Connected"
-                                  VerticalAlignment="Center" HorizontalAlignment="Center"
-                                  IsHitTestVisible="False" Focusable="False"
-                                  IsVisible="{Binding IsGogConnected}"
-                                  IsChecked="{Binding IsGogConnected, Mode=OneWay}" />
-                    </Panel>
-                    <!-- GOG info (placeholder — no command yet) -->
-                    <Button Classes="animated-button icon-button">
-                        <Viewbox>
-                            <Image Source="{DynamicResource InfoIcon}" />
-                        </Viewbox>
-                    </Button>
-                </StackPanel>
-
-                <!-- Xbox: Connect button → code input → Connected (same slot) -->
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Image Classes="icon" Source="{DynamicResource XboxIcon}" />
-                    <Panel Width="220" VerticalAlignment="Center">
-                        <Button Content="Connect Xbox" Height="44"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                IsVisible="{Binding ShowXboxConnectButton}"
-                                Command="{Binding StartXboxConnectCommand}" />
-                        <CheckBox Content="Connected"
-                                  VerticalAlignment="Center" HorizontalAlignment="Center"
-                                  IsHitTestVisible="False" Focusable="False"
-                                  IsVisible="{Binding IsXboxConnected}"
-                                  IsChecked="{Binding IsXboxConnected, Mode=OneWay}" />
-                    </Panel>
-                    <!-- Xbox info (placeholder — no command yet) -->
-                    <Button Classes="animated-button icon-button">
-                        <Viewbox>
-                            <Image Source="{DynamicResource InfoIcon}" />
-                        </Viewbox>
-                    </Button>
-                </StackPanel>
+                <!-- Store connect rows (icon + Connect / code / Connected) — see StoreConnectRow. -->
+                <views:StoreConnectRow DataContext="{Binding Epic}" Icon="{DynamicResource EpicIcon}" />
+                <views:StoreConnectRow DataContext="{Binding Gog}" Icon="{DynamicResource GogIcon}" />
+                <views:StoreConnectRow DataContext="{Binding Xbox}" Icon="{DynamicResource XboxIcon}" />
             </StackPanel>
 
             <!-- ===== Right: action cards (uniform width, evenly spaced) =====

@@ -17,21 +17,24 @@ namespace SteamDb.Services;
 public sealed class NotionGameExporter
 {
     private readonly GameLibraryService _library;
+    private readonly ILogService _log;
 
-    public NotionGameExporter(GameLibraryService library)
+    public NotionGameExporter(GameLibraryService library, ILogService log)
     {
         _library = library;
+        _log = log;
     }
 
     public async Task ExportAsync(
         string? steamApiKey, string? steamId, string? notionToken, string? dbId,
-        IProgress<StoreFetchProgress>? progress = null, Action<string>? onStatus = null)
+        IProgress<StoreFetchProgress>? progress = null, Action<string>? onStatus = null,
+        CancellationToken ct = default)
     {
         var notionApiClient = new NotionApiClient(notionToken, dbId);
-        var fetcher = new NotionDataFetcher(notionApiClient);
+        var fetcher = new NotionDataFetcher(notionApiClient, _log);
 
-        var libraryTask = _library.FetchAsync(steamApiKey, steamId, progress, onStatus);
-        var existingTask = fetcher.FetchRowsAsync();
+        var libraryTask = _library.FetchAsync(steamApiKey, steamId, progress, onStatus, ct);
+        var existingTask = fetcher.FetchRowsAsync(ct);
         await Task.WhenAll(libraryTask, existingTask);
 
         var incoming = (await libraryTask).Rows;
@@ -79,27 +82,27 @@ public sealed class NotionGameExporter
         }
 
         if (toCreate.Count > 0)
-            await notionApiClient.AddPagesToDatabaseParallel(toCreate, ReportPage);
+            await notionApiClient.AddPagesToDatabaseParallel(toCreate, ReportPage, ct);
 
         if (toUpdate.Count > 0)
-            await notionApiClient.UpdatePagesParallel(toUpdate, ReportPage);
+            await notionApiClient.UpdatePagesParallel(toUpdate, ReportPage, ct);
 
-        LogService.WriteInfo($"Notion: created {toCreate.Count}, updated {toUpdate.Count} games.");
+        _log.WriteInfo($"Notion: created {toCreate.Count}, updated {toUpdate.Count} games.");
     }
 
     // Desired Notion state for a row (tags + platform-prefixed id).
     private static string NotionSignature(CsvGameExportRow row)
     {
-        return $"{row.HasSteam}{row.HasEpic}{row.HasGog}{row.HasXbox}{row.IsGamePass}|{row.IdText}";
+        var tags = string.Concat(PlatformCatalog.All.Select(d => d.Has(row)));
+        return $"{tags}{row.IsGamePass}|{row.IdText}";
     }
 
     // What is currently stored on the Notion page (raw tags + raw GameID text), in the same
     // shape as NotionSignature so the two can be compared to decide whether an update is needed.
     private static string StoredSignature(NotionGameRow info)
     {
-        return $"{info.Platforms.Contains("Steam")}{info.Platforms.Contains("Epic")}" +
-               $"{info.Platforms.Contains("GOG")}{info.Platforms.Contains("Xbox")}" +
-               $"{info.Platforms.Contains("Game Pass")}|{info.GameId}";
+        var tags = string.Concat(PlatformCatalog.All.Select(d => info.Platforms.Contains(d.Label)));
+        return $"{tags}{info.Platforms.Contains(Platforms.GamePass)}|{info.GameId}";
     }
 
     private static object BuildPage(string? dbId, CsvGameExportRow row)
@@ -114,11 +117,10 @@ public sealed class NotionGameExporter
     private static object BuildProperties(CsvGameExportRow row, bool includeName)
     {
         var platforms = new List<object>();
-        if (row.HasSteam) platforms.Add(new { name = "Steam" });
-        if (row.HasEpic) platforms.Add(new { name = "Epic" });
-        if (row.HasGog) platforms.Add(new { name = "GOG" });
-        if (row.HasXbox) platforms.Add(new { name = "Xbox" });
-        if (row.IsGamePass) platforms.Add(new { name = "Game Pass" });
+        foreach (var d in PlatformCatalog.All)
+            if (d.Has(row))
+                platforms.Add(new { name = d.Label });
+        if (row.IsGamePass) platforms.Add(new { name = Platforms.GamePass });
 
         var properties = new Dictionary<string, object>
         {

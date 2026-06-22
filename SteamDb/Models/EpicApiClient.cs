@@ -56,7 +56,7 @@ public class EpicApiClient : RefreshTokenStoreClient
         return client;
     }
 
-    public EpicApiClient(ISecretStore? secretStore = null) : base(secretStore)
+    public EpicApiClient(ISecretStore secretStore, ILogService log) : base(secretStore, log)
     {
         MigrateLegacyTokenFile();
     }
@@ -103,14 +103,16 @@ public class EpicApiClient : RefreshTokenStoreClient
         return Http.SendAsync(request);
     }
 
-    public async Task<List<EpicGame>> GetOwnedGamesAsync(IProgress<StoreFetchProgress>? progress = null)
+    public async Task<List<EpicGame>> GetOwnedGamesAsync(
+        IProgress<StoreFetchProgress>? progress = null, CancellationToken ct = default)
     {
         EnsureAuthenticated();
 
-        using var response = await SendAuthorizedAsync(() => new HttpRequestMessage(HttpMethod.Get, AssetsUrl));
+        using var response = await SendAuthorizedAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, AssetsUrl), ct);
         response.EnsureSuccessStatusCode();
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(ct);
         var assets = JsonConvert.DeserializeObject<List<EpicGame>>(body) ?? new List<EpicGame>();
 
         var games = assets
@@ -119,13 +121,14 @@ public class EpicApiClient : RefreshTokenStoreClient
             .Select(g => g.First())
             .ToList();
 
-        await EnrichTitlesAsync(games, progress);
+        await EnrichTitlesAsync(games, progress, ct);
 
-        LogService.WriteInfo($"Epic: fetched {games.Count} owned games.");
+        Log.WriteInfo($"Epic: fetched {games.Count} owned games.");
         return games;
     }
 
-    private async Task EnrichTitlesAsync(List<EpicGame> games, IProgress<StoreFetchProgress>? progress)
+    private async Task EnrichTitlesAsync(
+        List<EpicGame> games, IProgress<StoreFetchProgress>? progress, CancellationToken ct)
     {
         var total = games.Count;
         var completed = 0;
@@ -141,12 +144,13 @@ public class EpicApiClient : RefreshTokenStoreClient
 
         var tasks = batches.Select(async batch =>
         {
-            await semaphore.WaitAsync();
+            await semaphore.WaitAsync(ct);
             try
             {
                 var catalog = await FetchCatalogBatchAsync(
                     batch.Namespace,
-                    batch.Games.Select(g => g.CatalogItemId).ToList());
+                    batch.Games.Select(g => g.CatalogItemId).ToList(),
+                    ct);
 
                 foreach (var game in batch.Games)
                 {
@@ -155,7 +159,7 @@ public class EpicApiClient : RefreshTokenStoreClient
 
                     if (!IsBaseGameCatalogItem(item))
                     {
-                        LogService.WriteInfo(
+                        Log.WriteInfo(
                             $"Epic: skipped non-game catalog item {game.CatalogItemId} ({game.AppName}).");
                         continue;
                     }
@@ -166,7 +170,7 @@ public class EpicApiClient : RefreshTokenStoreClient
             }
             catch (Exception ex)
             {
-                LogService.WriteWarning($"Epic: catalog batch failed for namespace {batch.Namespace}: {ex.Message}");
+                Log.WriteWarning($"Epic: catalog batch failed for namespace {batch.Namespace}: {ex.Message}");
             }
             finally
             {
@@ -193,7 +197,7 @@ public class EpicApiClient : RefreshTokenStoreClient
             .ToList();
     }
 
-    private async Task<JObject?> FetchCatalogBatchAsync(string ns, List<string> catalogItemIds)
+    private async Task<JObject?> FetchCatalogBatchAsync(string ns, List<string> catalogItemIds, CancellationToken ct)
     {
         var query = string.Join("&", catalogItemIds.Select(id => $"id={Uri.EscapeDataString(id)}"));
         var url = string.Format(CatalogBulkUrlTemplate, Uri.EscapeDataString(ns)) +
@@ -201,28 +205,28 @@ public class EpicApiClient : RefreshTokenStoreClient
 
         for (var attempt = 0; attempt < CatalogMaxRetries; attempt++)
         {
-            using var response = await SendAuthorizedAsync(() => new HttpRequestMessage(HttpMethod.Get, url));
+            using var response = await SendAuthorizedAsync(() => new HttpRequestMessage(HttpMethod.Get, url), ct);
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
                 var delay = response.Headers.RetryAfter?.Delta
                             ?? TimeSpan.FromSeconds(Math.Pow(2, attempt));
-                LogService.WriteWarning(
+                Log.WriteWarning(
                     $"Epic: catalog 429 for namespace {ns}, retrying in {delay.TotalSeconds:0.#}s.");
-                await Task.Delay(delay);
+                await Task.Delay(delay, ct);
                 continue;
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                LogService.WriteWarning($"Epic: catalog request failed for namespace {ns}: {response.StatusCode}.");
+                Log.WriteWarning($"Epic: catalog request failed for namespace {ns}: {response.StatusCode}.");
                 return null;
             }
 
-            return JObject.Parse(await response.Content.ReadAsStringAsync());
+            return JObject.Parse(await response.Content.ReadAsStringAsync(ct));
         }
 
-        LogService.WriteWarning($"Epic: catalog batch gave up after {CatalogMaxRetries} retries for namespace {ns}.");
+        Log.WriteWarning($"Epic: catalog batch gave up after {CatalogMaxRetries} retries for namespace {ns}.");
         return null;
     }
 

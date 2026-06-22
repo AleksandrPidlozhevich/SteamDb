@@ -1,0 +1,354 @@
+using System;
+using System.Linq;
+using SteamDb.Models;
+using SteamDb.Services;
+using Xunit;
+
+namespace SteamDb.Tests;
+
+public class CsvGameExportServiceTests
+{
+    // ---- Parse: current 3-column format (Platform, Name, ID) -------------------------
+
+    [Fact]
+    public void Parse_CurrentFormat_ReadsPlatformPrefixedIds()
+    {
+        var content =
+            "Platform,Name,ID\n" +
+            "Steam/GOG,Portal 2,Steam:620; GOG:123";
+
+        var rows = CsvGameExportService.Parse(content);
+
+        var row = Assert.Single(rows);
+        Assert.Equal("Portal 2", row.Name);
+        Assert.True(row.HasSteam);
+        Assert.True(row.HasGog);
+        Assert.Equal(620, row.SteamGameId);
+        Assert.Equal(123, row.GogId);
+        Assert.False(row.HasEpic);
+    }
+
+    [Fact]
+    public void Parse_CurrentFormat_ReadsEpicNamespaceAndCatalogId()
+    {
+        var rows = CsvGameExportService.Parse("Platform,Name,ID\nEpic,Fortnite,Epic:fn-ns/abc123");
+
+        var row = Assert.Single(rows);
+        Assert.True(row.HasEpic);
+        Assert.Equal("fn-ns", row.Namespace);
+        Assert.Equal("abc123", row.CatalogItemId);
+    }
+
+    [Fact]
+    public void Parse_CurrentFormat_ReadsXboxAndGamePassTag()
+    {
+        var rows = CsvGameExportService.Parse("Platform,Name,ID\nXbox/Game Pass,Halo,Xbox:9PXYZ");
+
+        var row = Assert.Single(rows);
+        Assert.True(row.HasXbox);
+        Assert.True(row.IsGamePass);
+        Assert.Equal("9PXYZ", row.XboxTitleId);
+    }
+
+    // ---- Parse: legacy formats -------------------------------------------------------
+
+    [Fact]
+    public void Parse_LegacyWideFormat_ReadsSteamAndEpicColumns()
+    {
+        // Legacy wide: Platform, Name, Game ID, Catalog Item Id, Namespace.
+        var rows = CsvGameExportService.Parse("Steam,Half-Life,70,,\nEpic,Control,,catItem,ctrl-ns");
+
+        Assert.Equal(2, rows.Count);
+
+        var hl = rows.Single(r => r.Name == "Half-Life");
+        Assert.True(hl.HasSteam);
+        Assert.Equal(70, hl.SteamGameId);
+
+        var control = rows.Single(r => r.Name == "Control");
+        Assert.True(control.HasEpic);
+        Assert.Equal("catItem", control.CatalogItemId);
+        Assert.Equal("ctrl-ns", control.Namespace);
+    }
+
+    [Fact]
+    public void Parse_OldestTwoColumnFormat_AssumesSteam()
+    {
+        var rows = CsvGameExportService.Parse("Team Fortress 2,440");
+
+        var row = Assert.Single(rows);
+        Assert.Equal("Team Fortress 2", row.Name);
+        Assert.True(row.HasSteam);
+        Assert.Equal(440, row.SteamGameId);
+    }
+
+    [Fact]
+    public void Parse_SkipsHeaderRow()
+    {
+        var rows = CsvGameExportService.Parse("Platform,Name,ID");
+        Assert.Empty(rows);
+    }
+
+    // ---- ParseCsvFields: quoting (tested via Parse) ----------------------------------
+
+    [Fact]
+    public void Parse_HandlesQuotedFieldWithCommaAndEscapedQuotes()
+    {
+        // Name field is quoted, contains a comma and an escaped double-quote.
+        var rows = CsvGameExportService.Parse("Platform,Name,ID\nSteam,\"Portal 2, the \"\"sequel\"\"\",Steam:620");
+
+        var row = Assert.Single(rows);
+        Assert.Equal("Portal 2, the \"sequel\"", row.Name);
+        Assert.Equal(620, row.SteamGameId);
+    }
+
+    [Fact]
+    public void Serialize_QuotesNameContainingComma_AndRoundTrips()
+    {
+        var original = CsvGameExportService.CreateRow("Steam", "Sid Meier's Civilization, Beyond Earth", "Steam:65980");
+
+        var csv = CsvGameExportService.Serialize(new[] { original });
+
+        // The name actually gets CSV-quoted in the output (not just recovered on parse).
+        Assert.Contains("\"Sid Meier's Civilization, Beyond Earth\"", csv);
+
+        var roundTripped = Assert.Single(CsvGameExportService.Parse(csv));
+        Assert.Equal(original.Name, roundTripped.Name);
+        Assert.Equal(original.SteamGameId, roundTripped.SteamGameId);
+    }
+
+    [Fact]
+    public void Serialize_WritesHeaderAndOrdersRowsByName()
+    {
+        var rows = new[]
+        {
+            CsvGameExportService.CreateRow("Steam", "Zelda", "Steam:2"),
+            CsvGameExportService.CreateRow("Steam", "Amnesia", "Steam:1"),
+        };
+
+        var lines = CsvGameExportService.Serialize(rows)
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Equal("Platform,Name,ID", lines[0]);
+        Assert.StartsWith("Steam,Amnesia,", lines[1]);
+        Assert.StartsWith("Steam,Zelda,", lines[2]);
+    }
+
+    [Fact]
+    public void SerializeThenParse_MultiPlatformRow_PreservesEveryId()
+    {
+        var original = CsvGameExportService.CreateRow(
+            "Steam/Epic/GOG/Xbox/Game Pass", "Everything",
+            "Steam:1; Epic:ns/cat; GOG:2; Xbox:9P3");
+
+        var csv = CsvGameExportService.Serialize(new[] { original });
+        var row = Assert.Single(CsvGameExportService.Parse(csv));
+
+        Assert.Equal(1, row.SteamGameId);
+        Assert.Equal("ns", row.Namespace);
+        Assert.Equal("cat", row.CatalogItemId);
+        Assert.Equal(2, row.GogId);
+        Assert.Equal("9P3", row.XboxTitleId);
+        Assert.True(row.HasSteam && row.HasEpic && row.HasGog && row.HasXbox);
+        Assert.True(row.IsGamePass);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Parse_EmptyOrWhitespace_ReturnsEmpty(string content)
+    {
+        Assert.Empty(CsvGameExportService.Parse(content));
+    }
+
+    // ---- CreateRow / ApplyIdField ----------------------------------------------------
+
+    [Fact]
+    public void CreateRow_ParsesAllPlatformIdsFromCombinedField()
+    {
+        var row = CsvGameExportService.CreateRow(
+            "Steam/Epic/GOG/Xbox",
+            "Everything",
+            "Steam:1; Epic:ns/cat; GOG:2; Xbox:9P3");
+
+        Assert.Equal(1, row.SteamGameId);
+        Assert.Equal("ns", row.Namespace);
+        Assert.Equal("cat", row.CatalogItemId);
+        Assert.Equal(2, row.GogId);
+        Assert.Equal("9P3", row.XboxTitleId);
+        Assert.True(row.HasSteam && row.HasEpic && row.HasGog && row.HasXbox);
+    }
+
+    [Fact]
+    public void CreateRow_InfersPlatformFromIdEvenWithoutPlatformLabel()
+    {
+        var row = CsvGameExportService.CreateRow(platform: "", name: "Doom", idField: "Steam:379720");
+
+        Assert.True(row.HasSteam);
+        Assert.Equal(379720, row.SteamGameId);
+    }
+
+    [Fact]
+    public void IdText_FormatsPlatformPrefixedIds()
+    {
+        var row = CsvGameExportService.CreateRow("Steam/GOG", "X", "Steam:10; GOG:20");
+        Assert.Equal("Steam:10; GOG:20", row.IdText);
+    }
+
+    // ---- Merge / dedup ---------------------------------------------------------------
+
+    [Fact]
+    public void Merge_SameSteamId_MergesIntoOneRow()
+    {
+        var existing = new[] { CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400") };
+        var incoming = new[] { CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400") };
+
+        var (rows, added, updated) = CsvGameExportService.Merge(existing, incoming);
+
+        Assert.Single(rows);
+        Assert.Equal(0, added);
+        Assert.Equal(1, updated);
+    }
+
+    [Fact]
+    public void Merge_SameGameDifferentPlatforms_CombinesPlatformsByName()
+    {
+        // Steam row already present; incoming GOG row for the same title (matched on normalized name).
+        var existing = new[] { CsvGameExportService.CreateRow("Steam", "The Witcher 3", "Steam:292030") };
+        var incoming = new[] { CsvGameExportService.CreateRow("GOG", "The Witcher 3", "GOG:1207664663") };
+
+        var (rows, added, updated) = CsvGameExportService.Merge(existing, incoming);
+
+        var row = Assert.Single(rows);
+        Assert.Equal(0, added);
+        Assert.Equal(1, updated);
+        Assert.True(row.HasSteam);
+        Assert.True(row.HasGog);
+        Assert.Equal(292030, row.SteamGameId);
+        Assert.Equal(1207664663, row.GogId);
+    }
+
+    [Fact]
+    public void Merge_DistinctGames_AreAddedNotMerged()
+    {
+        var existing = new[] { CsvGameExportService.CreateRow("Steam", "Game A", "Steam:1") };
+        var incoming = new[] { CsvGameExportService.CreateRow("Steam", "Game B", "Steam:2") };
+
+        var (rows, added, updated) = CsvGameExportService.Merge(existing, incoming);
+
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(1, added);
+        Assert.Equal(0, updated);
+    }
+
+    [Fact]
+    public void Merge_SameXboxTitleId_MergesIntoOneRow()
+    {
+        var existing = new[] { CsvGameExportService.CreateRow("Xbox", "Forza", "Xbox:9NXYZ") };
+        var incoming = new[] { CsvGameExportService.CreateRow("Xbox/Game Pass", "Forza", "Xbox:9NXYZ") };
+
+        var (rows, added, updated) = CsvGameExportService.Merge(existing, incoming);
+
+        var row = Assert.Single(rows);
+        Assert.Equal(0, added);
+        Assert.Equal(1, updated);
+        Assert.True(row.IsGamePass);
+    }
+
+    [Fact]
+    public void Merge_XboxTitleId_MatchesCaseInsensitively()
+    {
+        var existing = new[] { CsvGameExportService.CreateRow("Xbox", "Sea of Thieves", "Xbox:9pgw") };
+        var incoming = new[] { CsvGameExportService.CreateRow("Xbox", "Sea of Thieves", "Xbox:9PGW") };
+
+        var (rows, _, updated) = CsvGameExportService.Merge(existing, incoming);
+
+        Assert.Single(rows);
+        Assert.Equal(1, updated);
+    }
+
+    [Fact]
+    public void Merge_DoesNotMutateInputRows()
+    {
+        var existing = CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400");
+        var incoming = CsvGameExportService.CreateRow("GOG", "Portal", "GOG:99");
+
+        CsvGameExportService.Merge(new[] { existing }, new[] { incoming });
+
+        // Merge clones first, so the originals are untouched.
+        Assert.False(existing.HasGog);
+        Assert.Null(existing.GogId);
+    }
+
+    // ---- BuildFromLibraries ----------------------------------------------------------
+
+    [Fact]
+    public void BuildFromLibraries_MergesSameTitleAcrossStores()
+    {
+        var steam = new[] { new SteamGame { Name = "Cyberpunk 2077", GameID = 1091500 } };
+        var gog = new[] { new GogGame { Title = "Cyberpunk 2077", Id = 1423049311, IsGame = true } };
+
+        var rows = CsvGameExportService.BuildFromLibraries(steam, epicGames: null, gogGames: gog);
+
+        var row = Assert.Single(rows);
+        Assert.True(row.HasSteam);
+        Assert.True(row.HasGog);
+        Assert.Equal(1091500, row.SteamGameId);
+        Assert.Equal(1423049311, row.GogId);
+    }
+
+    // ---- RowMatcher (the public matching API used by the Notion export) --------------
+
+    [Fact]
+    public void RowMatcher_MatchesByIdAndOnlyAfterRegister()
+    {
+        var matcher = new CsvGameExportService.RowMatcher(new[]
+        {
+            CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")
+        });
+
+        // An incoming row with the same Steam id matches the seeded row.
+        Assert.NotNull(matcher.Match(CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")));
+
+        // A previously unseen game is unmatched until it's registered.
+        var newGame = CsvGameExportService.CreateRow("GOG", "Bastion", "GOG:99");
+        Assert.Null(matcher.Match(newGame));
+
+        matcher.Register(newGame);
+        Assert.NotNull(matcher.Match(CsvGameExportService.CreateRow("GOG", "Bastion", "GOG:99")));
+    }
+
+    // ---- NormalizeGameName -----------------------------------------------------------
+
+    [Theory]
+    [InlineData("The Witcher 3: Wild Hunt™", "the witcher 3 wild hunt")]
+    [InlineData("DOOM®", "doom")]
+    [InlineData("  Half-Life:  Alyx  ", "half life alyx")]
+    [InlineData("Tom Clancy's Rainbow Six® Siege", "tom clancy s rainbow six siege")]
+    public void NormalizeGameName_StripsTrademarksPunctuationAndCollapsesSpace(string input, string expected)
+    {
+        Assert.Equal(expected, CsvGameExportService.NormalizeGameName(input));
+    }
+
+    // ---- GetMissingColumns -----------------------------------------------------------
+
+    [Fact]
+    public void GetMissingColumns_ValidHeader_ReturnsEmpty()
+    {
+        Assert.Empty(CsvGameExportService.GetMissingColumns("Platform,Name,ID\nSteam,X,Steam:1"));
+    }
+
+    [Fact]
+    public void GetMissingColumns_AcceptsLegacyGameIdColumn()
+    {
+        Assert.Empty(CsvGameExportService.GetMissingColumns("Platform,Name,Game ID"));
+    }
+
+    [Fact]
+    public void GetMissingColumns_MissingColumns_AreReported()
+    {
+        var missing = CsvGameExportService.GetMissingColumns("Foo,Bar");
+        Assert.Contains("Platform", missing);
+        Assert.Contains("Name", missing);
+        Assert.Contains("ID", missing);
+    }
+}

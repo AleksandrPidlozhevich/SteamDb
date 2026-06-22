@@ -9,9 +9,19 @@ namespace SteamDb.Views;
 
 public partial class MainWindow : Window
 {
+    private readonly IStoreClientFactory? _clients;
+    private readonly ILogService? _log;
+
+    // Parameterless ctor for the XAML loader / previewer (no pre-warm without DI dependencies).
     public MainWindow()
     {
         InitializeComponent();
+    }
+
+    public MainWindow(IStoreClientFactory clients, ILogService log) : this()
+    {
+        _clients = clients;
+        _log = log;
         _ = PrewarmGogLoginAsync();
     }
 
@@ -24,11 +34,11 @@ public partial class MainWindow : Window
         {
             await Task.Delay(TimeSpan.FromSeconds(3));
             await Dispatcher.UIThread.InvokeAsync(() =>
-                PrewarmWebView.Source = new GogApiClient().LoginRequestUri);
+                PrewarmWebView.Source = _clients!.CreateGog().LoginRequestUri);
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"GOG login pre-warm failed: {ex.Message}");
+            _log!.WriteWarning($"GOG login pre-warm failed: {ex.Message}");
         }
     }
 }

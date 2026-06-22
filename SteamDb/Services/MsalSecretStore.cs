@@ -12,10 +12,12 @@ namespace SteamDb.Services;
 public sealed class MsalSecretStore : ISecretStore
 {
     private readonly string _folder;
+    private readonly ILogService _log;
     private readonly ConcurrentDictionary<string, Storage> _byKey = new();
 
-    public MsalSecretStore(string? folder = null)
+    public MsalSecretStore(ILogService log, string? folder = null)
     {
+        _log = log;
         var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
         _folder = folder ?? Path.Combine(exeDir, "SecretStorage");
         if (!Directory.Exists(_folder)) Directory.CreateDirectory(_folder);
@@ -30,7 +32,7 @@ public sealed class MsalSecretStore : ISecretStore
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"SecretStore: failed to read '{key}': {ex.Message}");
+            _log.WriteWarning($"SecretStore: failed to read '{key}': {ex.Message}");
             return null;
         }
     }
@@ -43,7 +45,7 @@ public sealed class MsalSecretStore : ISecretStore
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"SecretStore: failed to write '{key}': {ex.Message}");
+            _log.WriteWarning($"SecretStore: failed to write '{key}': {ex.Message}");
         }
     }
 
@@ -55,7 +57,7 @@ public sealed class MsalSecretStore : ISecretStore
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"SecretStore: failed to delete '{key}': {ex.Message}");
+            _log.WriteWarning($"SecretStore: failed to delete '{key}': {ex.Message}");
         }
     }
 

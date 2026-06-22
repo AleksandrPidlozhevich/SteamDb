@@ -38,6 +38,7 @@ public enum StoreAuthFromCacheStatus
 public abstract class RefreshTokenStoreClient : IStoreClient
 {
     protected readonly ISecretStore Secrets;
+    protected readonly ILogService Log;
 
     // Serialises access-token refreshes so concurrent requests that hit a 401 don't fire
     // several refreshes at once (the refresh token may be rotated on each use).
@@ -49,9 +50,10 @@ public abstract class RefreshTokenStoreClient : IStoreClient
     // The account/user id returned alongside the tokens (purely informational, kept in the cache).
     protected string? AccountId;
 
-    protected RefreshTokenStoreClient(ISecretStore? secretStore)
+    protected RefreshTokenStoreClient(ISecretStore secretStore, ILogService log)
     {
-        Secrets = secretStore ?? new MsalSecretStore();
+        Secrets = secretStore;
+        Log = log;
     }
 
     // ---- Subclass surface ------------------------------------------------------------
@@ -94,7 +96,7 @@ public abstract class RefreshTokenStoreClient : IStoreClient
     public void OpenLoginPageInBrowser()
     {
         SystemBrowser.Open(BrowserLoginUrl);
-        LogService.WriteInfo($"{StoreName}: opened login page in system browser.");
+        Log.WriteInfo($"{StoreName}: opened login page in system browser.");
     }
 
     public async Task<StoreAuthFromCacheStatus> TryAuthenticateFromCacheAsync()
@@ -111,7 +113,7 @@ public abstract class RefreshTokenStoreClient : IStoreClient
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"{StoreName}: refresh token invalid, re-login required. {ex.Message}");
+            Log.WriteWarning($"{StoreName}: refresh token invalid, re-login required. {ex.Message}");
             return StoreAuthFromCacheStatus.SessionExpired;
         }
     }
@@ -138,14 +140,14 @@ public abstract class RefreshTokenStoreClient : IStoreClient
 
         if (!response.IsSuccessStatusCode)
         {
-            LogService.WriteError($"{StoreName} token request failed: {response.StatusCode}, {body}");
+            Log.WriteError($"{StoreName} token request failed: {response.StatusCode}, {body}");
 
             // A refresh-token grant rejected with a client error means the cached token is dead —
             // drop it so we don't keep retrying a token that can't work.
             if (form.TryGetValue("grant_type", out var grant) && grant == "refresh_token" &&
                 (int)response.StatusCode is >= 400 and < 500)
             {
-                LogService.WriteWarning($"{StoreName}: cached refresh token rejected — clearing token cache.");
+                Log.WriteWarning($"{StoreName}: cached refresh token rejected — clearing token cache.");
                 Secrets.Delete(SecretKey);
             }
 
@@ -159,12 +161,12 @@ public abstract class RefreshTokenStoreClient : IStoreClient
 
         if (string.IsNullOrEmpty(AccessToken))
         {
-            LogService.WriteError($"{StoreName} token response has no access_token.");
+            Log.WriteError($"{StoreName} token response has no access_token.");
             return false;
         }
 
         SaveRefreshTokenToCache(RefreshToken);
-        LogService.WriteInfo($"{StoreName}: authenticated as {AccountId}.");
+        Log.WriteInfo($"{StoreName}: authenticated as {AccountId}.");
         return true;
     }
 
@@ -172,13 +174,14 @@ public abstract class RefreshTokenStoreClient : IStoreClient
     /// Sends a bearer-authorized request, refreshing the access token once and retrying on a 401.
     /// The caller owns/disposes the returned response.
     /// </summary>
-    protected async Task<HttpResponseMessage> SendAuthorizedAsync(Func<HttpRequestMessage> requestFactory)
+    protected async Task<HttpResponseMessage> SendAuthorizedAsync(
+        Func<HttpRequestMessage> requestFactory, CancellationToken ct = default)
     {
         var staleToken = AccessToken;
 
         var request = requestFactory();
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", AccessToken);
-        var response = await Http.SendAsync(request);
+        var response = await Http.SendAsync(request, ct);
 
         if (response.StatusCode == HttpStatusCode.Unauthorized &&
             await TryRefreshAccessTokenAsync(staleToken))
@@ -186,7 +189,7 @@ public abstract class RefreshTokenStoreClient : IStoreClient
             response.Dispose();
             request = requestFactory();
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", AccessToken);
-            response = await Http.SendAsync(request);
+            response = await Http.SendAsync(request, ct);
         }
 
         return response;
@@ -210,7 +213,7 @@ public abstract class RefreshTokenStoreClient : IStoreClient
             }
             catch (Exception ex)
             {
-                LogService.WriteWarning($"{StoreName}: access-token refresh after 401 failed. {ex.Message}");
+                Log.WriteWarning($"{StoreName}: access-token refresh after 401 failed. {ex.Message}");
                 return false;
             }
         }
@@ -251,7 +254,7 @@ public abstract class RefreshTokenStoreClient : IStoreClient
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"{StoreName}: failed to read token cache: {ex.Message}");
+            Log.WriteWarning($"{StoreName}: failed to read token cache: {ex.Message}");
             return null;
         }
     }
@@ -275,11 +278,11 @@ public abstract class RefreshTokenStoreClient : IStoreClient
                 Secrets.Save(SecretKey, File.ReadAllText(legacyPath));
 
             File.Delete(legacyPath);
-            LogService.WriteInfo($"{StoreName}: migrated legacy plaintext token into encrypted store.");
+            Log.WriteInfo($"{StoreName}: migrated legacy plaintext token into encrypted store.");
         }
         catch (Exception ex)
         {
-            LogService.WriteWarning($"{StoreName}: legacy token migration failed: {ex.Message}");
+            Log.WriteWarning($"{StoreName}: legacy token migration failed: {ex.Message}");
         }
     }
 }

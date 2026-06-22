@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SteamDb.Models;
@@ -42,7 +43,7 @@ public class GogApiClient : RefreshTokenStoreClient
         return client;
     }
 
-    public GogApiClient(ISecretStore? secretStore = null) : base(secretStore)
+    public GogApiClient(ISecretStore secretStore, ILogService log) : base(secretStore, log)
     {
         MigrateLegacyTokenFile();
     }
@@ -91,7 +92,8 @@ public class GogApiClient : RefreshTokenStoreClient
         return Http.GetAsync(url);
     }
 
-    public async Task<List<GogGame>> GetOwnedGamesAsync(IProgress<StoreFetchProgress>? progress = null)
+    public async Task<List<GogGame>> GetOwnedGamesAsync(
+        IProgress<StoreFetchProgress>? progress = null, CancellationToken ct = default)
     {
         EnsureAuthenticated();
 
@@ -101,11 +103,11 @@ public class GogApiClient : RefreshTokenStoreClient
 
         do
         {
-            using var response = await SendAuthorizedAsync(() =>
-                new HttpRequestMessage(HttpMethod.Get, string.Format(FilteredProductsUrlTemplate, page)));
+            using var response = await SendAuthorizedAsync(
+                () => new HttpRequestMessage(HttpMethod.Get, string.Format(FilteredProductsUrlTemplate, page)), ct);
             response.EnsureSuccessStatusCode();
 
-            var body = await response.Content.ReadAsStringAsync();
+            var body = await response.Content.ReadAsStringAsync(ct);
             var parsed = JsonConvert.DeserializeObject<GogFilteredProductsResponse>(body);
 
             totalPages = parsed?.TotalPages > 0 ? parsed.TotalPages : 1;
@@ -122,7 +124,7 @@ public class GogApiClient : RefreshTokenStoreClient
         } while (page <= totalPages);
 
         var games = byId.Values.ToList();
-        LogService.WriteInfo($"GOG: fetched {games.Count} owned games.");
+        Log.WriteInfo($"GOG: fetched {games.Count} owned games.");
         return games;
     }
 }
