@@ -5,17 +5,19 @@ namespace SteamDb;
 
 internal sealed class Program
 {
-    // Initialization code. Don't use any Avalonia, third-party APIs or any
-    // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
-    // yet and stuff might break.
     [STAThread]
     public static void Main(string[] args)
     {
+        // --disable-gpu-compositing: fixes a black-screen issue in this windowing setup.
+        // --disable-logging: silences harmless Chromium teardown noise on the console
+        //   (e.g. "Failed to unregister class Chrome_WidgetWin_0").
+        Environment.SetEnvironmentVariable(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu-compositing --disable-logging");
+
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }
 
-    // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
     {
         return AppBuilder.Configure<App>()

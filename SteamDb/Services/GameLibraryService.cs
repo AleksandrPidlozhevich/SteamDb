@@ -10,14 +10,23 @@ public sealed record GameLibraryResult(
     bool EpicAuthenticated,
     bool EpicSessionExpired,
     bool GogAuthenticated,
-    bool GogSessionExpired);
+    bool GogSessionExpired,
+    bool XboxAuthenticated,
+    bool XboxSessionExpired);
 
 /// <summary>
-/// Fetches the owned games from Steam and/or Epic and/or GOG and flattens them into CSV rows.
-/// Network/auth concerns live here; the caller supplies progress and status callbacks.
+/// Fetches the owned games from Steam and/or Epic and/or GOG and/or Xbox and flattens them into
+/// CSV rows. Network/auth concerns live here; the caller supplies progress and status callbacks.
 /// </summary>
 public sealed class GameLibraryService
 {
+    private readonly IStoreClientFactory _clients;
+
+    public GameLibraryService(IStoreClientFactory clients)
+    {
+        _clients = clients;
+    }
+
     public async Task<GameLibraryResult> FetchAsync(
         string? steamApiKey,
         string? steamId,
@@ -26,8 +35,9 @@ public sealed class GameLibraryService
     {
         var hasSteamCredentials = !string.IsNullOrWhiteSpace(steamApiKey) && !string.IsNullOrWhiteSpace(steamId);
 
-        var epicClient = new EpicApiClient();
-        var gogClient = new GogApiClient();
+        var epicClient = _clients.CreateEpic();
+        var gogClient = _clients.CreateGog();
+        var xboxClient = _clients.CreateXbox();
         Task<SteamGamesResponse>? steamTask = null;
 
         if (hasSteamCredentials)
@@ -41,6 +51,9 @@ public sealed class GameLibraryService
 
         var gogStatus = await gogClient.TryAuthenticateFromCacheAsync();
         var isGogAuthenticated = gogStatus == StoreAuthFromCacheStatus.Authenticated;
+
+        var xboxStatus = await xboxClient.TryAuthenticateFromCacheAsync();
+        var isXboxAuthenticated = xboxStatus == StoreAuthFromCacheStatus.Authenticated;
 
         List<SteamGame>? steamGames = null;
         if (steamTask != null)
@@ -68,14 +81,23 @@ public sealed class GameLibraryService
             gogGames = await gogClient.GetOwnedGamesAsync(progress);
         }
 
-        if (!hasSteamCredentials && !isEpicAuthenticated && !isGogAuthenticated)
-            throw new Exception("Please enter Steam credentials or connect Epic / GOG first.");
+        List<XboxGame>? xboxGames = null;
+        if (isXboxAuthenticated)
+        {
+            onStatus?.Invoke("Loading Xbox library…");
+            xboxGames = await xboxClient.GetGamesAsync(progress);
+        }
+
+        if (!hasSteamCredentials && !isEpicAuthenticated && !isGogAuthenticated && !isXboxAuthenticated)
+            throw new Exception("Please enter Steam credentials or connect Epic / GOG / Xbox first.");
 
         return new GameLibraryResult(
-            CsvGameExportService.BuildFromLibraries(steamGames, epicGames, gogGames),
+            CsvGameExportService.BuildFromLibraries(steamGames, epicGames, gogGames, xboxGames),
             isEpicAuthenticated,
             epicStatus == StoreAuthFromCacheStatus.SessionExpired,
             isGogAuthenticated,
-            gogStatus == StoreAuthFromCacheStatus.SessionExpired);
+            gogStatus == StoreAuthFromCacheStatus.SessionExpired,
+            isXboxAuthenticated,
+            xboxStatus == StoreAuthFromCacheStatus.SessionExpired);
     }
 }

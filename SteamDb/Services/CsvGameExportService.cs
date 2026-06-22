@@ -25,13 +25,21 @@ public sealed class CsvGameExportRow
 
     public long? GogId { get; set; }
 
+    public bool HasXbox { get; set; }
+
+    public string? XboxTitleId { get; set; }
+
+    /// <summary>Xbox title played via Game Pass (played, not owned). Surfaced as a "Game Pass" tag.</summary>
+    public bool IsGamePass { get; set; }
+
     /// <summary>True when the row carries something worth keeping (a name or any identifier).</summary>
     public bool HasContent =>
         !string.IsNullOrWhiteSpace(Name) ||
         SteamGameId.HasValue ||
         !string.IsNullOrWhiteSpace(CatalogItemId) ||
         !string.IsNullOrWhiteSpace(Namespace) ||
-        GogId.HasValue;
+        GogId.HasValue ||
+        !string.IsNullOrWhiteSpace(XboxTitleId);
 
     /// <summary>Combined identifier cell with platform prefixes, e.g. "Steam:236870; GOG:123".</summary>
     public string IdText => BuildIdField();
@@ -53,6 +61,8 @@ public sealed class CsvGameExportRow
         if (HasSteam) parts.Add("Steam");
         if (HasEpic) parts.Add("Epic");
         if (HasGog) parts.Add("GOG");
+        if (HasXbox) parts.Add("Xbox");
+        if (IsGamePass) parts.Add("Game Pass");
         return string.Join("/", parts);
     }
 
@@ -65,6 +75,8 @@ public sealed class CsvGameExportRow
             parts.Add($"Epic:{Namespace}/{CatalogItemId}");
         if (GogId.HasValue)
             parts.Add($"GOG:{GogId.Value}");
+        if (!string.IsNullOrEmpty(XboxTitleId))
+            parts.Add($"Xbox:{XboxTitleId}");
         return string.Join("; ", parts);
     }
 
@@ -73,6 +85,8 @@ public sealed class CsvGameExportRow
         HasSteam |= other.HasSteam;
         HasEpic |= other.HasEpic;
         HasGog |= other.HasGog;
+        HasXbox |= other.HasXbox;
+        IsGamePass |= other.IsGamePass;
 
         if (other.SteamGameId.HasValue)
             SteamGameId = other.SteamGameId;
@@ -85,6 +99,9 @@ public sealed class CsvGameExportRow
 
         if (other.GogId.HasValue)
             GogId = other.GogId;
+
+        if (!string.IsNullOrEmpty(other.XboxTitleId))
+            XboxTitleId = other.XboxTitleId;
 
         if (!string.IsNullOrEmpty(other.Name))
             Name = other.Name;
@@ -142,7 +159,8 @@ public static class CsvGameExportService
     public static List<CsvGameExportRow> BuildFromLibraries(
         IEnumerable<SteamGame>? steamGames,
         IEnumerable<EpicGame>? epicGames,
-        IEnumerable<GogGame>? gogGames = null)
+        IEnumerable<GogGame>? gogGames = null,
+        IEnumerable<XboxGame>? xboxGames = null)
     {
         var rows = new List<CsvGameExportRow>();
         var indexes = CreateIndexes(rows);
@@ -187,6 +205,20 @@ public static class CsvGameExportService
                 AddOrMerge(rows, indexes, incoming);
             }
 
+        if (xboxGames != null)
+            foreach (var game in xboxGames)
+            {
+                var incoming = new CsvGameExportRow
+                {
+                    Name = game.Name,
+                    HasXbox = true,
+                    XboxTitleId = game.TitleId,
+                    IsGamePass = game.IsGamePass
+                };
+
+                AddOrMerge(rows, indexes, incoming);
+            }
+
         return rows;
     }
 
@@ -201,6 +233,8 @@ public static class CsvGameExportService
         row.HasEpic = PlatformIncludes(platform ?? string.Empty, "Epic") ||
                       (!string.IsNullOrEmpty(row.CatalogItemId) && !string.IsNullOrEmpty(row.Namespace));
         row.HasGog = PlatformIncludes(platform ?? string.Empty, "GOG") || row.GogId.HasValue;
+        row.HasXbox = PlatformIncludes(platform ?? string.Empty, "Xbox") || !string.IsNullOrEmpty(row.XboxTitleId);
+        row.IsGamePass = PlatformIncludes(platform ?? string.Empty, "Game Pass");
         return row;
     }
 
@@ -305,6 +339,8 @@ public static class CsvGameExportService
             row.HasEpic = PlatformIncludes(platform, "Epic") ||
                           (!string.IsNullOrEmpty(row.CatalogItemId) && !string.IsNullOrEmpty(row.Namespace));
             row.HasGog = PlatformIncludes(platform, "GOG") || row.GogId.HasValue;
+            row.HasXbox = PlatformIncludes(platform, "Xbox") || !string.IsNullOrEmpty(row.XboxTitleId);
+            row.IsGamePass = PlatformIncludes(platform, "Game Pass");
             return row;
         }
 
@@ -345,6 +381,10 @@ public static class CsvGameExportService
             {
                 if (long.TryParse(part["GOG:".Length..].Trim(), out var gogId))
                     row.GogId = gogId;
+            }
+            else if (part.StartsWith("Xbox:", StringComparison.OrdinalIgnoreCase))
+            {
+                row.XboxTitleId = NullIfEmpty(part["Xbox:".Length..]);
             }
     }
 
@@ -418,6 +458,10 @@ public static class CsvGameExportService
             indexes.ByGogId.TryGetValue(gogId, out var byGog))
             return byGog;
 
+        if (!string.IsNullOrEmpty(incoming.XboxTitleId) &&
+            indexes.ByXboxId.TryGetValue(incoming.XboxTitleId, out var byXbox))
+            return byXbox;
+
         var nameKey = NormalizeGameName(incoming.Name);
         if (!string.IsNullOrEmpty(nameKey) &&
             indexes.ByName.TryGetValue(nameKey, out var byName))
@@ -447,6 +491,9 @@ public static class CsvGameExportService
         if (row.GogId is long gogId)
             indexes.ByGogId[gogId] = row;
 
+        if (!string.IsNullOrEmpty(row.XboxTitleId))
+            indexes.ByXboxId[row.XboxTitleId] = row;
+
         var nameKey = NormalizeGameName(row.Name);
         if (!string.IsNullOrEmpty(nameKey))
             indexes.ByName[nameKey] = row;
@@ -460,10 +507,13 @@ public static class CsvGameExportService
             HasSteam = row.HasSteam,
             HasEpic = row.HasEpic,
             HasGog = row.HasGog,
+            HasXbox = row.HasXbox,
+            IsGamePass = row.IsGamePass,
             SteamGameId = row.SteamGameId,
             CatalogItemId = row.CatalogItemId,
             Namespace = row.Namespace,
-            GogId = row.GogId
+            GogId = row.GogId,
+            XboxTitleId = row.XboxTitleId
         };
     }
 
@@ -529,6 +579,8 @@ public static class CsvGameExportService
         public Dictionary<string, CsvGameExportRow> ByEpicKey { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<long, CsvGameExportRow> ByGogId { get; } = new();
+
+        public Dictionary<string, CsvGameExportRow> ByXboxId { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public Dictionary<string, CsvGameExportRow> ByName { get; } = new(StringComparer.Ordinal);
     }

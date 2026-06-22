@@ -16,6 +16,13 @@ namespace SteamDb.Services;
 /// </summary>
 public sealed class NotionGameExporter
 {
+    private readonly GameLibraryService _library;
+
+    public NotionGameExporter(GameLibraryService library)
+    {
+        _library = library;
+    }
+
     public async Task ExportAsync(
         string? steamApiKey, string? steamId, string? notionToken, string? dbId,
         IProgress<StoreFetchProgress>? progress = null, Action<string>? onStatus = null)
@@ -23,7 +30,7 @@ public sealed class NotionGameExporter
         var notionApiClient = new NotionApiClient(notionToken, dbId);
         var fetcher = new NotionDataFetcher(notionApiClient);
 
-        var libraryTask = new GameLibraryService().FetchAsync(steamApiKey, steamId, progress, onStatus);
+        var libraryTask = _library.FetchAsync(steamApiKey, steamId, progress, onStatus);
         var existingTask = fetcher.FetchRowsAsync();
         await Task.WhenAll(libraryTask, existingTask);
 
@@ -83,7 +90,7 @@ public sealed class NotionGameExporter
     // Desired Notion state for a row (tags + platform-prefixed id).
     private static string NotionSignature(CsvGameExportRow row)
     {
-        return $"{row.HasSteam}{row.HasEpic}{row.HasGog}|{row.IdText}";
+        return $"{row.HasSteam}{row.HasEpic}{row.HasGog}{row.HasXbox}{row.IsGamePass}|{row.IdText}";
     }
 
     // What is currently stored on the Notion page (raw tags + raw GameID text), in the same
@@ -91,7 +98,8 @@ public sealed class NotionGameExporter
     private static string StoredSignature(NotionGameRow info)
     {
         return $"{info.Platforms.Contains("Steam")}{info.Platforms.Contains("Epic")}" +
-               $"{info.Platforms.Contains("GOG")}|{info.GameId}";
+               $"{info.Platforms.Contains("GOG")}{info.Platforms.Contains("Xbox")}" +
+               $"{info.Platforms.Contains("Game Pass")}|{info.GameId}";
     }
 
     private static object BuildPage(string? dbId, CsvGameExportRow row)
@@ -109,6 +117,8 @@ public sealed class NotionGameExporter
         if (row.HasSteam) platforms.Add(new { name = "Steam" });
         if (row.HasEpic) platforms.Add(new { name = "Epic" });
         if (row.HasGog) platforms.Add(new { name = "GOG" });
+        if (row.HasXbox) platforms.Add(new { name = "Xbox" });
+        if (row.IsGamePass) platforms.Add(new { name = "Game Pass" });
 
         var properties = new Dictionary<string, object>
         {

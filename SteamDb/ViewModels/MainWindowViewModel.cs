@@ -1,14 +1,11 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Input.Platform;
-using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SteamDb.Models;
 using SteamDb.Services;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -46,21 +43,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowGogConnectButton))]
-    [NotifyPropertyChangedFor(nameof(ShowGogCodeInput))]
     private bool isGogConnected;
 
+    /// <summary>Show the "Connect GOG" button until connected (login runs in an embedded WebView).</summary>
+    public bool ShowGogConnectButton => !IsGogConnected;
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowGogConnectButton))]
-    [NotifyPropertyChangedFor(nameof(ShowGogCodeInput))]
-    private bool isGogCodeInputVisible;
+    [NotifyPropertyChangedFor(nameof(ShowXboxConnectButton))]
+    private bool isXboxConnected;
 
-    [ObservableProperty] private string? gogAuthorizationCode;
-
-    /// <summary>Initial state: show the compact "Connect GOG" button.</summary>
-    public bool ShowGogConnectButton => !IsGogConnected && !IsGogCodeInputVisible;
-
-    /// <summary>After clicking Connect: show the authorization-code field.</summary>
-    public bool ShowGogCodeInput => !IsGogConnected && IsGogCodeInputVisible;
+    /// <summary>Show the "Connect Xbox" button until connected (login runs in an embedded WebView).</summary>
+    public bool ShowXboxConnectButton => !IsXboxConnected;
 
     [ObservableProperty] private bool isBusy;
 
@@ -72,49 +65,129 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty] private string? progressStatus;
 
-    private readonly StoreConnector _epicConnector;
-    private readonly StoreConnector _gogConnector;
-
-    // Credentials (Steam key/id, Notion token, DB id) are remembered encrypted at rest.
-    private readonly ISecretStore _secrets = new MsalSecretStore();
     private const string SettingsSecretKey = "app-settings";
 
-    public MainWindowViewModel()
-    {
-        LogService.Initialize(nameof(MainWindowViewModel));
+    private readonly ISecretStore _secrets;
+    private readonly IWebAuthenticator _webAuth;
+    private readonly IStoreClientFactory _clients;
+    private readonly GameLibraryService _library;
+    private readonly NotionGameExporter _notionExporter;
+    private readonly GoogleSheetsGameExporter _sheetsExporter;
+    private readonly IDialogService _dialogs;
 
+    private readonly StoreConnector _epicConnector;
+    private readonly StoreConnector _gogConnector;
+    private readonly StoreConnector _xboxConnector;
+
+    public MainWindowViewModel(
+        ISecretStore secrets,
+        IWebAuthenticator webAuth,
+        IStoreClientFactory clients,
+        GameLibraryService library,
+        NotionGameExporter notionExporter,
+        GoogleSheetsGameExporter sheetsExporter,
+        IDialogService dialogs)
+    {
+        _secrets = secrets;
+        _webAuth = webAuth;
+        _clients = clients;
+        _library = library;
+        _notionExporter = notionExporter;
+        _sheetsExporter = sheetsExporter;
+        _dialogs = dialogs;
+
+        LogService.Initialize(nameof(MainWindowViewModel));
         LoadPersistedSettings();
 
+        // Epic stays on the system-browser paste flow — its login blocks embedded webviews (CAPTCHA);
+        // GOG/Xbox log in through the embedded WebView.
         _epicConnector = new StoreConnector(
             "Epic",
-            () => new EpicApiClient(),
+            () => _clients.CreateEpic(),
             EpicAuthCodeParser.Extract,
             v => IsEpicConnected = v,
             v => IsEpicCodeInputVisible = v,
             c => EpicAuthorizationCode = c,
             () => IsEpicConnected,
-            () => MainWindow?.Clipboard,
-            ShowErrorAsync);
+            () => _dialogs.Clipboard,
+            _dialogs.ShowErrorAsync);
 
         _gogConnector = new StoreConnector(
             "GOG",
-            () => new GogApiClient(),
+            () => _clients.CreateGog(),
             GogAuthCodeParser.Extract,
             v => IsGogConnected = v,
-            v => IsGogCodeInputVisible = v,
-            c => GogAuthorizationCode = c,
+            _ => { },
+            _ => { },
             () => IsGogConnected,
-            () => MainWindow?.Clipboard,
-            ShowErrorAsync);
+            () => _dialogs.Clipboard,
+            _dialogs.ShowErrorAsync,
+            _webAuth);
+
+        _xboxConnector = new StoreConnector(
+            "Xbox",
+            () => _clients.CreateXbox(),
+            XboxAuthCodeParser.Extract,
+            v => IsXboxConnected = v,
+            _ => { },
+            _ => { },
+            () => IsXboxConnected,
+            () => _dialogs.Clipboard,
+            _dialogs.ShowErrorAsync,
+            _webAuth);
 
         _ = _epicConnector.InitializeFromCacheAsync();
         _ = _gogConnector.InitializeFromCacheAsync();
+        _ = _xboxConnector.InitializeFromCacheAsync();
     }
+
+    /// <summary>
+    /// Design-time only (used by the Avalonia previewer's <c>Design.DataContext</c>). At runtime the
+    /// app resolves the parameterised constructor above through the DI container (see App.axaml.cs).
+    /// </summary>
+    public MainWindowViewModel()
+        : this(BuildDefaultDependencies())
+    {
+    }
+
+    // Composes the default production dependency graph for the design-time constructor, so the
+    // previewer gets a working view model without a DI container.
+    private static Dependencies BuildDefaultDependencies()
+    {
+        var secrets = new MsalSecretStore();
+        var clients = new StoreClientFactory(secrets);
+        var library = new GameLibraryService(clients);
+        return new Dependencies(
+            secrets,
+            new EmbeddedWebViewAuthenticator(DefaultTopLevel),
+            clients,
+            library,
+            new NotionGameExporter(library),
+            new GoogleSheetsGameExporter(),
+            new WindowDialogService());
+    }
+
+    private MainWindowViewModel(Dependencies d)
+        : this(d.Secrets, d.WebAuth, d.Clients, d.Library, d.NotionExporter, d.SheetsExporter, d.Dialogs)
+    {
+    }
+
+    private sealed record Dependencies(
+        ISecretStore Secrets,
+        IWebAuthenticator WebAuth,
+        IStoreClientFactory Clients,
+        GameLibraryService Library,
+        NotionGameExporter NotionExporter,
+        GoogleSheetsGameExporter SheetsExporter,
+        IDialogService Dialogs);
+
+    private static TopLevel? DefaultTopLevel() =>
+        (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 
     [RelayCommand]
     private async Task SaveSettings()
     {
-        var file = await PickSaveCsvAsync("seting_games.csv");
+        var file = await _dialogs.PickSaveCsvAsync("seting_games.csv");
         if (file == null) return;
 
         var content = AppSettingsService.Serialize(new AppSettings(SteamApiKey, SteamId, NotionToken, DbId));
@@ -125,7 +198,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task ImportSettings()
     {
-        var file = await PickOpenCsvAsync("Import CSV File");
+        var file = await _dialogs.PickOpenCsvAsync("Import CSV File");
         if (file == null) return;
 
         var content = await CsvFileService.ReadAsync(file);
@@ -167,24 +240,23 @@ public partial class MainWindowViewModel : ViewModelBase
         BeginBusy("Fetching games…");
         try
         {
-            var result = await new GameLibraryService()
-                .FetchAsync(SteamApiKey, SteamId, CreateStoreProgress(), SetIndeterminate);
-            IsEpicConnected = result.EpicAuthenticated;
-            IsGogConnected = result.GogAuthenticated;
+            var result = await _library.FetchAsync(SteamApiKey, SteamId, CreateStoreProgress(), SetIndeterminate);
+            ApplyStoreStatuses(result);
             await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
             await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
+            await NotifyStoreSessionExpiredAsync("Xbox", result.XboxSessionExpired);
 
             if (result.Rows.Count == 0)
             {
                 LogService.WriteInfo("No games found to export.");
-                if (!result.EpicSessionExpired && !result.GogSessionExpired)
-                    await ShowErrorAsync("Export to CSV",
+                if (!result.EpicSessionExpired && !result.GogSessionExpired && !result.XboxSessionExpired)
+                    await _dialogs.ShowErrorAsync("Export to CSV",
                         new Exception(
-                            "No games found to export. Check your Steam credentials or Epic / GOG connection."));
+                            "No games found to export. Check your Steam credentials or Epic / GOG / Xbox connection."));
                 return;
             }
 
-            var file = await PickSaveCsvAsync("dbgame.csv");
+            var file = await _dialogs.PickSaveCsvAsync("dbgame.csv");
             if (file == null) return;
 
             // Export just writes a fresh file with the fetched games — no merging.
@@ -194,12 +266,12 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (UnauthorizedAccessException ex)
         {
             LogService.WriteException(ex, "Steam API authorization error");
-            await ShowErrorAsync("Steam authorization error", ex);
+            await _dialogs.ShowErrorAsync("Steam authorization error", ex);
         }
         catch (Exception ex)
         {
             LogService.WriteException(ex, "Error exporting to CSV");
-            await ShowErrorAsync("CSV export error", ex);
+            await _dialogs.ShowErrorAsync("CSV export error", ex);
         }
         finally
         {
@@ -214,7 +286,7 @@ public partial class MainWindowViewModel : ViewModelBase
         BeginBusy("Fetching games…");
         try
         {
-            var file = await PickOpenCsvAsync("Select CSV File to Update");
+            var file = await _dialogs.PickOpenCsvAsync("Select CSV File to Update");
             if (file == null) return;
 
             // Validate the chosen file is a SteamDb CSV before touching it.
@@ -227,24 +299,23 @@ public partial class MainWindowViewModel : ViewModelBase
                     string.Join(", ", missingColumns) +
                     $".{Environment.NewLine}Expected header: {CsvGameExportService.Header}";
                 LogService.WriteWarning($"Update CSV aborted: missing columns {string.Join(", ", missingColumns)}.");
-                await ShowErrorAsync("Update CSV", new Exception(message));
+                await _dialogs.ShowErrorAsync("Update CSV", new Exception(message));
                 return;
             }
 
-            var result = await new GameLibraryService()
-                .FetchAsync(SteamApiKey, SteamId, CreateStoreProgress(), SetIndeterminate);
-            IsEpicConnected = result.EpicAuthenticated;
-            IsGogConnected = result.GogAuthenticated;
+            var result = await _library.FetchAsync(SteamApiKey, SteamId, CreateStoreProgress(), SetIndeterminate);
+            ApplyStoreStatuses(result);
             await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
             await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
+            await NotifyStoreSessionExpiredAsync("Xbox", result.XboxSessionExpired);
 
             if (result.Rows.Count == 0)
             {
                 LogService.WriteInfo("No games found to export.");
-                if (!result.EpicSessionExpired && !result.GogSessionExpired)
-                    await ShowErrorAsync("Update CSV",
+                if (!result.EpicSessionExpired && !result.GogSessionExpired && !result.XboxSessionExpired)
+                    await _dialogs.ShowErrorAsync("Update CSV",
                         new Exception(
-                            "No games found to export. Check your Steam credentials or Epic / GOG connection."));
+                            "No games found to export. Check your Steam credentials or Epic / GOG / Xbox connection."));
                 return;
             }
 
@@ -253,12 +324,12 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (UnauthorizedAccessException ex)
         {
             LogService.WriteException(ex, "Steam API authorization error");
-            await ShowErrorAsync("Steam authorization error", ex);
+            await _dialogs.ShowErrorAsync("Steam authorization error", ex);
         }
         catch (Exception ex)
         {
             LogService.WriteException(ex, "Error updating CSV");
-            await ShowErrorAsync("CSV update error", ex);
+            await _dialogs.ShowErrorAsync("CSV update error", ex);
         }
         finally
         {
@@ -266,7 +337,15 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    // Epic / GOG connect flow is shared — see StoreConnector. These thin members just
+    // Reflects the latest cached-session outcome from a library fetch back onto the connect buttons.
+    private void ApplyStoreStatuses(GameLibraryResult result)
+    {
+        IsEpicConnected = result.EpicAuthenticated;
+        IsGogConnected = result.GogAuthenticated;
+        IsXboxConnected = result.XboxAuthenticated;
+    }
+
+    // Epic / GOG / Xbox connect flow is shared — see StoreConnector. These thin members just
     // bind the commands and the generated OnXChanged hooks to the right connector.
 
     [RelayCommand]
@@ -281,14 +360,59 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task StartGogConnect()
+    private async Task StartGogConnect()
     {
-        return _gogConnector.StartConnectAsync();
+        BeginBusy("Opening GOG login…");
+        try
+        {
+            await _gogConnector.StartConnectAsync();
+        }
+        finally
+        {
+            EndBusy();
+        }
     }
 
-    partial void OnGogAuthorizationCodeChanged(string? value)
+    [RelayCommand]
+    private async Task StartXboxConnect()
     {
-        _gogConnector.OnCodeChanged(value);
+        BeginBusy("Opening Xbox login…");
+        try
+        {
+            await _xboxConnector.StartConnectAsync();
+
+            // On a successful interactive connect, pull the library once (live check + logs counts).
+            if (IsXboxConnected)
+            {
+                SetIndeterminate("Loading Xbox library…");
+                await LogXboxLibrarySummaryAsync();
+            }
+        }
+        finally
+        {
+            EndBusy();
+        }
+    }
+
+    // After an interactive Xbox connect, fetch the library once and log the count — a live check
+    // that both the auth chain and the data calls work. Not wired into export yet.
+    private async Task LogXboxLibrarySummaryAsync()
+    {
+        try
+        {
+            var client = _clients.CreateXbox();
+            if (await client.TryAuthenticateFromCacheAsync() != StoreAuthFromCacheStatus.Authenticated)
+                return;
+
+            var games = await client.GetGamesAsync();
+            LogService.WriteInfo(
+                $"Xbox: connect verified — {games.Count} played titles " +
+                $"({games.Count(g => g.IsGamePass)} flagged Game Pass).");
+        }
+        catch (Exception ex)
+        {
+            LogService.WriteException(ex, "Xbox library fetch (post-connect) failed");
+        }
     }
 
     // Surfaces a clear message when a previously connected store session has expired,
@@ -298,7 +422,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!expired) return Task.CompletedTask;
 
         LogService.WriteWarning($"{store}: session expired — {store} games were skipped.");
-        return ShowErrorAsync($"{store} session expired",
+        return _dialogs.ShowErrorAsync($"{store} session expired",
             new Exception($"Your {store} session has expired, so {store} games were skipped. " +
                           $"Click \"Connect {store}\" to log in again."));
     }
@@ -310,13 +434,13 @@ public partial class MainWindowViewModel : ViewModelBase
         BeginBusy("Fetching games…");
         try
         {
-            await new NotionGameExporter()
+            await _notionExporter
                 .ExportAsync(SteamApiKey, SteamId, NotionToken, DbId, CreateStoreProgress(), SetIndeterminate);
         }
         catch (Exception ex)
         {
             LogService.WriteError($"Data Export Failed to Notion: {ex.Message}");
-            await ShowErrorAsync("Export error in Notion", ex);
+            await _dialogs.ShowErrorAsync("Export error in Notion", ex);
         }
         finally
         {
@@ -329,49 +453,49 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            await new GoogleSheetsGameExporter().ExportAsync(GoogleSheetsTableName, SteamApiKey, SteamId);
+            await _sheetsExporter.ExportAsync(GoogleSheetsTableName, SteamApiKey, SteamId);
         }
         catch (Exception ex)
         {
             LogService.WriteException(ex, "Error exporting to Google Sheets");
-            await ShowErrorAsync("Google Sheets export error", ex);
+            await _dialogs.ShowErrorAsync("Google Sheets export error", ex);
         }
     }
 
     [RelayCommand]
     private void OpenSteamApiKeyInfo()
     {
-        LinkOpening("https://steamcommunity.com/dev/apikey");
+        _dialogs.OpenLink("https://steamcommunity.com/dev/apikey");
     }
 
     [RelayCommand]
     private void OpenInfoLinkSteamId()
     {
-        LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+        _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#");
     }
 
     [RelayCommand]
     private void OpenInfoLinkNotionToken()
     {
-        LinkOpening("https://www.notion.so/profile/integrations");
+        _dialogs.OpenLink("https://www.notion.so/profile/integrations");
     }
 
     [RelayCommand]
     private void OpenInfoLinkNotionDbId()
     {
-        LinkOpening("https://developers.notion.com/reference/retrieve-a-database/");
+        _dialogs.OpenLink("https://developers.notion.com/reference/retrieve-a-database/");
     }
 
     [RelayCommand]
     private void OpenInfoGoogleSheets()
     {
-        LinkOpening("https://github.com/AleksandrPidlozhevich/SteamDb#");
+        _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#");
     }
 
     [RelayCommand]
     public void OpenLinkKofi()
     {
-        LinkOpening("https://ko-fi.com/aliaksandrpidlazhevich");
+        _dialogs.OpenLink("https://ko-fi.com/aliaksandrpidlazhevich");
     }
 
     // ---- Progress / busy state -------------------------------------------------------
@@ -419,74 +543,5 @@ public partial class MainWindowViewModel : ViewModelBase
         ProgressIsIndeterminate = false;
         ProgressValue = 0;
         ProgressStatus = null;
-    }
-
-    // ---- UI helpers ------------------------------------------------------------------
-
-    private static Window? MainWindow =>
-        (App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-
-    private static readonly FilePickerFileType CsvFileType =
-        new("CSV files") { Patterns = ["*.csv"] };
-
-    private static async Task<IStorageFile?> PickSaveCsvAsync(string suggestedName)
-    {
-        var window = MainWindow;
-        if (window == null) return null;
-
-        return await window.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            SuggestedFileName = suggestedName,
-            Title = "Save CSV File",
-            FileTypeChoices = [CsvFileType]
-        });
-    }
-
-    private static async Task<IStorageFile?> PickOpenCsvAsync(string title)
-    {
-        var window = MainWindow;
-        if (window == null) return null;
-
-        var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-            FileTypeFilter = [CsvFileType]
-        });
-
-        return files.FirstOrDefault();
-    }
-
-    private static void LinkOpening(string url)
-    {
-        if (OperatingSystem.IsWindows())
-            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
-        else if (OperatingSystem.IsLinux())
-            Process.Start("xdg-open", url);
-        else if (OperatingSystem.IsMacOS())
-            Process.Start("open", url);
-    }
-
-    private async Task ShowErrorAsync(string title, Exception exception)
-    {
-        var window = MainWindow;
-        if (window == null) return;
-
-        var errorWindow = new Error(title, BuildErrorMessage(exception));
-        await errorWindow.ShowDialog(window);
-    }
-
-    private static string BuildErrorMessage(Exception exception)
-    {
-        var messages = new List<string>();
-        var current = exception;
-        while (current != null)
-        {
-            if (!string.IsNullOrWhiteSpace(current.Message))
-                messages.Add(current.Message);
-            current = current.InnerException;
-        }
-
-        return messages.Count == 0 ? "Unknown error" : string.Join(Environment.NewLine, messages.Distinct());
     }
 }

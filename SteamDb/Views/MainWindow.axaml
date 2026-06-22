@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SteamDb.ViewModels"
+        xmlns:wv="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="800"
@@ -119,6 +120,15 @@
 
     <Grid RowDefinitions="Auto,*" Margin="28,18">
 
+        <!-- Hidden (1x1, transparent): pre-warms the WebView2 runtime at startup, and a few
+             seconds in also loads the GOG login page in the background so the real Connect GOG
+             window opens from cache. The user never sees it. -->
+        <wv:NativeWebView x:Name="PrewarmWebView"
+                          Grid.Row="0" Width="1" Height="1" Opacity="0"
+                          IsHitTestVisible="False"
+                          HorizontalAlignment="Left" VerticalAlignment="Top"
+                          Source="about:blank" />
+
         <!-- Progress bar (shown while fetching games) -->
         <Panel Grid.Row="0" Height="16" Margin="0,0,0,14" IsVisible="{Binding IsBusy}">
             <ProgressBar Height="16"
@@ -226,10 +236,6 @@
                                 HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                                 IsVisible="{Binding ShowGogConnectButton}"
                                 Command="{Binding StartGogConnectCommand}" />
-                        <TextBox Classes="field" IsVisible="{Binding ShowGogCodeInput}"
-                                 PlaceholderText="Paste login URL from address bar (code=…)"
-                                 UseFloatingPlaceholder="True"
-                                 Text="{Binding GogAuthorizationCode, Mode=TwoWay}" />
                         <CheckBox Content="Connected"
                                   VerticalAlignment="Center" HorizontalAlignment="Center"
                                   IsHitTestVisible="False" Focusable="False"
@@ -237,6 +243,29 @@
                                   IsChecked="{Binding IsGogConnected, Mode=OneWay}" />
                     </Panel>
                     <!-- GOG info (placeholder — no command yet) -->
+                    <Button Classes="animated-button icon-button">
+                        <Viewbox>
+                            <Image Source="{DynamicResource InfoIcon}" />
+                        </Viewbox>
+                    </Button>
+                </StackPanel>
+
+                <!-- Xbox: Connect button → code input → Connected (same slot) -->
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Image Classes="icon" Source="{DynamicResource XboxIcon}" />
+                    <Panel Width="220" VerticalAlignment="Center">
+                        <Button Content="Connect Xbox" Height="44"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                IsVisible="{Binding ShowXboxConnectButton}"
+                                Command="{Binding StartXboxConnectCommand}" />
+                        <CheckBox Content="Connected"
+                                  VerticalAlignment="Center" HorizontalAlignment="Center"
+                                  IsHitTestVisible="False" Focusable="False"
+                                  IsVisible="{Binding IsXboxConnected}"
+                                  IsChecked="{Binding IsXboxConnected, Mode=OneWay}" />
+                    </Panel>
+                    <!-- Xbox info (placeholder — no command yet) -->
                     <Button Classes="animated-button icon-button">
                         <Viewbox>
                             <Image Source="{DynamicResource InfoIcon}" />

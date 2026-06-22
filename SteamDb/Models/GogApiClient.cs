@@ -1,26 +1,19 @@
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using SteamDb.Services;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
 /// <summary>
-/// Minimal client for GOG's (unofficial) Galaxy OAuth API. Mirrors <see cref="EpicApiClient"/>:
-/// the user logs in via the browser and pastes the redirect's authorization code; the refresh
-/// token is cached and renewed on demand, with a one-shot refresh + retry on HTTP 401.
+/// Minimal client for GOG's (unofficial) Galaxy OAuth API. The shared refresh-token bearer
+/// plumbing lives in <see cref="RefreshTokenStoreClient"/>; this adds the GOG endpoints, the
+/// GET-query-string token request, and the paginated owned-games fetch.
 /// </summary>
-public class GogApiClient : IStoreClient
+public class GogApiClient : RefreshTokenStoreClient
 {
     // Well-known GOG Galaxy client credentials (used by Heroic / gogdl / Lutris).
     private const string ClientId = "46899977096215655";
@@ -38,9 +31,6 @@ public class GogApiClient : IStoreClient
     private const string FilteredProductsUrlTemplate =
         "https://embed.gog.com/account/getFilteredProducts?mediaType=1&page={0}";
 
-    // Key under which the refresh-token payload is kept in the secret store.
-    private const string SecretKey = "gog";
-
     private static readonly HttpClient _httpClient = CreateHttpClient();
 
     private static HttpClient CreateHttpClient()
@@ -52,139 +42,53 @@ public class GogApiClient : IStoreClient
         return client;
     }
 
-    private readonly ISecretStore _secrets;
-
-    // Serialises access-token refreshes so concurrent requests that hit a 401 don't fire
-    // several refreshes at once (GOG rotates the refresh token on each use).
-    private readonly SemaphoreSlim _refreshLock = new(1, 1);
-
-    private string? _accessToken;
-    private string? _refreshToken;
-    private string? _userId;
-
-    public GogApiClient(ISecretStore? secretStore = null)
+    public GogApiClient(ISecretStore? secretStore = null) : base(secretStore)
     {
-        _secrets = secretStore ?? new MsalSecretStore();
         MigrateLegacyTokenFile();
     }
 
-    private void MigrateLegacyTokenFile()
+    protected override string StoreName => "GOG";
+    protected override string SecretKey => "gog";
+    protected override HttpClient Http => _httpClient;
+    protected override string IdFieldName => "user_id";
+
+    protected override string BrowserLoginUrl => LoginUrl;
+
+    public override Uri LoginRedirectUri => new("https://embed.gog.com/on_login_success");
+
+    protected override (string Folder, string FileName)? LegacyTokenPath => ("GogTokenStorage", "gog_token.json");
+
+    protected override Dictionary<string, string> BuildAuthCodeForm(string authorizationCode)
     {
-        try
-        {
-            var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-            var legacyPath = Path.Combine(exeDir, "GogTokenStorage", "gog_token.json");
-            if (!File.Exists(legacyPath)) return;
-
-            if (string.IsNullOrEmpty(_secrets.Load(SecretKey)))
-                _secrets.Save(SecretKey, File.ReadAllText(legacyPath));
-
-            File.Delete(legacyPath);
-            LogService.WriteInfo("GOG: migrated legacy plaintext token into encrypted store.");
-        }
-        catch (Exception ex)
-        {
-            LogService.WriteWarning($"GOG: legacy token migration failed: {ex.Message}");
-        }
-    }
-
-    public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken);
-
-    public async Task<StoreAuthFromCacheStatus> TryAuthenticateFromCacheAsync()
-    {
-        var rt = LoadRefreshTokenFromCache();
-        if (string.IsNullOrEmpty(rt)) return StoreAuthFromCacheStatus.NoCachedSession;
-
-        try
-        {
-            // On a 4xx (invalid/expired token) RequestTokenAsync clears the cache for us.
-            return await AuthenticateWithRefreshTokenAsync(rt)
-                ? StoreAuthFromCacheStatus.Authenticated
-                : StoreAuthFromCacheStatus.SessionExpired;
-        }
-        catch (Exception ex)
-        {
-            LogService.WriteWarning($"GOG: refresh token invalid, re-login required. {ex.Message}");
-            return StoreAuthFromCacheStatus.SessionExpired;
-        }
-    }
-
-    public void OpenLoginPageInBrowser()
-    {
-        OpenUrl(LoginUrl);
-        LogService.WriteInfo("GOG: opened login page in system browser.");
-    }
-
-    public async Task<bool> AuthenticateWithAuthorizationCodeAsync(string authorizationCode)
-    {
-        if (string.IsNullOrWhiteSpace(authorizationCode))
-            throw new ArgumentException("Authorization code is empty", nameof(authorizationCode));
-
-        var query = new Dictionary<string, string>
+        return new Dictionary<string, string>
         {
             ["client_id"] = ClientId,
             ["client_secret"] = ClientSecret,
             ["grant_type"] = "authorization_code",
-            ["code"] = authorizationCode.Trim(),
+            ["code"] = authorizationCode,
             ["redirect_uri"] = RedirectUri
         };
-
-        return await RequestTokenAsync(query);
     }
 
-    public async Task<bool> AuthenticateWithRefreshTokenAsync(string refreshToken)
+    protected override Dictionary<string, string> BuildRefreshForm(string refreshToken)
     {
-        var query = new Dictionary<string, string>
+        return new Dictionary<string, string>
         {
             ["client_id"] = ClientId,
             ["client_secret"] = ClientSecret,
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = refreshToken
         };
-
-        return await RequestTokenAsync(query);
     }
 
-    private async Task<bool> RequestTokenAsync(Dictionary<string, string> form)
+    protected override Task<HttpResponseMessage> SendTokenRequestAsync(Dictionary<string, string> form)
     {
         // GOG's /token endpoint expects the parameters as a GET query string
         // (the same call GOG Galaxy / gogdl make). A recognised User-Agent is required.
         var url = TokenUrl + "?" + string.Join("&",
             form.Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value)}"));
 
-        using var response = await _httpClient.GetAsync(url);
-        var body = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            LogService.WriteError($"GOG token request failed: {response.StatusCode}, {body}");
-
-            // A refresh-token grant rejected with a client error means the cached token
-            // is dead — drop it so we don't keep retrying a token that can't work.
-            if (form.TryGetValue("grant_type", out var grant) && grant == "refresh_token" &&
-                (int)response.StatusCode is >= 400 and < 500)
-            {
-                LogService.WriteWarning("GOG: cached refresh token rejected — clearing token cache.");
-                DeleteTokenCache();
-            }
-
-            return false;
-        }
-
-        var json = JObject.Parse(body);
-        _accessToken = json["access_token"]?.Value<string>();
-        _refreshToken = json["refresh_token"]?.Value<string>();
-        _userId = json["user_id"]?.Value<string>();
-
-        if (string.IsNullOrEmpty(_accessToken))
-        {
-            LogService.WriteError("GOG token response has no access_token.");
-            return false;
-        }
-
-        SaveRefreshTokenToCache(_refreshToken);
-        LogService.WriteInfo($"GOG: authenticated as user {_userId}.");
-        return true;
+        return Http.GetAsync(url);
     }
 
     public async Task<List<GogGame>> GetOwnedGamesAsync(IProgress<StoreFetchProgress>? progress = null)
@@ -220,97 +124,5 @@ public class GogApiClient : IStoreClient
         var games = byId.Values.ToList();
         LogService.WriteInfo($"GOG: fetched {games.Count} owned games.");
         return games;
-    }
-
-    private void EnsureAuthenticated()
-    {
-        if (!IsAuthenticated)
-            throw new InvalidOperationException("GOG client is not authenticated. Call authenticate first.");
-    }
-
-    private async Task<HttpResponseMessage> SendAuthorizedAsync(Func<HttpRequestMessage> requestFactory)
-    {
-        var staleToken = _accessToken;
-
-        var request = requestFactory();
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
-        var response = await _httpClient.SendAsync(request);
-
-        if (response.StatusCode == HttpStatusCode.Unauthorized &&
-            await TryRefreshAccessTokenAsync(staleToken))
-        {
-            response.Dispose();
-            request = requestFactory();
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
-            response = await _httpClient.SendAsync(request);
-        }
-
-        return response;
-    }
-
-    private async Task<bool> TryRefreshAccessTokenAsync(string? staleAccessToken)
-    {
-        await _refreshLock.WaitAsync();
-        try
-        {
-            if (!string.IsNullOrEmpty(_accessToken) && _accessToken != staleAccessToken)
-                return true;
-
-            var rt = _refreshToken ?? LoadRefreshTokenFromCache();
-            if (string.IsNullOrEmpty(rt)) return false;
-
-            try
-            {
-                return await AuthenticateWithRefreshTokenAsync(rt);
-            }
-            catch (Exception ex)
-            {
-                LogService.WriteWarning($"GOG: access-token refresh after 401 failed. {ex.Message}");
-                return false;
-            }
-        }
-        finally
-        {
-            _refreshLock.Release();
-        }
-    }
-
-    private void SaveRefreshTokenToCache(string? refreshToken)
-    {
-        if (string.IsNullOrEmpty(refreshToken)) return;
-        var payload = new { refresh_token = refreshToken, user_id = _userId };
-        _secrets.Save(SecretKey, JsonConvert.SerializeObject(payload));
-    }
-
-    private void DeleteTokenCache()
-    {
-        _secrets.Delete(SecretKey);
-    }
-
-    private string? LoadRefreshTokenFromCache()
-    {
-        var content = _secrets.Load(SecretKey);
-        if (string.IsNullOrEmpty(content)) return null;
-        try
-        {
-            var json = JObject.Parse(content);
-            _userId = json["user_id"]?.Value<string>();
-            return json["refresh_token"]?.Value<string>();
-        }
-        catch (Exception ex)
-        {
-            LogService.WriteWarning($"GOG: failed to read token cache: {ex.Message}");
-            return null;
-        }
-    }
-
-    private static void OpenUrl(string url)
-    {
-        if (OperatingSystem.IsWindows())
-            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
-        else if (OperatingSystem.IsLinux())
-            Process.Start("xdg-open", url);
-        else if (OperatingSystem.IsMacOS())
-            Process.Start("open", url);
     }
 }

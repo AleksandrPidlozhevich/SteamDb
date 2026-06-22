@@ -4,35 +4,22 @@ using SteamDb.Services;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
-public readonly record struct StoreFetchProgress(int Completed, int Total, string Stage = "");
-
-/// <summary>Outcome of trying to authenticate a store from its cached refresh token.</summary>
-public enum StoreAuthFromCacheStatus
-{
-    /// <summary>No cached session exists — the user has never connected.</summary>
-    NoCachedSession,
-
-    /// <summary>The cached refresh token was accepted.</summary>
-    Authenticated,
-
-    /// <summary>A cached token existed but is no longer valid (expired/revoked).</summary>
-    SessionExpired
-}
-
-public class EpicApiClient : IStoreClient
+/// <summary>
+/// Client for the Epic Games launcher OAuth API (authorization-code paste flow). The shared
+/// refresh-token bearer plumbing lives in <see cref="RefreshTokenStoreClient"/>; this adds the
+/// Epic endpoints, the Basic-auth token POST, and the owned-games + catalog-enrichment fetch.
+/// </summary>
+public class EpicApiClient : RefreshTokenStoreClient
 {
     private const string LauncherClientId = "34a02cf8f4414e29b15921876da36f9a";
     private const string LauncherClientSecret = "daafbccc737745039dffe53d94fc76cf";
@@ -59,8 +46,6 @@ public class EpicApiClient : IStoreClient
     private const int CatalogBatchSize = 50;
     private const int CatalogMaxRetries = 4;
 
-    private const string SecretKey = "epic";
-
     private static readonly HttpClient _httpClient = CreateHttpClient();
 
     private static HttpClient CreateHttpClient()
@@ -71,134 +56,51 @@ public class EpicApiClient : IStoreClient
         return client;
     }
 
-    private readonly ISecretStore _secrets;
-
-    private readonly SemaphoreSlim _refreshLock = new(1, 1);
-
-    private string? _accessToken;
-    private string? _refreshToken;
-    private string? _accountId;
-
-    public EpicApiClient(ISecretStore? secretStore = null)
+    public EpicApiClient(ISecretStore? secretStore = null) : base(secretStore)
     {
-        _secrets = secretStore ?? new MsalSecretStore();
         MigrateLegacyTokenFile();
     }
 
-    private void MigrateLegacyTokenFile()
+    protected override string StoreName => "Epic";
+    protected override string SecretKey => "epic";
+    protected override HttpClient Http => _httpClient;
+    protected override string IdFieldName => "account_id";
+
+    protected override string BrowserLoginUrl => LoginUrl + Uri.EscapeDataString(AuthorizationCodeRedirectUrl);
+
+    public override Uri LoginRedirectUri => new("https://www.epicgames.com/id/api/redirect");
+
+    protected override (string Folder, string FileName)? LegacyTokenPath => ("EpicTokenStorage", "epic_token.json");
+
+    protected override Dictionary<string, string> BuildAuthCodeForm(string authorizationCode)
     {
-        try
-        {
-            var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-            var legacyPath = Path.Combine(exeDir, "EpicTokenStorage", "epic_token.json");
-            if (!File.Exists(legacyPath)) return;
-
-            if (string.IsNullOrEmpty(_secrets.Load(SecretKey)))
-                _secrets.Save(SecretKey, File.ReadAllText(legacyPath));
-
-            File.Delete(legacyPath);
-            LogService.WriteInfo("Epic: migrated legacy plaintext token into encrypted store.");
-        }
-        catch (Exception ex)
-        {
-            LogService.WriteWarning($"Epic: legacy token migration failed: {ex.Message}");
-        }
-    }
-
-    public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken);
-
-    public async Task<StoreAuthFromCacheStatus> TryAuthenticateFromCacheAsync()
-    {
-        var rt = LoadRefreshTokenFromCache();
-        if (string.IsNullOrEmpty(rt)) return StoreAuthFromCacheStatus.NoCachedSession;
-
-        try
-        {
-            // On a 4xx (invalid/expired token) RequestTokenAsync clears the cache for us.
-            return await AuthenticateWithRefreshTokenAsync(rt)
-                ? StoreAuthFromCacheStatus.Authenticated
-                : StoreAuthFromCacheStatus.SessionExpired;
-        }
-        catch (Exception ex)
-        {
-            LogService.WriteWarning($"Epic: refresh token invalid, re-login required. {ex.Message}");
-            return StoreAuthFromCacheStatus.SessionExpired;
-        }
-    }
-
-    public void OpenLoginPageInBrowser()
-    {
-        var redirect = Uri.EscapeDataString(AuthorizationCodeRedirectUrl);
-        OpenUrl(LoginUrl + redirect);
-        LogService.WriteInfo("Epic: opened login page in system browser.");
-    }
-
-    public async Task<bool> AuthenticateWithAuthorizationCodeAsync(string authorizationCode)
-    {
-        if (string.IsNullOrWhiteSpace(authorizationCode))
-            throw new ArgumentException("Authorization code is empty", nameof(authorizationCode));
-
-        var form = new Dictionary<string, string>
+        return new Dictionary<string, string>
         {
             ["grant_type"] = "authorization_code",
-            ["code"] = authorizationCode.Trim(),
+            ["code"] = authorizationCode,
             ["token_type"] = "eg1"
         };
-
-        return await RequestTokenAsync(form);
     }
 
-    public async Task<bool> AuthenticateWithRefreshTokenAsync(string refreshToken)
+    protected override Dictionary<string, string> BuildRefreshForm(string refreshToken)
     {
-        var form = new Dictionary<string, string>
+        return new Dictionary<string, string>
         {
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = refreshToken,
             ["token_type"] = "eg1"
         };
-
-        return await RequestTokenAsync(form);
     }
 
-    private async Task<bool> RequestTokenAsync(Dictionary<string, string> form)
+    protected override Task<HttpResponseMessage> SendTokenRequestAsync(Dictionary<string, string> form)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, OAuthTokenUrl);
+        var request = new HttpRequestMessage(HttpMethod.Post, OAuthTokenUrl);
         var basic = Convert.ToBase64String(
             Encoding.UTF8.GetBytes($"{LauncherClientId}:{LauncherClientSecret}"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basic);
         request.Content = new FormUrlEncodedContent(form);
 
-        var response = await _httpClient.SendAsync(request);
-        var body = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            LogService.WriteError($"Epic token request failed: {response.StatusCode}, {body}");
-
-            if (form.TryGetValue("grant_type", out var grant) && grant == "refresh_token" &&
-                (int)response.StatusCode is >= 400 and < 500)
-            {
-                LogService.WriteWarning("Epic: cached refresh token rejected — clearing token cache.");
-                DeleteTokenCache();
-            }
-
-            return false;
-        }
-
-        var json = JObject.Parse(body);
-        _accessToken = json["access_token"]?.Value<string>();
-        _refreshToken = json["refresh_token"]?.Value<string>();
-        _accountId = json["account_id"]?.Value<string>();
-
-        if (string.IsNullOrEmpty(_accessToken))
-        {
-            LogService.WriteError("Epic token response has no access_token.");
-            return false;
-        }
-
-        SaveRefreshTokenToCache(_refreshToken);
-        LogService.WriteInfo($"Epic: authenticated as account {_accountId}.");
-        return true;
+        return Http.SendAsync(request);
     }
 
     public async Task<List<EpicGame>> GetOwnedGamesAsync(IProgress<StoreFetchProgress>? progress = null)
@@ -345,97 +247,5 @@ public class EpicApiClient : IStoreClient
         return path != null &&
                (string.Equals(path, prefix, StringComparison.OrdinalIgnoreCase) ||
                 path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private void EnsureAuthenticated()
-    {
-        if (!IsAuthenticated)
-            throw new InvalidOperationException("Epic client is not authenticated. Call authenticate first.");
-    }
-
-    private async Task<HttpResponseMessage> SendAuthorizedAsync(Func<HttpRequestMessage> requestFactory)
-    {
-        var staleToken = _accessToken;
-
-        var request = requestFactory();
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
-        var response = await _httpClient.SendAsync(request);
-
-        if (response.StatusCode == HttpStatusCode.Unauthorized &&
-            await TryRefreshAccessTokenAsync(staleToken))
-        {
-            response.Dispose();
-            request = requestFactory();
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
-            response = await _httpClient.SendAsync(request);
-        }
-
-        return response;
-    }
-
-    private async Task<bool> TryRefreshAccessTokenAsync(string? staleAccessToken)
-    {
-        await _refreshLock.WaitAsync();
-        try
-        {
-            if (!string.IsNullOrEmpty(_accessToken) && _accessToken != staleAccessToken)
-                return true;
-
-            var rt = _refreshToken ?? LoadRefreshTokenFromCache();
-            if (string.IsNullOrEmpty(rt)) return false;
-
-            try
-            {
-                return await AuthenticateWithRefreshTokenAsync(rt);
-            }
-            catch (Exception ex)
-            {
-                LogService.WriteWarning($"Epic: access-token refresh after 401 failed. {ex.Message}");
-                return false;
-            }
-        }
-        finally
-        {
-            _refreshLock.Release();
-        }
-    }
-
-    private void SaveRefreshTokenToCache(string? refreshToken)
-    {
-        if (string.IsNullOrEmpty(refreshToken)) return;
-        var payload = new { refresh_token = refreshToken, account_id = _accountId };
-        _secrets.Save(SecretKey, JsonConvert.SerializeObject(payload));
-    }
-
-    private void DeleteTokenCache()
-    {
-        _secrets.Delete(SecretKey);
-    }
-
-    private string? LoadRefreshTokenFromCache()
-    {
-        var content = _secrets.Load(SecretKey);
-        if (string.IsNullOrEmpty(content)) return null;
-        try
-        {
-            var json = JObject.Parse(content);
-            _accountId = json["account_id"]?.Value<string>();
-            return json["refresh_token"]?.Value<string>();
-        }
-        catch (Exception ex)
-        {
-            LogService.WriteWarning($"Epic: failed to read token cache: {ex.Message}");
-            return null;
-        }
-    }
-
-    private static void OpenUrl(string url)
-    {
-        if (OperatingSystem.IsWindows())
-            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
-        else if (OperatingSystem.IsLinux())
-            Process.Start("xdg-open", url);
-        else if (OperatingSystem.IsMacOS())
-            Process.Start("open", url);
     }
 }

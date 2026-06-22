@@ -23,6 +23,7 @@ public sealed class StoreConnector
     private readonly Func<bool> _isConnected;
     private readonly Func<IClipboard?> _getClipboard;
     private readonly Func<string, Exception, Task> _showError;
+    private readonly IWebAuthenticator? _webAuth;
 
     private bool _authInProgress;
 
@@ -35,7 +36,8 @@ public sealed class StoreConnector
         Action<string?> setCode,
         Func<bool> isConnected,
         Func<IClipboard?> getClipboard,
-        Func<string, Exception, Task> showError)
+        Func<string, Exception, Task> showError,
+        IWebAuthenticator? webAuth = null)
     {
         _name = name;
         _clientFactory = clientFactory;
@@ -46,6 +48,7 @@ public sealed class StoreConnector
         _isConnected = isConnected;
         _getClipboard = getClipboard;
         _showError = showError;
+        _webAuth = webAuth;
     }
 
     /// <summary>Restore a previously cached session (called on startup).</summary>
@@ -74,6 +77,21 @@ public sealed class StoreConnector
             if (await client.TryAuthenticateFromCacheAsync() == StoreAuthFromCacheStatus.Authenticated)
             {
                 _setConnected(true);
+                return;
+            }
+
+            // WebView flow: log in inside an embedded window and read the code/token from the
+            // redirect URL — no browser hop, no manual paste.
+            if (_webAuth != null)
+            {
+                var payload = await _webAuth.AuthenticateAsync(client.LoginRequestUri, client.LoginRedirectUri);
+                if (payload == null) return; // user closed the login window
+
+                var webCode = _extractCode(payload);
+                if (string.IsNullOrEmpty(webCode))
+                    throw new Exception($"{_name}: couldn't read the authorization data from the login redirect.");
+
+                await SubmitCodeAsync(webCode);
                 return;
             }
 
