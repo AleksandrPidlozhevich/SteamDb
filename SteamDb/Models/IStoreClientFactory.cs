@@ -9,11 +9,13 @@ namespace SteamDb.Models;
 /// </summary>
 public interface IStoreClientFactory
 {
-    EpicApiClient CreateEpic();
+    IEpicClient CreateEpic();
 
-    GogApiClient CreateGog();
+    IGogClient CreateGog();
 
-    XboxApiClient CreateXbox();
+    IXboxClient CreateXbox();
+
+    ISteamClient CreateSteam();
 }
 
 public sealed class StoreClientFactory : IStoreClientFactory
@@ -27,9 +29,11 @@ public sealed class StoreClientFactory : IStoreClientFactory
         _log = log;
     }
 
-    public EpicApiClient CreateEpic() => new(_secrets, _log);
+    public IEpicClient CreateEpic() => new EpicApiClient(_secrets, _log);
 
-    public GogApiClient CreateGog() => new(_secrets, _log);
+    public IGogClient CreateGog() => new GogApiClient(_secrets, _log);
 
-    public XboxApiClient CreateXbox() => new(_secrets, _log);
+    public IXboxClient CreateXbox() => new XboxApiClient(_secrets, _log);
+
+    public ISteamClient CreateSteam() => new SteamApiClient(_log);
 }

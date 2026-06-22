@@ -145,7 +145,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var log = new FileLogService();
         var secrets = new MsalSecretStore(log);
         var clients = new StoreClientFactory(secrets, log);
-        var library = new GameLibraryService(clients, log);
+        var library = new GameLibraryService(clients);
         return new Dependencies(
             secrets,
             new EmbeddedWebViewAuthenticator(DefaultTopLevel),

@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
-public class SteamApiClient
+public class SteamApiClient : ISteamClient
 {
     private const int MaxRetries = 5;
     private static readonly HttpClient _httpClient = new();

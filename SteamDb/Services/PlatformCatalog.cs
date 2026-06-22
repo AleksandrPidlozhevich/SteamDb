@@ -78,7 +78,7 @@ internal static class PlatformCatalog
             (r, id) => r.XboxTitleId = NullIfEmpty(id),
             (r, o) => { if (!string.IsNullOrEmpty(o.XboxTitleId)) r.XboxTitleId = o.XboxTitleId; },
             // Xbox title ids were matched case-insensitively; lowercase the key to preserve that.
-            r => string.IsNullOrEmpty(r.XboxTitleId) ? null : r.XboxTitleId),
+            r => string.IsNullOrEmpty(r.XboxTitleId) ? null : r.XboxTitleId.ToLowerInvariant()),
     ];
 
     public static string? BuildEpicKey(string? ns, string? catalogItemId)

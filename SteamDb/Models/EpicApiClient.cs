@@ -19,7 +19,7 @@ namespace SteamDb.Models;
 /// refresh-token bearer plumbing lives in <see cref="RefreshTokenStoreClient"/>; this adds the
 /// Epic endpoints, the Basic-auth token POST, and the owned-games + catalog-enrichment fetch.
 /// </summary>
-public class EpicApiClient : RefreshTokenStoreClient
+public class EpicApiClient : RefreshTokenStoreClient, IEpicClient
 {
     private const string LauncherClientId = "34a02cf8f4414e29b15921876da36f9a";
     private const string LauncherClientSecret = "daafbccc737745039dffe53d94fc76cf";

@@ -26,7 +26,7 @@ namespace SteamDb.Models;
 ///   3. xsts.auth.xboxlive.com/xsts/authorize → XSTS token (+ user hash and XUID).
 /// Requests then carry <c>Authorization: XBL3.0 x={uhs};{xsts}</c>.
 /// </summary>
-public class XboxApiClient : IStoreClient
+public class XboxApiClient : IXboxClient
 {
     // Well-known public Minecraft launcher client id (no secret). The relying party is chosen at
     // the XSTS step, so a token obtained here works for general Xbox Live services too.

@@ -22,12 +22,10 @@ public sealed record GameLibraryResult(
 public sealed class GameLibraryService
 {
     private readonly IStoreClientFactory _clients;
-    private readonly ILogService _log;
 
-    public GameLibraryService(IStoreClientFactory clients, ILogService log)
+    public GameLibraryService(IStoreClientFactory clients)
     {
         _clients = clients;
-        _log = log;
     }
 
     public async Task<GameLibraryResult> FetchAsync(
@@ -47,7 +45,7 @@ public sealed class GameLibraryService
         if (hasSteamCredentials)
         {
             onStatus?.Invoke("Loading Steam library…");
-            steamTask = new SteamApiClient(_log).GetOwnedGames(steamId, steamApiKey, ct);
+            steamTask = _clients.CreateSteam().GetOwnedGames(steamId, steamApiKey, ct);
         }
 
         // The three cached-session checks are independent network calls — run them together.

@@ -199,8 +199,9 @@ public class CsvGameExportServiceTests
     [Fact]
     public void Merge_SameSteamId_MergesIntoOneRow()
     {
+        // Distinct names so the match can only happen via Steam id, not the name fallback.
         var existing = new[] { CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400") };
-        var incoming = new[] { CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400") };
+        var incoming = new[] { CsvGameExportService.CreateRow("Steam", "Portal (2007)", "Steam:400") };
 
         var (rows, added, updated) = CsvGameExportService.Merge(existing, incoming);
 
@@ -243,8 +244,9 @@ public class CsvGameExportServiceTests
     [Fact]
     public void Merge_SameXboxTitleId_MergesIntoOneRow()
     {
+        // Distinct names so the merge is driven by the Xbox title id, not the name fallback.
         var existing = new[] { CsvGameExportService.CreateRow("Xbox", "Forza", "Xbox:9NXYZ") };
-        var incoming = new[] { CsvGameExportService.CreateRow("Xbox/Game Pass", "Forza", "Xbox:9NXYZ") };
+        var incoming = new[] { CsvGameExportService.CreateRow("Xbox/Game Pass", "Forza Horizon", "Xbox:9NXYZ") };
 
         var (rows, added, updated) = CsvGameExportService.Merge(existing, incoming);
 
@@ -257,8 +259,10 @@ public class CsvGameExportServiceTests
     [Fact]
     public void Merge_XboxTitleId_MatchesCaseInsensitively()
     {
+        // Distinct names: the only thing that can match these rows is the (case-folded) Xbox id.
+        // If the id key weren't lower-cased, these would not merge.
         var existing = new[] { CsvGameExportService.CreateRow("Xbox", "Sea of Thieves", "Xbox:9pgw") };
-        var incoming = new[] { CsvGameExportService.CreateRow("Xbox", "Sea of Thieves", "Xbox:9PGW") };
+        var incoming = new[] { CsvGameExportService.CreateRow("Xbox", "SoT Anniversary", "Xbox:9PGW") };
 
         var (rows, _, updated) = CsvGameExportService.Merge(existing, incoming);
 
@@ -306,8 +310,9 @@ public class CsvGameExportServiceTests
             CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")
         });
 
-        // An incoming row with the same Steam id matches the seeded row.
-        Assert.NotNull(matcher.Match(CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")));
+        // An incoming row with the same Steam id (but a different name) matches the seeded row,
+        // so the match is by id rather than the name fallback.
+        Assert.NotNull(matcher.Match(CsvGameExportService.CreateRow("Steam", "Portal (2007)", "Steam:400")));
 
         // A previously unseen game is unmatched until it's registered.
         var newGame = CsvGameExportService.CreateRow("GOG", "Bastion", "GOG:99");

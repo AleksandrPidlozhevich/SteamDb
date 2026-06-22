@@ -14,7 +14,7 @@ namespace SteamDb.Models;
 /// plumbing lives in <see cref="RefreshTokenStoreClient"/>; this adds the GOG endpoints, the
 /// GET-query-string token request, and the paginated owned-games fetch.
 /// </summary>
-public class GogApiClient : RefreshTokenStoreClient
+public class GogApiClient : RefreshTokenStoreClient, IGogClient
 {
     // Well-known GOG Galaxy client credentials (used by Heroic / gogdl / Lutris).
     private const string ClientId = "46899977096215655";
