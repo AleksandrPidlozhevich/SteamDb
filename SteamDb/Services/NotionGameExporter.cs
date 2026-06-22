@@ -16,12 +16,14 @@ namespace SteamDb.Services;
 /// </summary>
 public sealed class NotionGameExporter
 {
-    private readonly GameLibraryService _library;
+    private readonly IGameLibraryService _library;
+    private readonly INotionGateway _notion;
     private readonly ILogService _log;
 
-    public NotionGameExporter(GameLibraryService library, ILogService log)
+    public NotionGameExporter(IGameLibraryService library, INotionGateway notion, ILogService log)
     {
         _library = library;
+        _notion = notion;
         _log = log;
     }
 
@@ -30,8 +32,9 @@ public sealed class NotionGameExporter
         IProgress<StoreFetchProgress>? progress = null, Action<string>? onStatus = null,
         CancellationToken ct = default)
     {
-        var notionApiClient = new NotionApiClient(notionToken, dbId);
-        var fetcher = new NotionDataFetcher(notionApiClient, _log);
+        // using: the client owns an HttpClient, so it's disposed when the export finishes.
+        using var notionApiClient = _notion.CreateClient(notionToken, dbId);
+        var fetcher = _notion.CreateFetcher(notionApiClient);
 
         var libraryTask = _library.FetchAsync(steamApiKey, steamId, progress, onStatus, ct);
         var existingTask = fetcher.FetchRowsAsync(ct);

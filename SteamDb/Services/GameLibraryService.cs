@@ -15,11 +15,21 @@ public sealed record GameLibraryResult(
     bool XboxAuthenticated,
     bool XboxSessionExpired);
 
+public interface IGameLibraryService
+{
+    Task<GameLibraryResult> FetchAsync(
+        string? steamApiKey,
+        string? steamId,
+        IProgress<StoreFetchProgress>? progress = null,
+        Action<string>? onStatus = null,
+        CancellationToken ct = default);
+}
+
 /// <summary>
 /// Fetches the owned games from Steam and/or Epic and/or GOG and/or Xbox and flattens them into
 /// CSV rows. Network/auth concerns live here; the caller supplies progress and status callbacks.
 /// </summary>
-public sealed class GameLibraryService
+public sealed class GameLibraryService : IGameLibraryService
 {
     private readonly IStoreClientFactory _clients;
 

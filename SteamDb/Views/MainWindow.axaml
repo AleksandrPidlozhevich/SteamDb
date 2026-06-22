@@ -132,20 +132,20 @@
 
         <!-- Progress bar (shown while fetching games) + Cancel -->
         <Grid Grid.Row="0" Height="16" Margin="0,0,0,14" ColumnDefinitions="*,Auto"
-              IsVisible="{Binding IsBusy}">
+              IsVisible="{Binding Progress.IsBusy}">
             <Panel Grid.Column="0">
                 <ProgressBar Height="16"
-                             IsIndeterminate="{Binding ProgressIsIndeterminate}"
+                             IsIndeterminate="{Binding Progress.IsIndeterminate}"
                              Minimum="0"
-                             Maximum="{Binding ProgressMaximum}"
-                             Value="{Binding ProgressValue}" />
+                             Maximum="{Binding Progress.Maximum}"
+                             Value="{Binding Progress.Value}" />
                 <TextBlock FontSize="9"
                            VerticalAlignment="Center" HorizontalAlignment="Center"
-                           Text="{Binding ProgressStatus}" />
+                           Text="{Binding Progress.Status}" />
             </Panel>
             <Button Grid.Column="1" Content="Cancel" FontSize="9" Padding="8,0" Margin="8,0,0,0"
                     VerticalAlignment="Stretch" VerticalContentAlignment="Center"
-                    Command="{Binding CancelCommand}" />
+                    Command="{Binding Progress.CancelCommand}" />
         </Grid>
 
         <!-- Two columns: credential inputs (left) and action cards (right) -->

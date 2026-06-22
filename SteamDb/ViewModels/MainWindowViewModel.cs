@@ -7,7 +7,6 @@ using SteamDb.Models;
 using SteamDb.Services;
 using System;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace SteamDb.ViewModels;
@@ -32,25 +31,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public StoreConnectionViewModel Xbox { get; }
 
-    [ObservableProperty] private bool isBusy;
-
-    [ObservableProperty] private double progressValue;
-
-    [ObservableProperty] private double progressMaximum = 1;
-
-    [ObservableProperty] private bool progressIsIndeterminate;
-
-    [ObservableProperty] private string? progressStatus;
-
-    // Cancels the in-flight export; created in BeginBusy, signalled by the Cancel command.
-    private CancellationTokenSource? _cts;
+    /// <summary>Busy / progress-bar state + cancellation for the running export.</summary>
+    public ProgressViewModel Progress { get; } = new();
 
     private const string SettingsSecretKey = "app-settings";
 
     private readonly ISecretStore _secrets;
     private readonly IWebAuthenticator _webAuth;
     private readonly IStoreClientFactory _clients;
-    private readonly GameLibraryService _library;
+    private readonly IGameLibraryService _library;
     private readonly NotionGameExporter _notionExporter;
     private readonly GoogleSheetsGameExporter _sheetsExporter;
     private readonly IDialogService _dialogs;
@@ -61,7 +50,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ISecretStore secrets,
         IWebAuthenticator webAuth,
         IStoreClientFactory clients,
-        GameLibraryService library,
+        IGameLibraryService library,
         NotionGameExporter notionExporter,
         GoogleSheetsGameExporter sheetsExporter,
         IDialogService dialogs,
@@ -101,8 +90,8 @@ public partial class MainWindowViewModel : ViewModelBase
             _log,
             _webAuth,
             connectingStatus: "Opening GOG login…",
-            beginBusy: BeginBusy,
-            endBusy: EndBusy);
+            beginBusy: Progress.Begin,
+            endBusy: Progress.End);
 
         Xbox = new StoreConnectionViewModel(
             "Xbox",
@@ -113,8 +102,8 @@ public partial class MainWindowViewModel : ViewModelBase
             _log,
             _webAuth,
             connectingStatus: "Opening Xbox login…",
-            beginBusy: BeginBusy,
-            endBusy: EndBusy,
+            beginBusy: Progress.Begin,
+            endBusy: Progress.End,
             onConnected: OnXboxConnectedAsync);
 
         _ = Epic.InitializeFromCacheAsync();
@@ -125,7 +114,7 @@ public partial class MainWindowViewModel : ViewModelBase
     // After a successful interactive Xbox connect, pull the library once (live check + logs counts).
     private async Task OnXboxConnectedAsync(StoreConnectionViewModel _)
     {
-        SetIndeterminate("Loading Xbox library…");
+        Progress.SetIndeterminate("Loading Xbox library…");
         await LogXboxLibrarySummaryAsync();
     }
 
@@ -151,7 +140,7 @@ public partial class MainWindowViewModel : ViewModelBase
             new EmbeddedWebViewAuthenticator(DefaultTopLevel),
             clients,
             library,
-            new NotionGameExporter(library, log),
+            new NotionGameExporter(library, new NotionGateway(log), log),
             new GoogleSheetsGameExporter(secrets, log),
             new WindowDialogService(),
             new CsvFileService(log),
@@ -168,7 +157,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ISecretStore Secrets,
         IWebAuthenticator WebAuth,
         IStoreClientFactory Clients,
-        GameLibraryService Library,
+        IGameLibraryService Library,
         NotionGameExporter NotionExporter,
         GoogleSheetsGameExporter SheetsExporter,
         IDialogService Dialogs,
@@ -230,12 +219,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task ExportToCsv()
     {
-        if (IsBusy) return;
-        BeginBusy("Fetching games…");
+        if (Progress.IsBusy) return;
+        Progress.Begin("Fetching games…");
         try
         {
             var result = await _library.FetchAsync(
-                SteamApiKey, SteamId, CreateStoreProgress(), SetIndeterminate, _cts!.Token);
+                SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
             ApplyStoreStatuses(result);
             await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
             await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
@@ -274,15 +263,15 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
-            EndBusy();
+            Progress.End();
         }
     }
 
     [RelayCommand]
     private async Task UpdateCsv()
     {
-        if (IsBusy) return;
-        BeginBusy("Fetching games…");
+        if (Progress.IsBusy) return;
+        Progress.Begin("Fetching games…");
         try
         {
             var file = await _dialogs.PickOpenCsvAsync("Select CSV File to Update");
@@ -303,7 +292,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             var result = await _library.FetchAsync(
-                SteamApiKey, SteamId, CreateStoreProgress(), SetIndeterminate, _cts!.Token);
+                SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
             ApplyStoreStatuses(result);
             await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
             await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
@@ -337,7 +326,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
-            EndBusy();
+            Progress.End();
         }
     }
 
@@ -385,12 +374,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task ExportToNotion()
     {
-        if (IsBusy) return;
-        BeginBusy("Fetching games…");
+        if (Progress.IsBusy) return;
+        Progress.Begin("Fetching games…");
         try
         {
             await _notionExporter.ExportAsync(
-                SteamApiKey, SteamId, NotionToken, DbId, CreateStoreProgress(), SetIndeterminate, _cts!.Token);
+                SteamApiKey, SteamId, NotionToken, DbId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
         }
         catch (OperationCanceledException)
         {
@@ -403,18 +392,18 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
-            EndBusy();
+            Progress.End();
         }
     }
 
     [RelayCommand]
     private async Task ExportToGoogleSheets()
     {
-        if (IsBusy) return;
-        BeginBusy("Exporting to Google Sheets…");
+        if (Progress.IsBusy) return;
+        Progress.Begin("Exporting to Google Sheets…");
         try
         {
-            await _sheetsExporter.ExportAsync(GoogleSheetsTableName, SteamApiKey, SteamId, _cts!.Token);
+            await _sheetsExporter.ExportAsync(GoogleSheetsTableName, SteamApiKey, SteamId, Progress.Token);
         }
         catch (OperationCanceledException)
         {
@@ -427,7 +416,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
-            EndBusy();
+            Progress.End();
         }
     }
 
@@ -467,61 +456,4 @@ public partial class MainWindowViewModel : ViewModelBase
         _dialogs.OpenLink("https://ko-fi.com/aliaksandrpidlazhevich");
     }
 
-    // ---- Progress / busy state -------------------------------------------------------
-
-    // One reporter for any store; the stage label comes from the progress payload.
-    private IProgress<StoreFetchProgress> CreateStoreProgress()
-    {
-        // Constructed on the UI thread, so callbacks marshal back to it automatically.
-        return new Progress<StoreFetchProgress>(p =>
-        {
-            var stage = string.IsNullOrEmpty(p.Stage) ? "Working" : p.Stage;
-
-            if (p.Total <= 0)
-            {
-                ProgressIsIndeterminate = true;
-                ProgressStatus = $"{stage}…";
-                return;
-            }
-
-            ProgressIsIndeterminate = false;
-            ProgressMaximum = p.Total;
-            ProgressValue = p.Completed;
-            ProgressStatus = $"{stage}… {p.Completed}/{p.Total}";
-        });
-    }
-
-    [RelayCommand]
-    private void Cancel()
-    {
-        _cts?.Cancel();
-        ProgressStatus = "Cancelling…";
-    }
-
-    private void BeginBusy(string status)
-    {
-        _cts?.Dispose();
-        _cts = new CancellationTokenSource();
-        IsBusy = true;
-        ProgressIsIndeterminate = true;
-        ProgressValue = 0;
-        ProgressMaximum = 1;
-        ProgressStatus = status;
-    }
-
-    private void SetIndeterminate(string status)
-    {
-        ProgressIsIndeterminate = true;
-        ProgressStatus = status;
-    }
-
-    private void EndBusy()
-    {
-        IsBusy = false;
-        ProgressIsIndeterminate = false;
-        ProgressValue = 0;
-        ProgressStatus = null;
-        _cts?.Dispose();
-        _cts = null;
-    }
 }

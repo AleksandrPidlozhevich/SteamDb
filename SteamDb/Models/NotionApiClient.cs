@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace SteamDb.Models;
 
-public class NotionApiClient
+public class NotionApiClient : INotionApiClient
 {
     private const int DelayBetweenRequests = 334;
     private const int MaxConcurrentRequests = 3;

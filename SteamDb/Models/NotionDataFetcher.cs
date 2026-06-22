@@ -16,17 +16,17 @@ public sealed record NotionGameRow(
     IReadOnlySet<string> Platforms,
     string GameId);
 
-public class NotionDataFetcher
+public class NotionDataFetcher : INotionDataFetcher
 {
     // Property names as they exist in the user's Notion database.
     public const string NameProperty = "Name";
     public const string PlatformProperty = "Platform's";
     public const string GameIdProperty = "GameID";
 
-    private readonly NotionApiClient _notionApiClient;
+    private readonly INotionApiClient _notionApiClient;
     private readonly ILogService _log;
 
-    public NotionDataFetcher(NotionApiClient notionApiClient, ILogService log)
+    public NotionDataFetcher(INotionApiClient notionApiClient, ILogService log)
     {
         _notionApiClient = notionApiClient;
         _log = log;

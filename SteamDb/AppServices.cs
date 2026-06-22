@@ -27,7 +27,8 @@ public static class AppServices
         services.AddSingleton<IWebAuthenticator>(_ => new EmbeddedWebViewAuthenticator(MainWindow));
         services.AddSingleton<CsvFileService>();
 
-        services.AddSingleton<GameLibraryService>();
+        services.AddSingleton<IGameLibraryService, GameLibraryService>();
+        services.AddSingleton<INotionGateway, NotionGateway>();
         services.AddSingleton<NotionGameExporter>();
         services.AddSingleton<GoogleSheetsGameExporter>();
 
