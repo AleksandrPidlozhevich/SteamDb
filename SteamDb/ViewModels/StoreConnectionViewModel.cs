@@ -33,6 +33,7 @@ public sealed partial class StoreConnectionViewModel : ObservableObject
     private readonly Action<string>? _beginBusy;
     private readonly Action? _endBusy;
     private readonly Func<StoreConnectionViewModel, Task>? _onConnected;
+    private readonly Action? _openInfo;
 
     public string Name { get; }
 
@@ -48,6 +49,9 @@ public sealed partial class StoreConnectionViewModel : ObservableObject
     /// <summary>After clicking Connect (paste flow): show the authorization-code field.</summary>
     public bool ShowCodeInput => _supportsCodeInput && !IsConnected && IsCodeInputVisible;
 
+    /// <summary>Whether this store has a help link wired up (controls the info button's visibility).</summary>
+    public bool HasInfo => _openInfo != null;
+
     public StoreConnectionViewModel(
         string name,
         Func<IStoreClient> clientFactory,
@@ -61,7 +65,8 @@ public sealed partial class StoreConnectionViewModel : ObservableObject
         string? connectingStatus = null,
         Action<string>? beginBusy = null,
         Action? endBusy = null,
-        Func<StoreConnectionViewModel, Task>? onConnected = null)
+        Func<StoreConnectionViewModel, Task>? onConnected = null,
+        Action? openInfo = null)
     {
         Name = name;
         CodePlaceholder = codePlaceholder;
@@ -70,6 +75,7 @@ public sealed partial class StoreConnectionViewModel : ObservableObject
         _beginBusy = beginBusy;
         _endBusy = endBusy;
         _onConnected = onConnected;
+        _openInfo = openInfo;
 
         _connector = new StoreConnector(
             name,
@@ -107,6 +113,10 @@ public sealed partial class StoreConnectionViewModel : ObservableObject
 
     [RelayCommand]
     private void Disconnect() => _connector.SignOut();
+
+    // Opens this store's help page (the relevant README section on GitHub).
+    [RelayCommand]
+    private void OpenInfo() => _openInfo?.Invoke();
 
     // Epic paste flow: authorize automatically as soon as a valid code is typed/pasted.
     partial void OnAuthorizationCodeChanged(string? value)

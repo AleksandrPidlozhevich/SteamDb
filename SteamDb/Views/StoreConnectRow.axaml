@@ -29,8 +29,10 @@
                         Command="{Binding DisconnectCommand}" />
             </StackPanel>
         </Panel>
-        <!-- Per-store info (placeholder — no command yet) -->
-        <Button Classes="animated-button icon-button">
+        <!-- Per-store info: opens the relevant README section on GitHub. -->
+        <Button Classes="animated-button icon-button"
+                IsVisible="{Binding HasInfo}"
+                Command="{Binding OpenInfoCommand}">
             <Viewbox>
                 <Image Source="{DynamicResource InfoIcon}" />
             </Viewbox>

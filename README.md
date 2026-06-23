@@ -183,7 +183,9 @@ person), otherwise the app can't see or write to it.
 > Notion API version `2025-09-03`, which resolves the database's data source automatically, so no
 > extra setup is required on your side.
 
-📘 Reference: [Official Notion Docs — Retrieve a Database](https://developers.notion.com/reference/retrieve-a-database)
+📘 Reference: [Official Notion Docs — Retrieve a database](https://developers.notion.com/reference/retrieve-database)
+· [Retrieve a data source](https://developers.notion.com/reference/retrieve-a-data-source)
+· [Upgrading to 2025-09-03](https://developers.notion.com/guides/get-started/upgrade-guide-2025-09-03)
 
 > 📷 _Example screenshot:_
 > ![Database ID example](docs/images/notion-database-id.png)

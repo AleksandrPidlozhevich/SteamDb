@@ -79,7 +79,8 @@ public partial class MainWindowViewModel : ViewModelBase
             _dialogs.ShowErrorAsync,
             _log,
             supportsCodeInput: true,
-            codePlaceholder: "Epic authorization code");
+            codePlaceholder: "Epic authorization code",
+            openInfo: () => _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#epic-games"));
 
         Gog = new StoreConnectionViewModel(
             "GOG",
@@ -91,7 +92,8 @@ public partial class MainWindowViewModel : ViewModelBase
             _webAuth,
             connectingStatus: "Opening GOG login…",
             beginBusy: Progress.Begin,
-            endBusy: Progress.End);
+            endBusy: Progress.End,
+            openInfo: () => _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#gog"));
 
         Xbox = new StoreConnectionViewModel(
             "Xbox",
@@ -104,7 +106,8 @@ public partial class MainWindowViewModel : ViewModelBase
             connectingStatus: "Opening Xbox login…",
             beginBusy: Progress.Begin,
             endBusy: Progress.End,
-            onConnected: OnXboxConnectedAsync);
+            onConnected: OnXboxConnectedAsync,
+            openInfo: () => _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#xbox"));
 
         _ = Epic.InitializeFromCacheAsync();
         _ = Gog.InitializeFromCacheAsync();
@@ -441,7 +444,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void OpenInfoLinkNotionDbId()
     {
-        _dialogs.OpenLink("https://developers.notion.com/reference/retrieve-a-database/");
+        _dialogs.OpenLink("https://developers.notion.com/reference/retrieve-database");
     }
 
     [RelayCommand]

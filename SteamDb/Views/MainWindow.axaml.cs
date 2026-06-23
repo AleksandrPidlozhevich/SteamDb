@@ -1,4 +1,7 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using SteamDb.Models;
 using SteamDb.Services;
@@ -23,6 +26,17 @@ public partial class MainWindow : Window
         _clients = clients;
         _log = log;
         _ = PrewarmGogLoginAsync();
+    }
+
+    // Flips between light and dark. Starting from "Default" (system), ActualThemeVariant tells us
+    // what's currently shown, so the first click switches to the opposite explicit variant.
+    private void OnToggleTheme(object? sender, RoutedEventArgs e)
+    {
+        var app = Application.Current;
+        if (app is null) return;
+
+        app.RequestedThemeVariant =
+            app.ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
     }
 
     // A few seconds after startup, quietly load the GOG login page into the hidden 1x1 pre-warm

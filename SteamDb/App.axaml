@@ -20,6 +20,8 @@
                     <SvgImage x:Key="SettingsIcon" Source="/Assets/settings-light.svg" />
                     <SvgImage x:Key="GogIcon" Source="/Assets/gog-com-light.svg" />
                     <SvgImage x:Key="XboxIcon" Source="/Assets/xbox-light.svg" />
+                    <!-- Shows the current theme; the sun's dark fill reads on the light background. -->
+                    <SvgImage x:Key="ThemeToggleIcon" Source="/Assets/sun-bold.svg" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SvgImage x:Key="EpicIcon" Source="/Assets/epic-games-dark.svg" />
@@ -29,6 +31,8 @@
                     <SvgImage x:Key="SettingsIcon" Source="/Assets/settings-dark.svg" />
                     <SvgImage x:Key="GogIcon" Source="/Assets/gog-com-dark.svg" />
                     <SvgImage x:Key="XboxIcon" Source="/Assets/xbox-dark.svg" />
+                    <!-- Shows the current theme; the moon's light fill reads on the dark background. -->
+                    <SvgImage x:Key="ThemeToggleIcon" Source="/Assets/moon.svg" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
