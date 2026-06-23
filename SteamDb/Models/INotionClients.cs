@@ -12,8 +12,9 @@ public interface INotionApiClient : IDisposable
 {
     Task<List<JObject>> QueryAllPagesAsync(CancellationToken ct = default);
 
+    // Each item is the page's `properties` object; the client wraps it with the data-source parent.
     Task AddPagesToDatabaseParallel(
-        IEnumerable<object> pages, Action? onPageDone = null, CancellationToken ct = default);
+        IEnumerable<object> pageProperties, Action? onPageDone = null, CancellationToken ct = default);
 
     Task UpdatePagesParallel(
         IEnumerable<(string PageId, object Properties)> updates,

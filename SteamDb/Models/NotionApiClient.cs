@@ -16,10 +16,18 @@ public class NotionApiClient : INotionApiClient
 {
     private const int DelayBetweenRequests = 334;
     private const int MaxConcurrentRequests = 3;
+
+    // Notion API version. As of 2025-09-03 a database and its data source(s) are distinct: rows are
+    // queried and pages are created against a data source, not the database directly.
+    private const string NotionVersion = "2025-09-03";
+
     private readonly string _apiKey;
     private readonly string _databaseId;
     private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _semaphore;
+
+    // The database's (first) data source id, resolved lazily from the database id and cached.
+    private string? _dataSourceId;
 
     public NotionApiClient(string? apiKey, string? databaseId)
     {
@@ -33,25 +41,56 @@ public class NotionApiClient : INotionApiClient
     private void InitializeHttpClient()
     {
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
-        _httpClient.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
+        _httpClient.DefaultRequestHeaders.Add("Notion-Version", NotionVersion);
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
     }
 
-    public async Task<string> QueryDatabaseAsync()
+    // Resolves the data source id behind the configured database id (single-source databases expose
+    // exactly one). Cached after the first call so the export only makes this round-trip once.
+    private async Task<string> ResolveDataSourceIdAsync(CancellationToken ct)
     {
-        var queryPayload = new { };
-        var queryUrl = $"https://api.notion.com/v1/databases/{_databaseId}/query";
-        var response = await _httpClient.PostAsync(
-            queryUrl,
-            new StringContent(JsonConvert.SerializeObject(queryPayload), Encoding.UTF8, "application/json")
-        );
+        if (!string.IsNullOrEmpty(_dataSourceId)) return _dataSourceId;
 
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
+        var response = await _httpClient.GetAsync($"https://api.notion.com/v1/databases/{_databaseId}", ct);
+        await EnsureNotionSuccessAsync(response, ct);
+
+        var database = JObject.Parse(await response.Content.ReadAsStringAsync(ct));
+        var id = (database["data_sources"] as JArray)?.FirstOrDefault()?["id"]?.Value<string>();
+        if (string.IsNullOrEmpty(id))
+            throw new InvalidOperationException($"Notion database {_databaseId} exposes no data source.");
+
+        _dataSourceId = id;
+        return id;
+    }
+
+    // EnsureSuccessStatusCode hides Notion's response body, which carries the actual reason
+    // (e.g. an invalid token or an unshared database). Surface it so failures are diagnosable.
+    private static async Task EnsureNotionSuccessAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode) return;
+
+        var body = await response.Content.ReadAsStringAsync(ct);
+        string? notionMessage = null;
+        try
+        {
+            notionMessage = JObject.Parse(body)["message"]?.Value<string>();
+        }
+        catch (JsonReaderException)
+        {
+            // Non-JSON body (e.g. a gateway error page) — fall back to the raw content below.
+        }
+
+        var detail = notionMessage ?? body;
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+            detail = $"Notion rejected the integration token (401). " +
+                     $"Check the token in settings and that the database is shared with the integration. {detail}";
+
+        throw new HttpRequestException($"Notion API {(int)response.StatusCode} {response.StatusCode}: {detail}");
     }
 
     public async Task<List<JObject>> QueryAllPagesAsync(CancellationToken ct = default)
     {
+        var dataSourceId = await ResolveDataSourceIdAsync(ct);
         var allPages = new List<JObject>();
         string? nextCursor = null;
 
@@ -63,14 +102,14 @@ public class NotionApiClient : INotionApiClient
             else
                 queryPayload = new { };
 
-            var queryUrl = $"https://api.notion.com/v1/databases/{_databaseId}/query";
+            var queryUrl = $"https://api.notion.com/v1/data_sources/{dataSourceId}/query";
             var response = await _httpClient.PostAsync(
                 queryUrl,
                 new StringContent(JsonConvert.SerializeObject(queryPayload), Encoding.UTF8, "application/json"),
                 ct
             );
 
-            response.EnsureSuccessStatusCode();
+            await EnsureNotionSuccessAsync(response, ct);
             var responseContent = await response.Content.ReadAsStringAsync(ct);
             var result = JObject.Parse(responseContent);
 
@@ -90,18 +129,22 @@ public class NotionApiClient : INotionApiClient
     }
 
     public async Task AddPagesToDatabaseParallel(
-        IEnumerable<object> pages, Action? onPageDone = null, CancellationToken ct = default)
+        IEnumerable<object> pageProperties, Action? onPageDone = null, CancellationToken ct = default)
     {
-        var tasks = pages.Select(page => AddPageWithThrottling(page, onPageDone, ct)).ToList();
+        var dataSourceId = await ResolveDataSourceIdAsync(ct);
+        var tasks = pageProperties
+            .Select(properties => AddPageWithThrottling(properties, dataSourceId, onPageDone, ct))
+            .ToList();
         await Task.WhenAll(tasks);
     }
 
-    private async Task AddPageWithThrottling(object page, Action? onPageDone, CancellationToken ct)
+    private async Task AddPageWithThrottling(
+        object properties, string dataSourceId, Action? onPageDone, CancellationToken ct)
     {
         await _semaphore.WaitAsync(ct);
         try
         {
-            await AddPageToDatabaseWithRetry(page, ct);
+            await AddPageToDatabaseWithRetry(properties, dataSourceId, ct);
             onPageDone?.Invoke();
         }
         finally
@@ -111,8 +154,15 @@ public class NotionApiClient : INotionApiClient
         }
     }
 
-    private async Task AddPageToDatabaseWithRetry(object newPageData, CancellationToken ct, int maxRetries = 3)
+    private async Task AddPageToDatabaseWithRetry(
+        object properties, string dataSourceId, CancellationToken ct, int maxRetries = 3)
     {
+        var newPageData = new
+        {
+            parent = new { type = "data_source_id", data_source_id = dataSourceId },
+            properties
+        };
+
         for (var retry = 0; retry <= maxRetries; retry++)
             try
             {
@@ -196,35 +246,6 @@ public class NotionApiClient : INotionApiClient
             {
                 await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retry)), ct);
             }
-    }
-
-    public async Task AddPagesToDatabase(IEnumerable<object> pages)
-    {
-        foreach (var page in pages)
-            try
-            {
-                await AddPageToDatabaseAsync(page);
-                await Task.Delay(DelayBetweenRequests);
-            }
-            catch (HttpRequestException ex) when (ex.Message.Contains("429"))
-            {
-                await Task.Delay(2000);
-                await AddPageToDatabaseAsync(page);
-            }
-    }
-
-    public async Task AddPageToDatabaseAsync(object newPageData)
-    {
-        var response = await _httpClient.PostAsync(
-            "https://api.notion.com/v1/pages",
-            new StringContent(JsonConvert.SerializeObject(newPageData), Encoding.UTF8, "application/json")
-        );
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            throw new HttpRequestException($"Status: {response.StatusCode}, Content: {content}");
-        }
     }
 
     public void Dispose()

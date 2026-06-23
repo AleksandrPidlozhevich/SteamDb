@@ -53,7 +53,7 @@ public sealed class NotionGameExporter
             var match = matcher.Match(row);
             if (match == null)
             {
-                toCreate.Add(BuildPage(dbId, row));
+                toCreate.Add(BuildProperties(row, true));
                 matcher.Register(row);
                 continue;
             }
@@ -106,15 +106,6 @@ public sealed class NotionGameExporter
     {
         var tags = string.Concat(PlatformCatalog.All.Select(d => info.Platforms.Contains(d.Label)));
         return $"{tags}{info.Platforms.Contains(Platforms.GamePass)}|{info.GameId}";
-    }
-
-    private static object BuildPage(string? dbId, CsvGameExportRow row)
-    {
-        return new
-        {
-            parent = new { database_id = dbId },
-            properties = BuildProperties(row, true)
-        };
     }
 
     private static object BuildProperties(CsvGameExportRow row, bool includeName)

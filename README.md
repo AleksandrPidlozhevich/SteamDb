@@ -163,9 +163,9 @@ with the **right properties**.
 
 > 📷 _Example screenshots:_
 >
-> | | | |
-> | --- | --- | --- |
-> | ![Notion token](docs/images/notion-token.png) | ![Notion 2](docs/images/notion-2.png) | ![Notion token 3](docs/images/notion-token3.png) |
+> | | |                                                  |
+> | --- | --- |--------------------------------------------------|
+> | ![Notion token](docs/images/notion-token.png) | ![Notion 2](docs/images/notion-token2.png) | ![Notion token 3](docs/images/notion-token3.png) |
 
 #### 2. Share the database with the integration
 
@@ -178,6 +178,10 @@ person), otherwise the app can't see or write to it.
 2. Look at the URL in your browser.
 3. The **Database ID** is the part right after the last slash and before the question mark `?`.
    It is a 32-character alphanumeric string.
+
+> ℹ️ You still copy the **database ID** from the URL — that hasn't changed. Internally the app uses
+> Notion API version `2025-09-03`, which resolves the database's data source automatically, so no
+> extra setup is required on your side.
 
 📘 Reference: [Official Notion Docs — Retrieve a Database](https://developers.notion.com/reference/retrieve-a-database)
 
