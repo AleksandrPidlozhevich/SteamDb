@@ -3,9 +3,9 @@ using System;
 namespace SteamDb.Models;
 
 /// <summary>
-/// A title from the user's Xbox account. <see cref="IsGamePass"/> marks a game that was played
-/// but is not in the owned/purchased set — i.e. accessed through Game Pass (best-effort: it falls
-/// back to false when the owned set could not be determined).
+/// An owned title from the user's Xbox library (the purchased/owned set). The fetch only returns
+/// owned games, so <see cref="IsGamePass"/> is no longer set here; the flag is kept for the CSV /
+/// Notion "Game Pass" tag (manually-tagged or legacy rows) and stays false for fetched titles.
 /// </summary>
 public sealed class XboxGame
 {

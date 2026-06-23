@@ -50,7 +50,8 @@ public class XboxApiClient : IXboxClient
     private const string TitleHistoryUrlTemplate =
         "https://titlehub.xboxlive.com/users/xuid({0})/titles/titlehistory/decoration/detail";
 
-    // Legacy Xbox inventory (owned/purchased). Known to be flaky — used only to flag Game Pass.
+    // Legacy Xbox inventory (owned/purchased). The authoritative source for the exported library;
+    // when it returns nothing, nothing is exported.
     private const string InventoryUrl = "https://inventory.xboxlive.com/users/me/inventory";
 
     // Relying parties requested at the XSTS step for each service.
@@ -347,9 +348,11 @@ public class XboxApiClient : IXboxClient
     }
 
     /// <summary>
-    /// Fetches the user's Xbox titles: recently-played (incl. Game Pass) merged with a best-effort
-    /// owned set so Game Pass titles can be flagged. If the owned lookup yields nothing, no title is
-    /// flagged as Game Pass.
+    /// Fetches the user's owned Xbox library — the purchased/owned titles from the inventory
+    /// service. Title history (played / achievements) is used <b>only</b> to resolve display names
+    /// for those owned titles; it is never a source of games, because it also surfaces titles
+    /// played on other platforms through Xbox network integration. If the library is empty, an
+    /// empty list is returned (nothing is exported).
     /// </summary>
     public async Task<List<XboxGame>> GetGamesAsync(
         IProgress<StoreFetchProgress>? progress = null, CancellationToken ct = default)
@@ -357,54 +360,86 @@ public class XboxApiClient : IXboxClient
         EnsureAuthenticated();
 
         progress?.Report(new StoreFetchProgress(0, 1, "Loading Xbox library"));
-        var played = await GetPlayedGamesAsync(ct);
-        var ownedTitleIds = await TryGetOwnedTitleIdsAsync(ct);
 
-        if (ownedTitleIds.Count > 0)
-            foreach (var game in played)
-                game.IsGamePass = !ownedTitleIds.Contains(game.TitleId);
-        else
-            _log.WriteWarning("Xbox: owned set unavailable — Game Pass titles not flagged.");
-
-        progress?.Report(new StoreFetchProgress(1, 1, "Loading Xbox library"));
-        _log.WriteInfo($"Xbox: fetched {played.Count} played titles " +
-                             $"({played.Count(g => g.IsGamePass)} flagged Game Pass).");
-        return played;
-    }
-
-    private async Task<List<XboxGame>> GetPlayedGamesAsync(CancellationToken ct)
-    {
-        var url = string.Format(TitleHistoryUrlTemplate, _xuid);
-        using var response = await SendAuthorizedAsync(() => BuildXboxApiRequest(HttpMethod.Get, url), ct);
-        response.EnsureSuccessStatusCode();
-
-        var body = await response.Content.ReadAsStringAsync(ct);
-        var titles = JObject.Parse(body)["titles"] as JArray ?? new JArray();
-
-        var games = new List<XboxGame>();
-        foreach (var title in titles)
+        // The owned library is the single source of truth for what gets exported.
+        var ownedTitleIds = await TryGetLibraryTitleIdsAsync(ct);
+        if (ownedTitleIds.Count == 0)
         {
-            // Keep games only (the feed also lists apps).
-            var type = title["type"]?.Value<string>();
-            if (!string.Equals(type, "Game", StringComparison.OrdinalIgnoreCase)) continue;
-
-            var titleId = title["titleId"]?.Value<string>();
-            var name = title["name"]?.Value<string>();
-            if (string.IsNullOrEmpty(titleId) || string.IsNullOrEmpty(name)) continue;
-
-            DateTimeOffset? lastPlayed = null;
-            var lastPlayedRaw = title["titleHistory"]?["lastTimePlayed"]?.Value<string>();
-            if (DateTimeOffset.TryParse(lastPlayedRaw, out var parsed)) lastPlayed = parsed;
-
-            games.Add(new XboxGame { TitleId = titleId, Name = name, LastPlayed = lastPlayed });
+            _log.WriteInfo("Xbox: owned library is empty — nothing to export.");
+            progress?.Report(new StoreFetchProgress(1, 1, "Loading Xbox library"));
+            return new List<XboxGame>();
         }
 
+        // Look up display names for the owned titles (title history is a name source only here).
+        var names = await GetTitleNamesAsync(ct);
+
+        var games = new List<XboxGame>(ownedTitleIds.Count);
+        var unnamed = 0;
+        foreach (var titleId in ownedTitleIds)
+        {
+            names.TryGetValue(titleId, out var info);
+            if (info.Name == null) unnamed++;
+
+            // Owned games are never Game Pass; the title id is a last-resort name so a library
+            // entry is never silently dropped just because no display name could be resolved.
+            games.Add(new XboxGame
+            {
+                TitleId = titleId,
+                Name = info.Name ?? titleId,
+                LastPlayed = info.LastPlayed
+            });
+        }
+
+        progress?.Report(new StoreFetchProgress(1, 1, "Loading Xbox library"));
+        _log.WriteInfo($"Xbox: fetched {games.Count} owned titles" +
+                       (unnamed > 0 ? $" ({unnamed} without a resolved name)." : "."));
         return games;
     }
 
-    // Best-effort fetch of owned title ids from the legacy inventory service. Returns an empty set
-    // on any failure (the endpoint is deprecated and often returns nothing).
-    private async Task<HashSet<string>> TryGetOwnedTitleIdsAsync(CancellationToken ct)
+    // Maps owned title ids to a display name (and last-played) from the title-history feed. Used
+    // purely as a name lookup for the owned library — never as a list of games to export. Returns
+    // an empty map on any failure (owned titles then fall back to their title id as the name).
+    private async Task<Dictionary<string, (string? Name, DateTimeOffset? LastPlayed)>> GetTitleNamesAsync(
+        CancellationToken ct)
+    {
+        var map = new Dictionary<string, (string?, DateTimeOffset?)>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var url = string.Format(TitleHistoryUrlTemplate, _xuid);
+            using var response = await SendAuthorizedAsync(() => BuildXboxApiRequest(HttpMethod.Get, url), ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _log.WriteWarning($"Xbox: title-name lookup failed: {response.StatusCode}.");
+                return map;
+            }
+
+            var body = await response.Content.ReadAsStringAsync(ct);
+            var titles = JObject.Parse(body)["titles"] as JArray ?? new JArray();
+
+            foreach (var title in titles)
+            {
+                var titleId = title["titleId"]?.Value<string>();
+                var name = title["name"]?.Value<string>();
+                if (string.IsNullOrEmpty(titleId) || string.IsNullOrEmpty(name)) continue;
+
+                DateTimeOffset? lastPlayed = null;
+                var lastPlayedRaw = title["titleHistory"]?["lastTimePlayed"]?.Value<string>();
+                if (DateTimeOffset.TryParse(lastPlayedRaw, out var parsed)) lastPlayed = parsed;
+
+                map[titleId] = (name, lastPlayed);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.WriteWarning($"Xbox: title-name lookup failed: {ex.Message}");
+        }
+
+        return map;
+    }
+
+    // Fetches the owned title ids (the library) from the legacy inventory service. Returns an empty
+    // set on any failure or when the account owns nothing — in which case nothing is exported.
+    private async Task<HashSet<string>> TryGetLibraryTitleIdsAsync(CancellationToken ct)
     {
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
