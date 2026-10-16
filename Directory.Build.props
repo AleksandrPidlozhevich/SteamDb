@@ -1,0 +1,7 @@
+<Project>
+    <!-- Single source of truth for the app version: the VERSION file at the repo root. It flows into
+         the assembly/file version here and into the Velopack packages in the release workflow. -->
+    <PropertyGroup>
+        <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</Version>
+    </PropertyGroup>
+</Project>
