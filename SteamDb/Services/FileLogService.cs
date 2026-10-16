@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 
 namespace SteamDb.Services;
 
 /// <summary>
-/// <see cref="ILogService"/> that appends to a daily log file in a <c>DbSteam_Log</c> folder next to
-/// the executable. Writes a start banner on construction; thread-safe via a single lock.
+/// <see cref="ILogService"/> that appends to a daily log file in a <c>DbSteam_Log</c> folder in the
+/// per-user data folder (<see cref="AppPaths"/>). Writes a start banner on construction; thread-safe via a single lock.
 /// </summary>
 public sealed class FileLogService : ILogService
 {
@@ -20,8 +19,7 @@ public sealed class FileLogService : ILogService
 
     public FileLogService()
     {
-        var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-        var logDirectory = Path.Combine(exeDir, LogFolderName);
+        var logDirectory = Path.Combine(AppPaths.DataDirectory, LogFolderName);
         if (!Directory.Exists(logDirectory))
             Directory.CreateDirectory(logDirectory);
 

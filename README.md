@@ -50,6 +50,20 @@ game you own on two stores becomes one row, tagged with both platforms.
 
 </div>
 
+From the [latest release](https://github.com/AleksandrPidlozhevich/SteamDb/releases/latest), pick
+the file for your system:
+
+| System | File |
+| :--- | :--- |
+| Windows | `SteamDb-win-x64-Setup.exe` (installer) or `SteamDb-win-x64-Portable.zip` |
+| macOS (Apple Silicon, M1 and later) | `SteamDb-osx-arm64-Portable.zip` |
+| macOS (Intel) | `SteamDb-osx-x64-Portable.zip` |
+| Linux | `SteamDb-linux-x64.AppImage` |
+
+> [!TIP]
+> **SteamDb updates itself.** When a new version is out, a banner appears at the top of the
+> window. Click **Update & restart** and you're done.
+
 ---
 
 ## Features

@@ -179,6 +179,28 @@
                     Command="{Binding Progress.CancelCommand}" />
         </Grid>
 
+        <!-- Update banner: a newer release was found on GitHub at startup (Velopack). Hidden while
+             busy, so the progress bar above takes its place during the download. -->
+        <Border Grid.Row="0" Margin="0,0,0,14" Padding="12,4" CornerRadius="6"
+                Background="#1F3B82F6" BorderBrush="#803B82F6" BorderThickness="1">
+            <Border.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsUpdateAvailable" />
+                    <Binding Path="!Progress.IsBusy" />
+                </MultiBinding>
+            </Border.IsVisible>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
+                           Text="{Binding AvailableUpdateVersion, StringFormat='A new version v{0} is available'}" />
+                <Button Grid.Column="1" Classes="accent" Content="Update &amp; restart" FontSize="11"
+                        Padding="10,2" Command="{Binding InstallUpdateCommand}" />
+            </Grid>
+        </Border>
+
+        <!-- Running version (bottom-left). -->
+        <TextBlock Grid.Row="1" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                   FontSize="10" Opacity="0.6" Text="{Binding AppVersion}" />
+
         <!-- Two columns: credential inputs (left) and action cards (right).
              Disabled while an export/connect is running (Cancel stays active in the row above). -->
         <Grid Grid.Row="1" ColumnDefinitions="Auto,56,Auto" VerticalAlignment="Top"

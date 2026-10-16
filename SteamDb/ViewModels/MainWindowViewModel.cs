@@ -34,6 +34,16 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>Busy / progress-bar state + cancellation for the running export.</summary>
     public ProgressViewModel Progress { get; } = new();
 
+    /// <summary>The running version, shown in the window corner (e.g. <c>v1.1.0</c>).</summary>
+    public string AppVersion => $"v{_updates.CurrentVersion}";
+
+    /// <summary>A newer version found on GitHub Releases at startup, or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsUpdateAvailable))]
+    private string? availableUpdateVersion;
+
+    public bool IsUpdateAvailable => AvailableUpdateVersion is not null;
+
     private const string SettingsSecretKey = "app-settings";
 
     private readonly ISecretStore _secrets;
@@ -45,6 +55,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IDialogService _dialogs;
     private readonly CsvFileService _csv;
     private readonly ILogService _log;
+    private readonly IUpdateService _updates;
 
     public MainWindowViewModel(
         ISecretStore secrets,
@@ -55,7 +66,8 @@ public partial class MainWindowViewModel : ViewModelBase
         GoogleSheetsGameExporter sheetsExporter,
         IDialogService dialogs,
         CsvFileService csv,
-        ILogService log)
+        ILogService log,
+        IUpdateService updates)
     {
         _secrets = secrets;
         _webAuth = webAuth;
@@ -66,6 +78,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _dialogs = dialogs;
         _csv = csv;
         _log = log;
+        _updates = updates;
 
         LoadPersistedSettings();
 
@@ -112,6 +125,45 @@ public partial class MainWindowViewModel : ViewModelBase
         _ = Epic.InitializeFromCacheAsync();
         _ = Gog.InitializeFromCacheAsync();
         _ = Xbox.InitializeFromCacheAsync();
+        _ = CheckForUpdateAsync();
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        AvailableUpdateVersion = await _updates.CheckForUpdateAsync();
+    }
+
+    [RelayCommand]
+    private async Task InstallUpdate()
+    {
+        if (Progress.IsBusy) return;
+        Progress.Begin($"Downloading update {AvailableUpdateVersion}…");
+        try
+        {
+            // Constructed on the UI thread, so callbacks marshal back to it automatically.
+            var reporter = new Progress<int>(percent =>
+            {
+                Progress.IsIndeterminate = false;
+                Progress.Maximum = 100;
+                Progress.Value = percent;
+                Progress.Status = $"Downloading update {AvailableUpdateVersion}… {percent}%";
+            });
+            // Restarts the app into the new version on success.
+            await _updates.DownloadAndRestartAsync(reporter, Progress.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _log.WriteInfo("Update download cancelled by user.");
+        }
+        catch (Exception ex)
+        {
+            _log.WriteException(ex, "Error installing update");
+            await _dialogs.ShowErrorAsync("Update error", ex);
+        }
+        finally
+        {
+            Progress.End();
+        }
     }
 
     // After a successful interactive Xbox connect, pull the library once (live check + logs counts).
@@ -147,12 +199,13 @@ public partial class MainWindowViewModel : ViewModelBase
             new GoogleSheetsGameExporter(secrets, log),
             new WindowDialogService(),
             new CsvFileService(log),
-            log);
+            log,
+            new VelopackUpdateService(log));
     }
 
     private MainWindowViewModel(Dependencies d)
         : this(d.Secrets, d.WebAuth, d.Clients, d.Library, d.NotionExporter, d.SheetsExporter, d.Dialogs,
-            d.Csv, d.Log)
+            d.Csv, d.Log, d.Updates)
     {
     }
 
@@ -165,7 +218,8 @@ public partial class MainWindowViewModel : ViewModelBase
         GoogleSheetsGameExporter SheetsExporter,
         IDialogService Dialogs,
         CsvFileService Csv,
-        ILogService Log);
+        ILogService Log,
+        IUpdateService Updates);
 
     private static TopLevel? DefaultTopLevel() =>
         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;

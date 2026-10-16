@@ -7,7 +7,6 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -279,7 +278,7 @@ public abstract class RefreshTokenStoreClient : IStoreClient
 
         try
         {
-            var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
+            var exeDir = AppPaths.ExeDirectory;
             var legacyPath = Path.Combine(exeDir, folder, fileName);
             if (!File.Exists(legacyPath)) return;
 

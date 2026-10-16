@@ -38,7 +38,7 @@ public sealed class VelopackUpdateService : IUpdateService
         {
             _pending = await _manager.CheckForUpdatesAsync();
             var version = _pending?.TargetFullRelease.Version.ToString();
-            if (version is not null) _log.WriteLog($"Update available: {version} (running {CurrentVersion}).");
+            if (version is not null) _log.WriteInfo($"Update available: {version} (running {CurrentVersion}).");
             return version;
         }
         catch (Exception ex)
@@ -54,7 +54,7 @@ public sealed class VelopackUpdateService : IUpdateService
         if (_pending is null) return;
 
         await _manager.DownloadUpdatesAsync(_pending, p => progress?.Report(p), ct);
-        _log.WriteLog($"Restarting into {_pending.TargetFullRelease.Version}.");
+        _log.WriteInfo($"Restarting into {_pending.TargetFullRelease.Version}.");
         _manager.ApplyUpdatesAndRestart(_pending.TargetFullRelease);
     }
 

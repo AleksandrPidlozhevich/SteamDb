@@ -26,6 +26,7 @@ public static class AppServices
         services.AddSingleton<IDialogService, WindowDialogService>();
         services.AddSingleton<IWebAuthenticator>(_ => new EmbeddedWebViewAuthenticator(MainWindow));
         services.AddSingleton<CsvFileService>();
+        services.AddSingleton<IUpdateService, VelopackUpdateService>();
 
         services.AddSingleton<IGameLibraryService, GameLibraryService>();
         services.AddSingleton<INotionGateway, NotionGateway>();

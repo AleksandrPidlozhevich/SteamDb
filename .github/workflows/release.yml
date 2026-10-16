@@ -1,24 +1,63 @@
-# Builds SteamDb for Windows, macOS and Linux and publishes a GitHub Release.
+# Builds SteamDb for Windows, macOS and Linux with Velopack and publishes a GitHub Release that the
+# app's built-in updater reads.
 #
-# Release:  git tag v1.2.0 && git push origin v1.2.0
-# Dry run:  Actions → Release → Run workflow (builds the packages as workflow artifacts, no release)
+# Release:  change the VERSION file (e.g. 1.1.0 → 1.2.0) and push it to master. Tag v<VERSION> and
+#           the release are created automatically.
+# Dry run:  Actions → Release → Run workflow → "dry_run" (packages land in the run's artifacts).
 
 name: Release
 
 on:
   push:
-    tags: ['v*']
+    branches: [master]
+    paths: [VERSION]
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build the packages without publishing a release
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 env:
   DOTNET_VERSION: '9.0.x'
+  VPK_VERSION: '1.2.161'
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error file=VERSION::'$version' is not a valid version (expected e.g. 1.2.0 or 1.2.0-beta.1)"
+            exit 1
+          fi
+
+          publish=true
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            publish=false
+          elif git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "::warning file=VERSION::v$version is already released. Bump VERSION to publish a new release; building only."
+            publish=false
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+
   test:
     runs-on: windows-latest
     steps:
@@ -29,97 +68,111 @@ jobs:
       - run: dotnet test SteamDb.Tests/SteamDb.Tests.csproj -c Release
 
   build:
-    needs: test
+    needs: [prepare, test]
     strategy:
       fail-fast: false
       matrix:
         include:
           - rid: win-x64
             os: windows-latest
+            exe: SteamDb.exe
+            icon: SteamDb/gamedate.ico
           - rid: linux-x64
             os: ubuntu-latest
+            exe: SteamDb
+            icon: SteamDb/Assets/SteamDB.png
           - rid: osx-arm64
             os: macos-latest
+            exe: SteamDb
+            icon: SteamDb/Assets/gamedate.icns
           - rid: osx-x64
             os: macos-latest
+            exe: SteamDb
+            icon: SteamDb/Assets/gamedate.icns
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+      - run: dotnet tool install -g vpk --version "$VPK_VERSION"
 
-      - name: Determine version
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-          else
-            echo "VERSION=0.0.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
-          fi
-
+      # The version comes from VERSION via Directory.Build.props.
       - name: Publish
+        run: dotnet publish SteamDb/SteamDb.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish
+
+      # The previous release's full package lets vpk build a small delta update.
+      - name: Download previous release
         run: >
-          dotnet publish SteamDb/SteamDb.csproj
-          -c Release
-          -r ${{ matrix.rid }}
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:DebugType=none
-          -p:Version=${VERSION}
-          -o publish
+          vpk download github
+          --repoUrl "${{ github.server_url }}/${{ github.repository }}"
+          --token "${{ secrets.GITHUB_TOKEN }}"
+          --channel ${{ matrix.rid }}
+          -o releases
+          || echo "No previous release for ${{ matrix.rid }}; building a full package only."
 
-      - name: Package (Windows)
-        if: startsWith(matrix.rid, 'win')
-        shell: pwsh
-        run: |
-          # SkiaSharp/HarfBuzz ship native .pdb files that DebugType=none doesn't cover.
-          Remove-Item publish/*.pdb -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force dist | Out-Null
-          Compress-Archive -Path publish/* -DestinationPath dist/SteamDb-${{ matrix.rid }}.zip
-
-      - name: Package (Linux)
-        if: startsWith(matrix.rid, 'linux')
-        run: |
-          mkdir -p dist
-          chmod +x publish/SteamDb
-          tar -czf dist/SteamDb-${{ matrix.rid }}.tar.gz -C publish .
-
-      - name: Package (macOS .app)
-        if: startsWith(matrix.rid, 'osx')
-        run: |
-          app=SteamDb.app
-          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" dist
-          cp -R publish/. "$app/Contents/MacOS/"
-          chmod +x "$app/Contents/MacOS/SteamDb"
-          cp SteamDb/Assets/gamedate.icns "$app/Contents/Resources/"
-          sed "s/__VERSION__/${VERSION}/g" build/macos/Info.plist > "$app/Contents/Info.plist"
-          # Ad-hoc signature: required for Apple Silicon to launch the binary at all.
-          codesign --force --deep --sign - "$app"
-          ditto -c -k --keepParent "$app" dist/SteamDb-${{ matrix.rid }}.zip
+      - name: Pack
+        run: >
+          vpk pack
+          --packId SteamDb
+          --packVersion "$VERSION"
+          --packTitle SteamDb
+          --packAuthors "Aliaksandr Pidlazhevich"
+          --packDir publish
+          --mainExe ${{ matrix.exe }}
+          --icon ${{ matrix.icon }}
+          --runtime ${{ matrix.rid }}
+          --channel ${{ matrix.rid }}
+          -o releases
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SteamDb-${{ matrix.rid }}
-          path: dist/*
+          name: releases-${{ matrix.rid }}
+          path: releases/
           if-no-files-found: error
 
   release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - run: dotnet tool install -g vpk --version "$VPK_VERSION"
       - uses: actions/download-artifact@v4
         with:
-          path: dist
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          pattern: releases-*
+
+      # vpk uploads only this version's files (plus the channel feed) and merges every platform
+      # into the one release v<VERSION>.
+      - name: Upload to GitHub Release
+        run: |
+          pre=""
+          [[ "$VERSION" == *-* ]] && pre="--pre"
+          for rid in win-x64 linux-x64 osx-arm64 osx-x64; do
+            vpk upload github \
+              -o "releases-$rid" \
+              --channel "$rid" \
+              --repoUrl "${{ github.server_url }}/${{ github.repository }}" \
+              --token "$GH_TOKEN" \
+              --tag "v$VERSION" \
+              --releaseName "SteamDb $VERSION" \
+              --targetCommitish "${{ github.sha }}" \
+              --publish --merge $pre
+          done
+
+      - name: Add release notes
+        run: |
+          notes=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name="v$VERSION" --jq .body)
+          gh release edit "v$VERSION" --repo "${{ github.repository }}" --notes "$notes"

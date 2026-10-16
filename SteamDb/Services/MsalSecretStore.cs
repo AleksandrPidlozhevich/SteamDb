@@ -3,7 +3,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -18,9 +17,33 @@ public sealed class MsalSecretStore : ISecretStore
     public MsalSecretStore(ILogService log, string? folder = null)
     {
         _log = log;
-        var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-        _folder = folder ?? Path.Combine(exeDir, "SecretStorage");
-        if (!Directory.Exists(_folder)) Directory.CreateDirectory(_folder);
+        _folder = folder ?? Path.Combine(AppPaths.DataDirectory, FolderName);
+        if (!Directory.Exists(_folder))
+        {
+            Directory.CreateDirectory(_folder);
+            if (folder is null) MigrateLegacyFolder();
+        }
+    }
+
+    private const string FolderName = "SecretStorage";
+
+    // Older builds kept the store next to the exe. Copy it once into the per-user data folder so
+    // users keep their sessions (on Windows the DPAPI-encrypted .bin files are the secrets).
+    private void MigrateLegacyFolder()
+    {
+        var legacy = Path.Combine(AppPaths.ExeDirectory, FolderName);
+        if (!Directory.Exists(legacy)) return;
+
+        try
+        {
+            foreach (var file in Directory.GetFiles(legacy))
+                File.Copy(file, Path.Combine(_folder, Path.GetFileName(file)), overwrite: false);
+            _log.WriteInfo($"SecretStore: migrated legacy store from '{legacy}'.");
+        }
+        catch (Exception ex)
+        {
+            _log.WriteWarning($"SecretStore: failed to migrate legacy store: {ex.Message}");
+        }
     }
 
     public string? Load(string key)
