@@ -1,0 +1,194 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SteamDb.Services;
+
+/// <summary>0-based column indexes of the SteamDb columns, after any migration has been applied.</summary>
+public sealed record SheetColumns(int Platform, int Name, int Id, int Completed)
+{
+    /// <summary>Number of columns needed to hold every SteamDb column.</summary>
+    public int Width => Math.Max(Math.Max(Platform, Name), Math.Max(Id, Completed)) + 1;
+}
+
+/// <summary>A header cell to write (row 0) — only the SteamDb columns the sheet is missing.</summary>
+public sealed record SheetHeaderCell(int Column, string Text);
+
+/// <summary>New Platform/ID values for an existing row (0-based index in the migrated sheet).</summary>
+public sealed record SheetRowUpdate(int RowIndex, string Platform, string Id);
+
+/// <summary>
+/// Everything the Google Sheets export has to write, computed from the sheet's current values.
+/// Structural changes (<see cref="InsertPlatformColumn"/>, <see cref="InsertHeaderRow"/>) are applied
+/// first; every index in the plan already accounts for them.
+/// </summary>
+public sealed record GoogleSheetsSyncPlan(
+    bool InsertPlatformColumn,
+    bool InsertHeaderRow,
+    SheetColumns Columns,
+    IReadOnlyList<SheetHeaderCell> HeaderCells,
+    IReadOnlyList<SheetRowUpdate> Updates,
+    IReadOnlyList<CsvGameExportRow> NewRows,
+    int FirstNewRowIndex)
+{
+    /// <summary>Rows the sheet holds once the plan is applied (header included).</summary>
+    public int TotalRows => FirstNewRowIndex + NewRows.Count;
+}
+
+/// <summary>
+/// Reconciles the fetched library with an existing Google Sheet, Notion-style: existing rows are
+/// updated in place (so the user's Completed ticks, extra columns and ordering survive) and new
+/// games are appended. Pure logic over the sheet's cell values, so it's unit-tested without Google.
+/// </summary>
+/// <remarks>
+/// Layout: <c>Platform | Name | ID | Completed</c>, the same cells as the CSV export. Columns are
+/// found by header text, so the user may reorder them. Sheets from older builds are migrated:
+/// <c>Name | Game ID | Completed</c> (Steam-only, bare ids) gets a Platform column inserted at A,
+/// and the headerless variant (an old bug never wrote the header) also gets a header row.
+/// </remarks>
+public static class GoogleSheetsSyncPlanner
+{
+    public const string PlatformHeader = "Platform";
+    public const string NameHeader = "Name";
+    public const string IdHeader = "ID";
+    public const string CompletedHeader = "Completed";
+
+    private static readonly string[] IdHeaders = [IdHeader, "Game ID", "GameID"];
+
+    public static GoogleSheetsSyncPlan Plan(IList<IList<object>>? values, IEnumerable<CsvGameExportRow> incoming)
+    {
+        values ??= [];
+        var layout = DetectLayout(values);
+        var rowShift = layout.InsertHeaderRow ? 1 : 0;
+
+        var existing = ReadExistingRows(values, layout, rowShift);
+        var matcher = new CsvGameExportService.RowMatcher(existing.Select(e => e.Row));
+        var newRows = new List<CsvGameExportRow>();
+
+        // Merge each owned game into its existing row, or queue a brand-new row.
+        foreach (var row in incoming)
+        {
+            var match = matcher.Match(row);
+            if (match == null)
+            {
+                newRows.Add(row);
+                matcher.Register(row);
+                continue;
+            }
+
+            match.MergeFrom(row);
+        }
+
+        // Rewrite any row whose stored cells no longer match — merged-in platforms, and legacy
+        // bare ids / missing platforms normalised to the current form.
+        var updates = existing
+            .Where(e => e.Row.PlatformText != e.StoredPlatform || e.Row.IdText != e.StoredId)
+            .Select(e => new SheetRowUpdate(e.RowIndex, e.Row.PlatformText, e.Row.IdText))
+            .ToList();
+
+        return new GoogleSheetsSyncPlan(
+            layout.InsertPlatformColumn,
+            layout.InsertHeaderRow,
+            layout.Columns,
+            layout.HeaderCells,
+            updates,
+            newRows.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList(),
+            // Row 0 is always the header (written now if the sheet was empty).
+            Math.Max(values.Count + rowShift, 1));
+    }
+
+    // Where the SteamDb columns are in the sheet as read (Orig*, -1 = absent) and where they end up.
+    private sealed record Layout(
+        bool InsertPlatformColumn,
+        bool InsertHeaderRow,
+        int OrigPlatform,
+        int OrigName,
+        int OrigId,
+        int FirstDataRow,
+        SheetColumns Columns,
+        IReadOnlyList<SheetHeaderCell> HeaderCells);
+
+    private static Layout DetectLayout(IList<IList<object>> values)
+    {
+        var fresh = new SheetColumns(0, 1, 2, 3);
+
+        // Empty sheet: write the full header.
+        if (values.Count == 0)
+            return new Layout(false, false, -1, -1, -1, 1, fresh, FullHeader(fresh));
+
+        var header = values[0];
+        var name = FindColumn(header, NameHeader);
+        var id = FindColumn(header, IdHeaders);
+
+        if (name < 0 || id < 0)
+        {
+            // Headerless sheet from the old exporter: Name, bare Steam id, Completed from row 0.
+            if (header.Count >= 2 && long.TryParse(Cell(header, 1), out _))
+                return new Layout(true, true, -1, 0, 1, 0, fresh, FullHeader(fresh));
+
+            throw new InvalidOperationException(
+                "This spreadsheet doesn't look like a SteamDb sheet: the first row of its first tab " +
+                $"must be a header with \"{NameHeader}\" and \"{IdHeader}\" columns. " +
+                "Enter a new table name to create a fresh sheet.");
+        }
+
+        var platform = FindColumn(header, PlatformHeader);
+        var completed = FindColumn(header, CompletedHeader);
+        var insertPlatform = platform < 0;
+        var shift = insertPlatform ? 1 : 0;
+
+        var columns = new SheetColumns(
+            insertPlatform ? 0 : platform,
+            name + shift,
+            id + shift,
+            // A missing Completed column goes right after the last header cell.
+            completed >= 0 ? completed + shift : header.Count + shift);
+
+        var headerCells = new List<SheetHeaderCell>();
+        if (insertPlatform) headerCells.Add(new SheetHeaderCell(columns.Platform, PlatformHeader));
+        if (completed < 0) headerCells.Add(new SheetHeaderCell(columns.Completed, CompletedHeader));
+
+        return new Layout(insertPlatform, false, platform, name, id, 1, columns, headerCells);
+    }
+
+    private static List<SheetHeaderCell> FullHeader(SheetColumns c) =>
+    [
+        new(c.Platform, PlatformHeader),
+        new(c.Name, NameHeader),
+        new(c.Id, IdHeader),
+        new(c.Completed, CompletedHeader)
+    ];
+
+    private sealed record ExistingRow(int RowIndex, CsvGameExportRow Row, string StoredPlatform, string StoredId);
+
+    private static List<ExistingRow> ReadExistingRows(IList<IList<object>> values, Layout layout, int rowShift)
+    {
+        var rows = new List<ExistingRow>();
+        for (var r = layout.FirstDataRow; r < values.Count; r++)
+        {
+            var cells = values[r];
+            var platform = layout.OrigPlatform >= 0 ? Cell(cells, layout.OrigPlatform) : string.Empty;
+            var name = Cell(cells, layout.OrigName);
+            var id = Cell(cells, layout.OrigId);
+
+            var row = CsvGameExportService.CreateRow(platform, name, id);
+            CsvGameExportService.ApplyLegacyBareId(row, id);
+            if (!row.HasContent) continue;
+
+            rows.Add(new ExistingRow(r + rowShift, row, platform, id));
+        }
+
+        return rows;
+    }
+
+    private static int FindColumn(IList<object> header, params string[] names)
+    {
+        for (var i = 0; i < header.Count; i++)
+            if (names.Contains(Cell(header, i), StringComparer.OrdinalIgnoreCase))
+                return i;
+        return -1;
+    }
+
+    private static string Cell(IList<object> row, int index) =>
+        index >= 0 && index < row.Count ? row[index]?.ToString()?.Trim() ?? string.Empty : string.Empty;
+}

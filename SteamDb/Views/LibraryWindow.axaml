@@ -1,0 +1,99 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SteamDb.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="560"
+        x:Class="SteamDb.Views.LibraryWindow"
+        x:DataType="vm:LibraryViewModel"
+        Icon="/Assets/gamedate.ico"
+        Title="Game library"
+        Width="760" Height="560" MinWidth="520" MinHeight="320"
+        WindowStartupLocation="CenterOwner">
+
+    <Design.DataContext>
+        <vm:LibraryViewModel />
+    </Design.DataContext>
+
+    <Window.Styles>
+        <!-- Platform tag chip. -->
+        <Style Selector="Border.chip">
+            <Setter Property="Background" Value="#26808080" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+        <Style Selector="TextBlock.column-header">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*">
+
+        <!-- Search + platform filter + count. -->
+        <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,12">
+            <TextBox Grid.Column="0" PlaceholderText="Search by name…"
+                     Text="{Binding SearchText, Mode=TwoWay}" />
+            <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="190"
+                      ItemsSource="{Binding Filters}"
+                      SelectedItem="{Binding SelectedFilter, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LibraryFilterOption">
+                        <TextBlock>
+                            <Run Text="{Binding Label}" />
+                            <Run Text="{Binding Count, StringFormat=' ({0})'}" Foreground="Gray" />
+                        </TextBlock>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Opacity="0.7"
+                       Text="{Binding Summary}" />
+        </Grid>
+
+        <!-- Column headers (same widths as the item template below). -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,180,240" Margin="12,0,12,4">
+            <TextBlock Grid.Column="0" Classes="column-header" Text="Name" />
+            <TextBlock Grid.Column="1" Classes="column-header" Text="Platform" />
+            <TextBlock Grid.Column="2" Classes="column-header" Text="ID" />
+        </Grid>
+
+        <Border Grid.Row="2" BorderBrush="#40808080" BorderThickness="1" CornerRadius="6">
+            <Panel>
+                <ListBox ItemsSource="{Binding VisibleGames}" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LibraryGameItem">
+                            <Grid ColumnDefinitions="*,180,240">
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0"
+                                           TextTrimming="CharacterEllipsis" Text="{Binding Name}"
+                                           ToolTip.Tip="{Binding Name}" />
+                                <ItemsControl Grid.Column="1" VerticalAlignment="Center"
+                                              ItemsSource="{Binding Platforms}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <Border Classes="chip">
+                                                <TextBlock FontSize="11" Text="{Binding}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11"
+                                           Opacity="0.7" TextTrimming="CharacterEllipsis"
+                                           Text="{Binding Id}" ToolTip.Tip="{Binding Id}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6"
+                           Text="No games match the search."
+                           IsVisible="{Binding !HasVisibleGames}" />
+            </Panel>
+        </Border>
+    </Grid>
+</Window>
