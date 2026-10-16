@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
+using SteamDb.ViewModels;
 using SteamDb.Views;
 using System;
 using System.Collections.Generic;
@@ -60,6 +61,22 @@ public sealed class WindowDialogService : IDialogService
 
         var errorWindow = new Error(title, BuildErrorMessage(exception));
         await errorWindow.ShowDialog(window);
+    }
+
+    public void ShowLibrary(LibraryViewModel library)
+    {
+        var window = MainWindow;
+        if (window == null) return;
+
+        new LibraryWindow { DataContext = library }.Show(window);
+    }
+
+    public async Task<bool> ConfirmNotionExportAsync(NotionExportPreviewViewModel preview)
+    {
+        var window = MainWindow;
+        if (window == null) return false;
+
+        return await new NotionExportPreviewWindow { DataContext = preview }.ShowDialog<bool>(window);
     }
 
     public void OpenLink(string url)

@@ -34,7 +34,8 @@ public class GoogleSheetsApiClient
     public SheetsService? SheetsService { get; private set; }
     public DriveService? DriveService { get; private set; }
 
-    public async Task<bool> ConnectAsync()
+    /// <summary>Authorizes (opening the browser on first use); cancellable while waiting for the login.</summary>
+    public async Task<bool> ConnectAsync(CancellationToken ct = default)
     {
         try
         {
@@ -46,7 +47,7 @@ public class GoogleSheetsApiClient
                 },
                 _scopes,
                 _userId,
-                CancellationToken.None,
+                ct,
                 new SecretDataStore(_secrets));
 
             SheetsService = new SheetsService(new BaseClientService.Initializer
@@ -62,6 +63,10 @@ public class GoogleSheetsApiClient
             });
 
             return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

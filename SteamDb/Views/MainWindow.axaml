@@ -266,6 +266,13 @@
                 <views:StoreConnectRow DataContext="{Binding Epic}" Icon="{DynamicResource EpicIcon}" />
                 <views:StoreConnectRow DataContext="{Binding Gog}" Icon="{DynamicResource GogIcon}" />
                 <views:StoreConnectRow DataContext="{Binding Xbox}" Icon="{DynamicResource XboxIcon}" />
+
+                <!-- Browse the merged library from the stores above (read-only, nothing exported).
+                     Indented past the icon column so it lines up with the fields. -->
+                <Button Content="View library…" Height="36" Width="220" Margin="52,0,0,0"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                        ToolTip.Tip="Fetch your games from all stores and browse them before exporting"
+                        Command="{Binding ViewLibraryCommand}" />
             </StackPanel>
 
             <!-- ===== Right: action cards (uniform width, evenly spaced) =====

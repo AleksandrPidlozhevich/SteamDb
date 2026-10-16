@@ -1,6 +1,8 @@
+using Google.Apis.Drive.v3;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
 using SteamDb.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -8,136 +10,231 @@ using System.Threading.Tasks;
 
 namespace SteamDb.Services;
 
-/// <summary>Appends new Steam games to a Google Sheet, creating it if needed. Beta / may be unstable.</summary>
+/// <summary>Outcome of a Google Sheets export. <see cref="SpreadsheetUrl"/> is null when the library
+/// came back empty and nothing was written.</summary>
+public sealed record GoogleSheetsExportResult(
+    GameLibraryResult Library,
+    int Added,
+    int Updated,
+    string? SpreadsheetUrl);
+
+/// <summary>
+/// Syncs the merged Steam/Epic/GOG/Xbox library into a Google Sheet (found by name in Drive, created
+/// if missing): new games are appended, existing rows updated in place. The reconcile decisions live
+/// in <see cref="GoogleSheetsSyncPlanner"/>; this class only talks to Google. Beta / may be unstable.
+/// </summary>
 public sealed class GoogleSheetsGameExporter
 {
     private readonly ISecretStore _secrets;
+    private readonly IGameLibraryService _library;
     private readonly ILogService _log;
 
-    public GoogleSheetsGameExporter(ISecretStore secrets, ILogService log)
+    public GoogleSheetsGameExporter(ISecretStore secrets, IGameLibraryService library, ILogService log)
     {
         _secrets = secrets;
+        _library = library;
         _log = log;
     }
 
-    public async Task ExportAsync(
-        string? tableName, string? steamApiKey, string? steamId, CancellationToken ct = default)
+    public async Task<GoogleSheetsExportResult> ExportAsync(
+        string? tableName, string? steamApiKey, string? steamId,
+        IProgress<StoreFetchProgress>? progress = null, Action<string>? onStatus = null,
+        CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(tableName))
+            throw new InvalidOperationException("Enter the Google Sheets table name first.");
+        var spreadsheetName = tableName.Trim();
+
+        // Fetch first: fails fast on a bad Steam key before the Google login opens a browser.
+        var library = await _library.FetchAsync(steamApiKey, steamId, progress, onStatus, ct);
+        if (library.Rows.Count == 0)
+            return new GoogleSheetsExportResult(library, 0, 0, null);
+
+        onStatus?.Invoke("Connecting to Google…");
         var client = new GoogleSheetsApiClient(_secrets, _log);
+        if (!await client.ConnectAsync(ct) || client.DriveService == null || client.SheetsService == null)
+            throw new InvalidOperationException(
+                "Google authorization failed. Please try again; details are in the log.");
 
-        if (!await client.ConnectAsync() || client.DriveService == null || client.SheetsService == null)
-        {
-            _log.WriteError("Authorization failed.");
-            return;
-        }
+        var sheets = client.SheetsService;
+        onStatus?.Invoke("Exporting to Google Sheets…");
 
-        var driveService = client.DriveService;
-        var sheetsService = client.SheetsService;
+        var spreadsheetId = await FindOrCreateSpreadsheetAsync(client.DriveService, spreadsheetName, ct);
 
-        var spreadsheetName = tableName;
-        string? spreadsheetId;
+        // The first tab, by id and title: never assume "Sheet1" (it's localised, e.g. "Лист1").
+        var getRequest = sheets.Spreadsheets.Get(spreadsheetId);
+        getRequest.Fields = "spreadsheetUrl,sheets.properties(sheetId,title,gridProperties(rowCount,columnCount))";
+        var spreadsheet = await getRequest.ExecuteAsync(ct);
+        var sheet = spreadsheet.Sheets[0].Properties;
+        var sheetId = sheet.SheetId ?? 0;
+        var sheetRef = QuoteSheetTitle(sheet.Title);
 
-        var listRequest = driveService.Files.List();
+        var existing = await sheets.Spreadsheets.Values.Get(spreadsheetId, sheetRef).ExecuteAsync(ct);
+        var plan = GoogleSheetsSyncPlanner.Plan(existing.Values, library.Rows);
+
+        await ApplyStructureAsync(sheets, spreadsheetId, sheetId, sheet.GridProperties, plan, ct);
+        await WriteValuesAsync(sheets, spreadsheetId, sheetRef, plan, ct);
+        await ApplyCheckboxesAsync(sheets, spreadsheetId, sheetId, plan, ct);
+
+        _log.WriteInfo(
+            $"Google Sheets: added {plan.NewRows.Count}, updated {plan.Updates.Count} games in \"{spreadsheetName}\".");
+        return new GoogleSheetsExportResult(
+            library, plan.NewRows.Count, plan.Updates.Count, spreadsheet.SpreadsheetUrl);
+    }
+
+    private static async Task<string> FindOrCreateSpreadsheetAsync(
+        DriveService drive, string name, CancellationToken ct)
+    {
+        var listRequest = drive.Files.List();
+        // Drive query string literal: backslash and single quote must be escaped.
         listRequest.Q =
-            $"mimeType='application/vnd.google-apps.spreadsheet' and name='{spreadsheetName}' and trashed = false";
+            "mimeType='application/vnd.google-apps.spreadsheet' and " +
+            $"name='{name.Replace("\\", "\\\\").Replace("'", "\\'")}' and trashed = false";
         listRequest.Spaces = "drive";
         listRequest.Fields = "files(id, name)";
         var fileList = await listRequest.ExecuteAsync(ct);
 
-        if (fileList.Files != null && fileList.Files.Count > 0)
+        if (fileList.Files is { Count: > 0 })
+            return fileList.Files[0].Id;
+
+        var fileMetadata = new Google.Apis.Drive.v3.Data.File
         {
-            spreadsheetId = fileList.Files[0].Id;
-        }
-        else
+            Name = name,
+            MimeType = "application/vnd.google-apps.spreadsheet"
+        };
+        var file = await drive.Files.Create(fileMetadata).ExecuteAsync(ct);
+        return file.Id;
+    }
+
+    // Migrates old layouts (insert Platform column / header row) and grows the grid so the value
+    // writes below fit — values.batchUpdate fails with "exceeds grid limits" instead of expanding.
+    private static async Task ApplyStructureAsync(
+        SheetsService sheets, string spreadsheetId, int sheetId, GridProperties? grid,
+        GoogleSheetsSyncPlan plan, CancellationToken ct)
+    {
+        var requests = new List<Request>();
+        if (plan.InsertPlatformColumn)
+            requests.Add(Insert(sheetId, "COLUMNS"));
+        if (plan.InsertHeaderRow)
+            requests.Add(Insert(sheetId, "ROWS"));
+
+        var rowCount = (grid?.RowCount ?? 0) + (plan.InsertHeaderRow ? 1 : 0);
+        var columnCount = (grid?.ColumnCount ?? 0) + (plan.InsertPlatformColumn ? 1 : 0);
+        if (plan.TotalRows > rowCount)
+            requests.Add(Append(sheetId, "ROWS", plan.TotalRows - rowCount));
+        if (plan.Columns.Width > columnCount)
+            requests.Add(Append(sheetId, "COLUMNS", plan.Columns.Width - columnCount));
+
+        if (requests.Count > 0)
+            await sheets.Spreadsheets
+                .BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = requests }, spreadsheetId)
+                .ExecuteAsync(ct);
+
+        static Request Insert(int sheetId, string dimension) => new()
         {
-            var fileMetadata = new Google.Apis.Drive.v3.Data.File
+            InsertDimension = new InsertDimensionRequest
             {
-                Name = spreadsheetName,
-                MimeType = "application/vnd.google-apps.spreadsheet"
-            };
-
-            var file = await driveService.Files.Create(fileMetadata).ExecuteAsync(ct);
-            spreadsheetId = file.Id;
-        }
-
-        var existingDataRequest = sheetsService.Spreadsheets.Values.Get(spreadsheetId, "Sheet1!A2:B");
-        var existingDataResponse = await existingDataRequest.ExecuteAsync(ct);
-
-        var existingGameIds =
-            new HashSet<string>(
-                (existingDataResponse.Values?.Select(row => row.Count > 1 ? row[1].ToString() : null)
-                    .Where(id => !string.IsNullOrEmpty(id)) ?? Enumerable.Empty<string>())!);
-
-        var steamApiClient = new SteamApiClient(_log);
-        var steamGamesResponse = await steamApiClient.GetOwnedGames(steamId, steamApiKey, ct);
-
-        if (steamGamesResponse?.Response?.Games == null || !steamGamesResponse.Response.Games.Any())
-        {
-            _log.WriteError("Failed to receive a steam game list.");
-            return;
-        }
-
-        var values = new List<IList<object>>
-        {
-            new List<object> { "Name", "Game ID", "Completed" }
+                Range = new DimensionRange { SheetId = sheetId, Dimension = dimension, StartIndex = 0, EndIndex = 1 }
+            }
         };
 
-        var newGames = steamGamesResponse.Response.Games
-            .Where(game => !existingGameIds.Contains(game.GameID.ToString()))
-            .ToList();
-
-        if (newGames.Count == 0)
+        static Request Append(int sheetId, string dimension, int length) => new()
         {
-            _log.WriteLog("All games already exist in the table.");
-            return;
+            AppendDimension = new AppendDimensionRequest { SheetId = sheetId, Dimension = dimension, Length = length }
+        };
+    }
+
+    // Header cells, changed Platform/ID cells and the new rows, all in one RAW write (RAW so ids
+    // like "Steam:400" and names starting with "=" are stored verbatim).
+    private static async Task WriteValuesAsync(
+        SheetsService sheets, string spreadsheetId, string sheetRef, GoogleSheetsSyncPlan plan,
+        CancellationToken ct)
+    {
+        var data = new List<ValueRange>();
+
+        foreach (var cell in plan.HeaderCells)
+            data.Add(CellValue(sheetRef, cell.Column, 0, cell.Text));
+
+        foreach (var update in plan.Updates)
+        {
+            data.Add(CellValue(sheetRef, plan.Columns.Platform, update.RowIndex, update.Platform));
+            data.Add(CellValue(sheetRef, plan.Columns.Id, update.RowIndex, update.Id));
         }
 
-        values.AddRange(newGames.Select(game => new List<object> { game.Name, game.GameID.ToString(), false }));
-
-        var appendRequest = sheetsService.Spreadsheets.Values.Append(
-            new ValueRange { Values = values.Skip(1).ToList() },
-            spreadsheetId,
-            "Sheet1!A1");
-        appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.RAW;
-        await appendRequest.ExecuteAsync(ct);
-
-        var startRow = (existingDataResponse.Values?.Count ?? 0) + 1;
-        var endRow = startRow + newGames.Count;
-
-        var requests = new List<Request>
+        if (plan.NewRows.Count > 0)
         {
-            new()
+            data.Add(new ValueRange
             {
-                SetDataValidation = new SetDataValidationRequest
+                Range = $"{sheetRef}!A{plan.FirstNewRowIndex + 1}",
+                Values = plan.NewRows.Select(row => BuildRow(plan.Columns, row)).ToList()
+            });
+        }
+
+        if (data.Count == 0) return;
+
+        await sheets.Spreadsheets.Values
+            .BatchUpdate(new BatchUpdateValuesRequest { ValueInputOption = "RAW", Data = data }, spreadsheetId)
+            .ExecuteAsync(ct);
+    }
+
+    // A full-width row; cells outside the SteamDb columns stay null, which the API skips.
+    private static IList<object> BuildRow(SheetColumns columns, CsvGameExportRow row)
+    {
+        var cells = new object[columns.Width];
+        cells[columns.Platform] = row.PlatformText;
+        cells[columns.Name] = row.Name;
+        cells[columns.Id] = row.IdText;
+        cells[columns.Completed] = false;
+        return cells;
+    }
+
+    // Completed as checkboxes for every data row (idempotent; also covers a just-added column).
+    private static async Task ApplyCheckboxesAsync(
+        SheetsService sheets, string spreadsheetId, int sheetId, GoogleSheetsSyncPlan plan, CancellationToken ct)
+    {
+        if (plan.TotalRows <= 1) return;
+
+        var request = new Request
+        {
+            SetDataValidation = new SetDataValidationRequest
+            {
+                Range = new GridRange
                 {
-                    Range = new GridRange
-                    {
-                        SheetId = 0,
-                        StartRowIndex = startRow,
-                        EndRowIndex = endRow,
-                        StartColumnIndex = 2,
-                        EndColumnIndex = 3
-                    },
-                    Rule = new DataValidationRule
-                    {
-                        Condition = new BooleanCondition
-                        {
-                            Type = "BOOLEAN"
-                        },
-                        Strict = true,
-                        ShowCustomUi = true
-                    }
+                    SheetId = sheetId,
+                    StartRowIndex = 1,
+                    EndRowIndex = plan.TotalRows,
+                    StartColumnIndex = plan.Columns.Completed,
+                    EndColumnIndex = plan.Columns.Completed + 1
+                },
+                Rule = new DataValidationRule
+                {
+                    Condition = new BooleanCondition { Type = "BOOLEAN" },
+                    Strict = true,
+                    ShowCustomUi = true
                 }
             }
         };
 
-        var batchUpdateRequest = new BatchUpdateSpreadsheetRequest
-        {
-            Requests = requests
-        };
-
-        await sheetsService.Spreadsheets
-            .BatchUpdate(batchUpdateRequest, spreadsheetId)
+        await sheets.Spreadsheets
+            .BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = [request] }, spreadsheetId)
             .ExecuteAsync(ct);
     }
+
+    private static ValueRange CellValue(string sheetRef, int column, int row, string text) => new()
+    {
+        Range = $"{sheetRef}!{ColumnLetter(column)}{row + 1}",
+        Values = [new List<object> { text }]
+    };
+
+    // A1 column letters for a 0-based index: 0 → A, 25 → Z, 26 → AA.
+    private static string ColumnLetter(int index)
+    {
+        var letters = string.Empty;
+        for (var n = index + 1; n > 0; n = (n - 1) / 26)
+            letters = (char)('A' + (n - 1) % 26) + letters;
+        return letters;
+    }
+
+    // A1 sheet reference: always quoted, with embedded quotes doubled.
+    private static string QuoteSheetTitle(string title) => $"'{title.Replace("'", "''")}'";
 }

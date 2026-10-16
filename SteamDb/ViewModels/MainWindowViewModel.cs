@@ -196,7 +196,7 @@ public partial class MainWindowViewModel : ViewModelBase
             clients,
             library,
             new NotionGameExporter(library, new NotionGateway(log), log),
-            new GoogleSheetsGameExporter(secrets, log),
+            new GoogleSheetsGameExporter(secrets, library, log),
             new WindowDialogService(),
             new CsvFileService(log),
             log,
@@ -282,20 +282,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var result = await _library.FetchAsync(
                 SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
-            ApplyStoreStatuses(result);
-            await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
-            await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
-            await NotifyStoreSessionExpiredAsync("Xbox", result.XboxSessionExpired);
-
-            if (result.Rows.Count == 0)
-            {
-                _log.WriteInfo("No games found to export.");
-                if (!result.EpicSessionExpired && !result.GogSessionExpired && !result.XboxSessionExpired)
-                    await _dialogs.ShowErrorAsync("Export to CSV",
-                        new Exception(
-                            "No games found to export. Check your Steam credentials or Epic / GOG / Xbox connection."));
-                return;
-            }
+            if (!await HandleFetchedLibraryAsync(result, "Export to CSV")) return;
 
             var file = await _dialogs.PickSaveCsvAsync("dbgame.csv");
             if (file == null) return;
@@ -350,20 +337,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             var result = await _library.FetchAsync(
                 SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
-            ApplyStoreStatuses(result);
-            await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
-            await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
-            await NotifyStoreSessionExpiredAsync("Xbox", result.XboxSessionExpired);
-
-            if (result.Rows.Count == 0)
-            {
-                _log.WriteInfo("No games found to export.");
-                if (!result.EpicSessionExpired && !result.GogSessionExpired && !result.XboxSessionExpired)
-                    await _dialogs.ShowErrorAsync("Update CSV",
-                        new Exception(
-                            "No games found to export. Check your Steam credentials or Epic / GOG / Xbox connection."));
-                return;
-            }
+            if (!await HandleFetchedLibraryAsync(result, "Update CSV")) return;
 
             await _csv.WriteMergedAsync(file, existingContent, result.Rows);
         }
@@ -385,6 +359,25 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Progress.End();
         }
+    }
+
+    // Shared post-fetch handling: syncs the connect rows, warns about expired sessions and, when
+    // nothing was fetched, explains why. Returns false when there is nothing to export.
+    private async Task<bool> HandleFetchedLibraryAsync(GameLibraryResult result, string title)
+    {
+        ApplyStoreStatuses(result);
+        await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
+        await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
+        await NotifyStoreSessionExpiredAsync("Xbox", result.XboxSessionExpired);
+
+        if (result.Rows.Count > 0) return true;
+
+        _log.WriteInfo("No games found to export.");
+        if (!result.EpicSessionExpired && !result.GogSessionExpired && !result.XboxSessionExpired)
+            await _dialogs.ShowErrorAsync(title,
+                new Exception(
+                    "No games found to export. Check your Steam credentials or Epic / GOG / Xbox connection."));
+        return false;
     }
 
     // Reflects the latest cached-session outcome from a library fetch back onto the connect buttons.
@@ -429,14 +422,59 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task ViewLibrary()
+    {
+        if (Progress.IsBusy) return;
+        Progress.Begin("Fetching games…");
+        try
+        {
+            var result = await _library.FetchAsync(
+                SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
+            if (!await HandleFetchedLibraryAsync(result, "Game library")) return;
+
+            _dialogs.ShowLibrary(new LibraryViewModel(result.Rows));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _log.WriteException(ex, "Steam API authorization error");
+            await _dialogs.ShowErrorAsync("Steam authorization error", ex);
+        }
+        catch (OperationCanceledException)
+        {
+            _log.WriteInfo("Library fetch cancelled by user.");
+        }
+        catch (Exception ex)
+        {
+            _log.WriteException(ex, "Error fetching library");
+            await _dialogs.ShowErrorAsync("Library error", ex);
+        }
+        finally
+        {
+            Progress.End();
+        }
+    }
+
+    [RelayCommand]
     private async Task ExportToNotion()
     {
         if (Progress.IsBusy) return;
         Progress.Begin("Fetching games…");
         try
         {
-            await _notionExporter.ExportAsync(
+            // Dry run first: nothing is written until the user confirms the preview.
+            var plan = await _notionExporter.PlanAsync(
                 SteamApiKey, SteamId, NotionToken, DbId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
+            if (!await HandleFetchedLibraryAsync(plan.Library, "Export to Notion")) return;
+
+            Progress.SetIndeterminate("Waiting for confirmation…");
+            if (!await _dialogs.ConfirmNotionExportAsync(new NotionExportPreviewViewModel(plan)))
+            {
+                _log.WriteInfo("Notion export not confirmed; nothing written.");
+                return;
+            }
+
+            await _notionExporter.ApplyAsync(
+                NotionToken, DbId, plan, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
         }
         catch (OperationCanceledException)
         {
@@ -457,10 +495,17 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task ExportToGoogleSheets()
     {
         if (Progress.IsBusy) return;
-        Progress.Begin("Exporting to Google Sheets…");
+        Progress.Begin("Fetching games…");
         try
         {
-            await _sheetsExporter.ExportAsync(GoogleSheetsTableName, SteamApiKey, SteamId, Progress.Token);
+            var result = await _sheetsExporter.ExportAsync(
+                GoogleSheetsTableName, SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate,
+                Progress.Token);
+            if (!await HandleFetchedLibraryAsync(result.Library, "Export to Google Sheets")) return;
+
+            // Show the result: open the synced spreadsheet in the browser.
+            if (result.SpreadsheetUrl != null)
+                _dialogs.OpenLink(result.SpreadsheetUrl);
         }
         catch (OperationCanceledException)
         {

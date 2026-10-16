@@ -1,5 +1,6 @@
 using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
+using SteamDb.ViewModels;
 using System;
 using System.Threading.Tasks;
 
@@ -17,6 +18,12 @@ public interface IDialogService
     Task<IStorageFile?> PickOpenCsvAsync(string title);
 
     Task ShowErrorAsync(string title, Exception exception);
+
+    /// <summary>Opens the library viewer (non-modal, owned by the main window).</summary>
+    void ShowLibrary(LibraryViewModel library);
+
+    /// <summary>Shows the Notion dry run; true when the user confirms the export.</summary>
+    Task<bool> ConfirmNotionExportAsync(NotionExportPreviewViewModel preview);
 
     void OpenLink(string url);
 

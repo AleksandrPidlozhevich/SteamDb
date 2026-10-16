@@ -66,19 +66,7 @@ public class NotionDataFetcher : INotionDataFetcher
 
             // Back-compat: a bare numeric GameID (from the old Number column) has no
             // platform prefix — attribute it to the tagged platform, defaulting to Steam.
-            if (!row.SteamGameId.HasValue && !row.GogId.HasValue &&
-                long.TryParse(idField, out var legacyId))
-            {
-                if (row.HasGog && !row.HasSteam)
-                {
-                    row.GogId = legacyId;
-                }
-                else
-                {
-                    row.SteamGameId = (int)legacyId;
-                    row.HasSteam = true;
-                }
-            }
+            CsvGameExportService.ApplyLegacyBareId(row, idField);
 
             return row.HasContent
                 ? new NotionGameRow(row, pageId, platforms, idField ?? string.Empty)

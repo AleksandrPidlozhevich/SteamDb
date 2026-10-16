@@ -39,6 +39,9 @@ public sealed class CsvGameExportRow
     /// <summary>Combined identifier cell with platform prefixes, e.g. "Steam:236870; GOG:123".</summary>
     public string IdText => BuildIdField();
 
+    /// <summary>Combined platform cell, e.g. "Steam/GOG" (plus "Game Pass" when flagged).</summary>
+    public string PlatformText => BuildPlatformField();
+
     public string ToCsvLine()
     {
         // Three columns only: Platform, Name, ID. Platform and all identifiers are each
@@ -209,6 +212,26 @@ public static class CsvGameExportService
         ApplyIdField(row, idField ?? string.Empty);
         ApplyPlatformFlags(row, platform ?? string.Empty);
         return row;
+    }
+
+    /// <summary>
+    /// Back-compat for targets written by older builds: a bare numeric id (no platform prefix)
+    /// is attributed to the tagged platform — GOG when only GOG is tagged, otherwise Steam.
+    /// </summary>
+    public static void ApplyLegacyBareId(CsvGameExportRow row, string? idField)
+    {
+        if (row.SteamGameId.HasValue || row.GogId.HasValue || !long.TryParse(idField, out var legacyId))
+            return;
+
+        if (row.HasGog && !row.HasSteam)
+        {
+            row.GogId = legacyId;
+        }
+        else
+        {
+            row.SteamGameId = (int)legacyId;
+            row.HasSteam = true;
+        }
     }
 
     // Sets each store flag from the platform label OR the presence of that store's id, plus the

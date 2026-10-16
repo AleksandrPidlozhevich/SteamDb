@@ -72,7 +72,9 @@ the file for your system:
 | --- | --- |
 | 🎮 **Four stores, one list** | Fetches owned games from Steam, Epic, GOG and Xbox and merges duplicates across stores. |
 | 📤 **Three export targets** | A Notion database, Google Sheets, or a local CSV file. |
+| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, and spot games you own on two stores. |
 | 🔁 **Incremental sync** | Re-running an export reconciles with what's already there. It adds new games and updates platform tags without creating duplicates. |
+| 👀 **Preview before Notion** | See exactly which games will be added or updated, and confirm before anything is written. |
 | ⏹️ **Cancellable** | Every export shows a progress bar with a **Cancel** button. |
 | 🔒 **Secure by default** | Store tokens and remembered credentials are cached **encrypted** (DPAPI on Windows, Keychain on macOS, libsecret on Linux) and refreshed automatically. |
 | 🌗 **Light & dark themes** | Switch with one click. |
@@ -265,9 +267,27 @@ The target database **must** have these properties (names are case-sensitive):
 
 </details>
 
+When you click **Export to Notion**, SteamDb first shows a **preview**: the games it will add and
+the rows it will update (before → after). Nothing is written until you click **Export**.
+
 ### Google Sheets (beta)
 
 Authorization with Google Sheets uses standard Google OAuth.
+
+1. Enter a **table name** and click **Export to Google Sheets**. On first use, sign in to Google in
+   the browser that opens.
+2. SteamDb finds the spreadsheet with that name in your Google Drive, or creates it, and opens it
+   when the sync is done.
+
+The first tab gets the same columns as the CSV, plus a checkbox to mark games as done:
+
+| Platform | Name | ID | Completed |
+| :--- | :--- | :--- | :---: |
+| Steam/GOG | The Witcher 3 | Steam:292030; GOG:1207664643 | ☑ |
+
+Re-running the export adds new games and updates platform tags in place. Your ticks, row order
+and any extra columns you added are kept. Sheets created by older versions (Steam-only
+`Name | Game ID | Completed`) are upgraded automatically.
 
 > [!CAUTION]
 > This integration is in **beta**. The authentication flow may sometimes fail, and some

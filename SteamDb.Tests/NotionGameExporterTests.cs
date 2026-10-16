@@ -75,7 +75,68 @@ public class NotionGameExporterTests
         Assert.True(result.Disposed); // the `using` in ExportAsync released the HttpClient-owning client
     }
 
+    [Fact]
+    public async Task Plan_IsADryRun_WritesNothingButReportsChanges()
+    {
+        var existing = Existing("p1",
+            CsvGameExportService.CreateRow("Steam", "Doom", "Steam:379720"),
+            gameId: "379720", platforms: "Steam");
+        var (exporter, created, updated) = CreateExporter(
+            Library(CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")), [existing]);
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        Assert.Empty(created);
+        Assert.Empty(updated);
+        Assert.Equal("Portal", Assert.Single(plan.ToCreate).Name);
+        var update = Assert.Single(plan.ToUpdate);
+        Assert.Equal("Steam · 379720", update.Before);
+        Assert.Equal("Steam · Steam:379720", update.After);
+        Assert.Equal(0, plan.Unchanged);
+    }
+
+    [Fact]
+    public async Task Apply_WritesExactlyThePlannedChanges()
+    {
+        var (exporter, created, updated) = CreateExporter(
+            Library(CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")), existing: []);
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+        await exporter.ApplyAsync("token", "db", plan);
+
+        Assert.Single(created);
+        Assert.Empty(updated);
+    }
+
+    [Fact]
+    public async Task Plan_UpToDate_IsEmptyAndCountsUnchanged()
+    {
+        var existing = Existing("p1",
+            CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400"),
+            gameId: "Steam:400", platforms: "Steam");
+        var (exporter, _, _) = CreateExporter(
+            Library(CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")), [existing]);
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        Assert.True(plan.IsEmpty);
+        Assert.Equal(1, plan.Unchanged);
+    }
+
     // ---- helpers ---------------------------------------------------------------------
+
+    // Returns the fake client's recorded writes (the fake itself is file-local).
+    private static (NotionGameExporter Exporter, List<object> Created, List<(string PageId, object Properties)> Updated)
+        CreateExporter(
+        GameLibraryResult library, IReadOnlyList<NotionGameRow> existing)
+    {
+        var client = new FakeNotionApiClient();
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(library),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher(existing.ToList())),
+            new NullLogService());
+        return (exporter, client.Created, client.Updated);
+    }
 
     private static async Task<(List<object> Created, List<(string PageId, object Properties)> Updated, bool Disposed)>
         RunExport(GameLibraryResult library, IReadOnlyList<NotionGameRow> existing)
