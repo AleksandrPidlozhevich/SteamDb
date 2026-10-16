@@ -1,22 +1,16 @@
 # Builds SteamDb for Windows, macOS and Linux with Velopack and publishes a GitHub Release that the
-# app's built-in updater reads.
+# app's built-in updater reads. Runs only when a version tag is pushed:
 #
-# Release:  change the VERSION file (e.g. 1.1.0 → 1.2.0) and push it to master. Tag v<VERSION> and
-#           the release are created automatically.
-# Dry run:  Actions → Release → Run workflow → "dry_run" (packages land in the run's artifacts).
+#   1. set the new version in VERSION (e.g. 1.2.0) and commit it
+#   2. git tag v1.2.0 && git push origin v1.2.0
+#
+# The tag must match VERSION, otherwise the run fails before building anything.
 
 name: Release
 
 on:
   push:
-    branches: [master]
-    paths: [VERSION]
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Build the packages without publishing a release
-        type: boolean
-        default: false
+    tags: ['v*']
 
 permissions:
   contents: read
@@ -36,7 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      publish: ${{ steps.version.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
       - id: version
@@ -46,17 +39,11 @@ jobs:
             echo "::error file=VERSION::'$version' is not a valid version (expected e.g. 1.2.0 or 1.2.0-beta.1)"
             exit 1
           fi
-
-          publish=true
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            publish=false
-          elif git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
-            echo "::warning file=VERSION::v$version is already released. Bump VERSION to publish a new release; building only."
-            publish=false
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error file=VERSION::Tag $GITHUB_REF_NAME doesn't match VERSION ($version). Expected tag v$version."
+            exit 1
           fi
-
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "publish=$publish" >> "$GITHUB_OUTPUT"
 
   test:
     runs-on: windows-latest
@@ -138,7 +125,6 @@ jobs:
 
   release:
     needs: [prepare, build]
-    if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -168,7 +154,6 @@ jobs:
               --token "$GH_TOKEN" \
               --tag "v$VERSION" \
               --releaseName "SteamDb $VERSION" \
-              --targetCommitish "${{ github.sha }}" \
               --publish --merge $pre
           done
 
