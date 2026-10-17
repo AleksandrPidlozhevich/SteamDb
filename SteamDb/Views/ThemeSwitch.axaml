@@ -1,0 +1,74 @@
+<!-- System / Light / Dark as three icons in a pill; the highlight slides to the chosen one.
+     Bound to MainWindowViewModel (ThemeIndex and its commands). -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SteamDb.ViewModels"
+             x:Class="SteamDb.Views.ThemeSwitch"
+             x:DataType="vm:MainWindowViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Button.theme-option">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <!-- No hover / pressed fill: the sliding highlight is the only background. -->
+        <Style Selector="Button.theme-option:pointerover /template/ ContentPresenter, Button.theme-option:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.theme-option PathIcon">
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.theme-option:pointerover PathIcon">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.theme-option.selected PathIcon">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Background="#1F808080" CornerRadius="16" Padding="2" HorizontalAlignment="Left">
+        <Panel>
+            <!-- The highlight: moved by ThemeThumbMargin, animated. -->
+            <Border Width="36" Height="28" CornerRadius="14" HorizontalAlignment="Left"
+                    Background="{DynamicResource AccentButtonBackground}"
+                    Margin="{Binding ThemeThumbMargin}">
+                <Border.Transitions>
+                    <Transitions>
+                        <ThicknessTransition Property="Margin" Duration="0:0:0.28" Easing="CubicEaseOut" />
+                    </Transitions>
+                </Border.Transitions>
+            </Border>
+            <StackPanel Orientation="Horizontal">
+                <Button Classes="theme-option" Classes.selected="{Binding IsSystemTheme}"
+                        ToolTip.Tip="Theme: follow the system" AutomationProperties.Name="System theme"
+                        Command="{Binding UseSystemThemeCommand}">
+                    <PathIcon Data="{DynamicResource ThemeSystemIcon}" />
+                </Button>
+                <Button Classes="theme-option" Classes.selected="{Binding IsLightTheme}"
+                        ToolTip.Tip="Theme: light" AutomationProperties.Name="Light theme"
+                        Command="{Binding UseLightThemeCommand}">
+                    <PathIcon Data="{DynamicResource ThemeLightIcon}" />
+                </Button>
+                <Button Classes="theme-option" Classes.selected="{Binding IsDarkTheme}"
+                        ToolTip.Tip="Theme: dark" AutomationProperties.Name="Dark theme"
+                        Command="{Binding UseDarkThemeCommand}">
+                    <PathIcon Data="{DynamicResource ThemeDarkIcon}" />
+                </Button>
+            </StackPanel>
+        </Panel>
+    </Border>
+</UserControl>
