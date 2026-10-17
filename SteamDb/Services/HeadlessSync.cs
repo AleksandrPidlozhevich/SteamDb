@@ -131,7 +131,7 @@ public sealed class HeadlessSync
         }
 
         await _notion.ApplyAsync(settings.NotionToken, settings.DbId, plan, onStatus: Write, ct: ct);
-        return $"Done: {counts}.";
+        return $"Done: {counts}." + (plan.Backlog is { } backlog ? $" {backlog.Text}." : "");
     }
 
     private async Task<string> SyncSheetsAsync(AppSettings settings, SyncOptions options, CancellationToken ct)

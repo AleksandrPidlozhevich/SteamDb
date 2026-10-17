@@ -15,13 +15,15 @@ public sealed record LibraryGameItem(
     int? PlaytimeMinutes,
     DateTimeOffset? LastPlayed,
     bool IsHidden = false,
-    CsvGameExportRow? Row = null)
+    CsvGameExportRow? Row = null,
+    bool IsCompleted = false)
 {
-    public static LibraryGameItem From(CsvGameExportRow row, bool hidden = false)
+    public static LibraryGameItem From(CsvGameExportRow row, bool hidden = false, bool completed = false)
     {
         var platforms = PlatformCatalog.All.Where(d => d.Has(row)).Select(d => d.Label).ToList();
         if (row.IsGamePass) platforms.Add(Services.Platforms.GamePass);
-        return new LibraryGameItem(row.Name, platforms, row.IdText, row.PlaytimeMinutes, row.LastPlayed, hidden, row);
+        return new LibraryGameItem(row.Name, platforms, row.IdText, row.PlaytimeMinutes, row.LastPlayed, hidden, row,
+            completed);
     }
 
     /// <summary>Owned on two or more stores (Game Pass is a tag, not a purchase).</summary>
@@ -47,6 +49,63 @@ public sealed record LibraryGameItem(
     public string HideTip => IsHidden
         ? "Include this game in exports again"
         : "Leave this game out of every export (demos, test servers, tools…)";
+}
+
+/// <summary>
+/// Totals for the library (hidden games excluded). Only Steam and Xbox report playtime, so the
+/// played share is out of the games that have playtime data.
+/// </summary>
+public sealed record LibraryStats(
+    int Games, int Tracked, int Played, int NeverPlayed, int MultiStore, int TotalMinutes, LibraryGameItem? MostPlayed,
+    int Completed = 0, string? CompletedSource = null)
+{
+    /// <param name="backlog">The tracker snapshot the completed marks came from (null: none known).</param>
+    public static LibraryStats Compute(IEnumerable<LibraryGameItem> games, BacklogSnapshot? backlog = null)
+    {
+        var list = games.ToList();
+        var tracked = list.Where(g => g.PlaytimeMinutes != null || g.LastPlayed != null).ToList();
+        return new LibraryStats(
+            list.Count,
+            tracked.Count,
+            tracked.Count(g => !g.IsNeverPlayed),
+            tracked.Count(g => g.IsNeverPlayed),
+            list.Count(g => g.IsMultiStore),
+            list.Sum(g => g.PlaytimeMinutes ?? 0),
+            list.Where(g => g.PlaytimeMinutes > 0).MaxBy(g => g.PlaytimeMinutes),
+            list.Count(g => g.IsCompleted),
+            backlog?.Target);
+    }
+
+    public bool HasCompletion => CompletedSource != null;
+
+    public double CompletedPercent => Games == 0 ? 0 : Math.Round(Completed * 100.0 / Games);
+
+    /// <summary>"Completed 120 of 640 (19%)".</summary>
+    public string CompletedText => $"Completed {Completed} of {Games} ({CompletedPercent:0}%)";
+
+    public string CompletedTip =>
+        $"Games ticked as completed in {CompletedSource}, as of its last export (export again to refresh).";
+
+    /// <summary>Played share of the tracked games, 0–100.</summary>
+    public double PlayedPercent => Tracked == 0 ? 0 : Math.Round(Played * 100.0 / Tracked);
+
+    public bool HasPlaytimeData => Tracked > 0;
+
+    /// <summary>"Played 210 of 450 (47%)".</summary>
+    public string PlayedText => $"Played {Played} of {Tracked} ({PlayedPercent:0}%)";
+
+    /// <summary>"1,234 h in total".</summary>
+    public string TotalText => $"{TotalMinutes / 60.0:#,0} h in total";
+
+    public string NeverPlayedText => $"{NeverPlayed} never played";
+
+    public string MultiStoreText => $"{MultiStore} on 2+ stores";
+
+    /// <summary>"Most played: The Witcher 3 (230 h)", or empty.</summary>
+    public string MostPlayedText => MostPlayed == null ? "" : $"Most played: {MostPlayed.Name} ({MostPlayed.PlaytimeText})";
+
+    public string PlayedTip =>
+        $"Only Steam and Xbox report playtime: {Tracked} of {Games} games have it, and the share is out of those.";
 }
 
 /// <summary>A sort choice for the library list.</summary>
@@ -79,9 +138,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
     public const string MultiStoreKey = "multi";
     public const string NeverPlayedKey = "never";
     public const string HiddenKey = "hidden";
+    public const string CompletedKey = "completed";
+    public const string NotCompletedKey = "not-completed";
 
     private readonly List<LibraryGameItem> _all;
     private readonly IgnoredGames? _ignored;
+    private readonly BacklogSnapshot? _backlog;
 
     [ObservableProperty] private string? searchText;
 
@@ -93,15 +155,24 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     [ObservableProperty] private IReadOnlyList<LibraryFilterOption> filters = [];
 
+    /// <summary>Totals over the exported (not hidden) games; independent of search and filter.</summary>
+    [ObservableProperty] private LibraryStats stats = LibraryStats.Compute([]);
+
     /// <param name="rows">The games that will be exported.</param>
     /// <param name="hidden">Fetched games the user hid (shown under the "Hidden" filter).</param>
     /// <param name="ignored">Where Hide / Unhide is saved; null makes the viewer read-only.</param>
+    /// <param name="backlog">Completed marks from the last tracker export (Notion / Sheets), if any.</param>
     public LibraryViewModel(
-        IEnumerable<CsvGameExportRow> rows, IEnumerable<CsvGameExportRow>? hidden = null, IgnoredGames? ignored = null)
+        IEnumerable<CsvGameExportRow> rows, IEnumerable<CsvGameExportRow>? hidden = null, IgnoredGames? ignored = null,
+        BacklogSnapshot? backlog = null)
     {
         _ignored = ignored;
-        _all = rows.Where(r => r.HasContent).Select(r => LibraryGameItem.From(r))
-            .Concat((hidden ?? []).Where(r => r.HasContent).Select(r => LibraryGameItem.From(r, true)))
+        _backlog = backlog;
+        var completed = new HashSet<string>(backlog?.CompletedKeys ?? [], StringComparer.OrdinalIgnoreCase);
+        bool IsCompleted(CsvGameExportRow r) => completed.Count > 0 && IgnoredGames.KeysOf(r).Any(completed.Contains);
+
+        _all = rows.Where(r => r.HasContent).Select(r => LibraryGameItem.From(r, completed: IsCompleted(r)))
+            .Concat((hidden ?? []).Where(r => r.HasContent).Select(r => LibraryGameItem.From(r, true, IsCompleted(r))))
             .OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
@@ -114,6 +185,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         selectedSort = Sorts[0];
         filters = BuildFilters();
         selectedFilter = filters[0];
+        stats = LibraryStats.Compute(_all.Where(g => !g.IsHidden), backlog);
         ApplyFilter();
     }
 
@@ -170,6 +242,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // Rebuild the counts but stay on the same filter.
         var key = SelectedFilter?.Key ?? AllKey;
         Filters = BuildFilters();
+        Stats = LibraryStats.Compute(_all.Where(g => !g.IsHidden), _backlog);
         SelectedFilter = Filters.FirstOrDefault(f => f.Key == key) ?? Filters[0];
         ApplyFilter();
     }
@@ -186,6 +259,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
         var multi = exported.Count(g => g.IsMultiStore);
         if (multi > 0) options.Add(new LibraryFilterOption("Owned on 2+ stores", MultiStoreKey, multi));
+
+        if (_backlog != null)
+        {
+            options.Add(new LibraryFilterOption("Completed", CompletedKey, exported.Count(g => g.IsCompleted)));
+            options.Add(new LibraryFilterOption("Not completed", NotCompletedKey, exported.Count(g => !g.IsCompleted)));
+        }
 
         var never = exported.Count(g => g.IsNeverPlayed);
         if (never > 0) options.Add(new LibraryFilterOption("Never played", NeverPlayedKey, never));
@@ -208,6 +287,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
                 AllKey or HiddenKey => true,
                 MultiStoreKey => g.IsMultiStore,
                 NeverPlayedKey => g.IsNeverPlayed,
+                CompletedKey => g.IsCompleted,
+                NotCompletedKey => !g.IsCompleted,
                 _ => g.Platforms.Contains(key)
             })
             .Where(g => string.IsNullOrEmpty(query) ||

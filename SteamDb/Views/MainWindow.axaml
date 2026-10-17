@@ -318,10 +318,11 @@
                 <!-- Background mode: keep running in the tray, and start hidden at login. -->
                 <StackPanel Orientation="Horizontal" Spacing="12" Margin="52,-4,0,0">
                     <CheckBox Classes="include" Content="Close to tray" IsChecked="{Binding CloseToTray}"
-                              ToolTip.Tip="Closing the window keeps SteamDb running in the tray (so auto-sync keeps going). Quit from the tray icon's menu." />
+                              IsEnabled="{Binding IsTrayAvailable}"
+                              ToolTip.Tip="{Binding CloseToTrayHint}" ToolTip.ShowOnDisabled="True" />
                     <CheckBox Classes="include" Content="Start at login" IsChecked="{Binding StartAtLogin}"
                               IsVisible="{Binding CanStartAtLogin}"
-                              ToolTip.Tip="Start SteamDb hidden in the tray when you log in (turns on Close to tray as well)." />
+                              ToolTip.Tip="{Binding StartAtLoginHint}" />
                 </StackPanel>
             </StackPanel>
 
@@ -357,6 +358,9 @@
                                     ToolTip.ShowOnDisabled="True" />
                             <TextBlock Classes="last-sync" Text="{Binding NotionLastSync}"
                                        IsVisible="{Binding NotionLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <TextBlock Classes="last-sync" Text="{Binding NotionProgress}"
+                                       ToolTip.Tip="Pages ticked as completed in Notion (a Completed / Done checkbox or a Status set to Done), as of the last export"
+                                       IsVisible="{Binding NotionProgress, Converter={x:Static ObjectConverters.IsNotNull}}" />
                         </StackPanel>
                     </Border>
                     <Border HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -393,6 +397,9 @@
                                          Text="{Binding GoogleSheetsTableName, Mode=TwoWay}" />
                                 <TextBlock Classes="last-sync" Text="{Binding SheetsLastSync}"
                                            IsVisible="{Binding SheetsLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <TextBlock Classes="last-sync" Text="{Binding SheetsProgress}"
+                                           ToolTip.Tip="Rows with Completed ticked in the sheet, as of the last export"
+                                           IsVisible="{Binding SheetsProgress, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             </StackPanel>
                         </Border>
                         <Border HorizontalAlignment="Left" VerticalAlignment="Center"

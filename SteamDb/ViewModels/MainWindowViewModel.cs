@@ -69,6 +69,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty] private string? sheetsLastSync;
 
+    /// <summary>"Completed 120 of 640 (19%)" from the last Notion export; null before one.</summary>
+    [ObservableProperty] private string? notionProgress;
+
+    [ObservableProperty] private string? sheetsProgress;
+
     private readonly SyncHistory _syncHistory;
     private readonly StoreSelection _selection;
 
@@ -99,6 +104,22 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>Closing the window keeps SteamDb running in the tray (saved).</summary>
     [ObservableProperty] private bool closeToTray;
 
+    /// <summary>False on a Linux desktop without a tray: closing then really closes (set by <c>App</c>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CloseToTrayHint), nameof(StartAtLoginHint))]
+    private bool isTrayAvailable = true;
+
+    /// <summary>Close to tray only works when there's a tray to come back from.</summary>
+    public bool KeepsRunningOnClose => CloseToTray && IsTrayAvailable;
+
+    public string CloseToTrayHint => IsTrayAvailable
+        ? "Closing the window keeps SteamDb running in the tray (so auto-sync keeps going). Quit from the tray icon's menu."
+        : "This desktop has no system tray (on GNOME, install the AppIndicator extension), so closing the window quits SteamDb.";
+
+    public string StartAtLoginHint => IsTrayAvailable
+        ? "Start SteamDb hidden in the tray when you log in (turns on Close to tray as well)."
+        : "Start SteamDb when you log in (the window opens, since this desktop has no tray).";
+
     /// <summary>Start hidden in the tray at login (a system login item, not a saved setting).</summary>
     [ObservableProperty] private bool startAtLogin;
 
@@ -125,6 +146,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IUpdateService _updates;
     private readonly IgnoredGames _ignored;
     private readonly IAutoStart _autoStart;
+    private readonly BacklogProgress _backlog;
 
     public MainWindowViewModel(
         ISecretStore secrets,
@@ -139,8 +161,10 @@ public partial class MainWindowViewModel : ViewModelBase
         IUpdateService updates,
         StoreSelection selection,
         IgnoredGames ignored,
-        IAutoStart autoStart)
+        IAutoStart autoStart,
+        BacklogProgress backlog)
     {
+        _backlog = backlog;
         _selection = selection;
         _ignored = ignored;
         _autoStart = autoStart;
@@ -238,7 +262,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _autoStart.SetEnabled(value);
             // Starting hidden only makes sense if closing keeps it in the tray too.
-            if (value) CloseToTray = true;
+            if (value && IsTrayAvailable) CloseToTray = true;
         }
         catch (Exception ex)
         {
@@ -426,26 +450,28 @@ public partial class MainWindowViewModel : ViewModelBase
         var clients = new StoreClientFactory(secrets, log);
         var selection = new StoreSelection();
         var ignored = new IgnoredGames(secrets);
+        var backlog = new BacklogProgress(secrets);
         var library = new GameLibraryService(clients, selection, ignored);
         return new Dependencies(
             secrets,
             new EmbeddedWebViewAuthenticator(DefaultTopLevel),
             clients,
             library,
-            new NotionGameExporter(library, new NotionGateway(log), log),
-            new GoogleSheetsGameExporter(secrets, library, log),
+            new NotionGameExporter(library, new NotionGateway(log), log, backlog),
+            new GoogleSheetsGameExporter(secrets, library, log, backlog),
             new WindowDialogService(),
             new CsvFileService(log),
             log,
             new VelopackUpdateService(log),
             selection,
             ignored,
-            new AutoStart(log));
+            new AutoStart(log),
+            backlog);
     }
 
     private MainWindowViewModel(Dependencies d)
         : this(d.Secrets, d.WebAuth, d.Clients, d.Library, d.NotionExporter, d.SheetsExporter, d.Dialogs,
-            d.Csv, d.Log, d.Updates, d.Selection, d.Ignored, d.AutoStart)
+            d.Csv, d.Log, d.Updates, d.Selection, d.Ignored, d.AutoStart, d.Backlog)
     {
     }
 
@@ -462,7 +488,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IUpdateService Updates,
         StoreSelection Selection,
         IgnoredGames Ignored,
-        IAutoStart AutoStart);
+        IAutoStart AutoStart,
+        BacklogProgress Backlog);
 
     private static TopLevel? DefaultTopLevel() =>
         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
@@ -800,6 +827,8 @@ public partial class MainWindowViewModel : ViewModelBase
         CsvLastSync = SyncHistory.Describe(_syncHistory.Get(SyncHistory.Csv), now);
         NotionLastSync = SyncHistory.Describe(_syncHistory.Get(SyncHistory.Notion), now);
         SheetsLastSync = SyncHistory.Describe(_syncHistory.Get(SyncHistory.GoogleSheets), now);
+        NotionProgress = _backlog.Get(SyncHistory.Notion)?.Text;
+        SheetsProgress = _backlog.Get(SyncHistory.GoogleSheets)?.Text;
     }
 
     private void ShowResult(string message, string? actionLabel = null, Action? action = null)
@@ -915,7 +944,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
             if (!await HandleFetchedLibraryAsync(result, "Game library")) return;
 
-            _dialogs.ShowLibrary(new LibraryViewModel(result.Rows, result.Ignored, _ignored));
+            _dialogs.ShowLibrary(new LibraryViewModel(result.Rows, result.Ignored, _ignored, _backlog.Latest()));
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -953,6 +982,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
             if (plan.IsEmpty)
             {
+                // Nothing to write, but this still records the backlog progress read by the plan.
+                await _notionExporter.ApplyAsync(NotionToken, DbId, plan, ct: Progress.Token);
                 ShowResult($"✓ Notion is already up to date ({plan.Unchanged} games)" + GoneSuffix(plan.NoLongerOwned.Count),
                     "Open database", NotionDatabaseAction());
                 RecordSync(SyncHistory.Notion);

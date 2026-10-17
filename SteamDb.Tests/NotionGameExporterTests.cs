@@ -338,6 +338,39 @@ public class NotionGameExporterTests
 
     // ---- helpers ---------------------------------------------------------------------
 
+    [Fact]
+    public async Task Backlog_IsReadInThePlan_AndRecordedOnlyOnApply()
+    {
+        var done = Existing("p1", CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400"), "Steam:400", "Steam")
+            with { Completed = true };
+        var open = Existing("p2", CsvGameExportService.CreateRow("Steam", "Doom", "Steam:379720"), "Steam:379720", "Steam")
+            with { Completed = false };
+        var hidden = Existing("p3", CsvGameExportService.CreateRow("Steam", "Test Server", "Steam:1"), "Steam:1", "Steam")
+            with { Completed = true };
+        var library = Library(
+            CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400"),
+            CsvGameExportService.CreateRow("Steam", "Doom", "Steam:379720"),
+            CsvGameExportService.CreateRow("Steam", "Hades", "Steam:1145360")) with
+        {
+            IgnoredRows = [CsvGameExportService.CreateRow("Steam", "Test Server", "Steam:1")]
+        };
+        var backlog = new BacklogProgress();
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(library),
+            new FakeNotionGateway(new FakeNotionApiClient(), new FakeNotionDataFetcher([done, open, hidden])),
+            new NullLogService(), backlog);
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        // Hades is new (counted, not completed); the hidden Test Server isn't counted.
+        Assert.Equal("Completed 1 of 3 (33%)", plan.Backlog?.Text);
+        Assert.Equal(["Steam:400"], plan.Backlog?.CompletedKeys);
+        Assert.Null(backlog.Get(SyncHistory.Notion));
+
+        await exporter.ApplyAsync("token", "db", plan);
+        Assert.Equal(1, backlog.Get(SyncHistory.Notion)?.Completed);
+    }
+
     // Returns the fake client's recorded writes (the fake itself is file-local).
     private static (NotionGameExporter Exporter, List<NotionPageBody> Created, List<(string PageId, NotionPageBody Body)> Updated)
         CreateExporter(

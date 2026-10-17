@@ -20,6 +20,9 @@ public partial class App : Application
     private TrayIcon? _tray;
     private bool _quitting;
 
+    /// <summary>Set by <c>Program.Main</c>: another start asks this one to show its window.</summary>
+    public static SingleInstance? Instance { get; set; }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -44,7 +47,7 @@ public partial class App : Application
                 viewModel.SaveOnExit();
 
                 // Only a user close goes to the tray; logoff / shutdown / Quit really close.
-                if (!_quitting && viewModel.CloseToTray &&
+                if (!_quitting && viewModel.KeepsRunningOnClose &&
                     e.CloseReason == WindowCloseReason.WindowClosing && !e.IsProgrammatic)
                 {
                     e.Cancel = true;
@@ -53,12 +56,15 @@ public partial class App : Application
             };
             window.Closed += (_, _) => desktop.Shutdown();
 
+            viewModel.IsTrayAvailable = TraySupport.IsAvailable();
             CreateTrayIcon(viewModel);
             viewModel.ShowWindowRequested += ShowMainWindow;
+            if (Instance != null) Instance.ShowRequested += () => Dispatcher.UIThread.Post(ShowMainWindow);
 
             // Started at login (--minimized): stay in the tray. Assigning MainWindow after start-up
-            // keeps the lifetime from showing it, while dialogs can still find it.
-            if (desktop.Args?.Contains(AutoStart.MinimizedArgument) == true)
+            // keeps the lifetime from showing it, while dialogs can still find it. Without a tray
+            // the window opens normally, or there'd be no way to reach it.
+            if (viewModel.IsTrayAvailable && desktop.Args?.Contains(AutoStart.MinimizedArgument) == true)
                 Dispatcher.UIThread.Post(() => desktop.MainWindow = window);
             else
                 desktop.MainWindow = window;

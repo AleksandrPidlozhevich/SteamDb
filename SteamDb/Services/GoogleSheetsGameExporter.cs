@@ -30,9 +30,12 @@ public sealed class GoogleSheetsGameExporter
     private readonly ISecretStore _secrets;
     private readonly IGameLibraryService _library;
     private readonly ILogService _log;
+    private readonly BacklogProgress? _backlog;
 
-    public GoogleSheetsGameExporter(ISecretStore secrets, IGameLibraryService library, ILogService log)
+    public GoogleSheetsGameExporter(
+        ISecretStore secrets, IGameLibraryService library, ILogService log, BacklogProgress? backlog = null)
     {
+        _backlog = backlog;
         _secrets = secrets;
         _library = library;
         _log = log;
@@ -80,10 +83,11 @@ public sealed class GoogleSheetsGameExporter
         var sheetId = sheet.SheetId ?? 0;
         var sheetRef = QuoteSheetTitle(sheet.Title);
 
-        // Unformatted, so numbers (Playtime) come back as numbers rather than locale-formatted text.
+        // FORMULA: plain cells come back unformatted (numbers such as Playtime stay numbers), and a
+        // Cover cell returns its =IMAGE(…) formula, so a filled cover is recognised (its value is empty).
         var getValues = sheets.Spreadsheets.Values.Get(spreadsheetId, sheetRef);
         getValues.ValueRenderOption =
-            SpreadsheetsResource.ValuesResource.GetRequest.ValueRenderOptionEnum.UNFORMATTEDVALUE;
+            SpreadsheetsResource.ValuesResource.GetRequest.ValueRenderOptionEnum.FORMULA;
         var existing = await getValues.ExecuteAsync(ct);
         var plan = GoogleSheetsSyncPlanner.Plan(existing.Values, library.Rows, library.FetchedStores, library.Ignored);
         if (dryRun)
@@ -92,7 +96,10 @@ public sealed class GoogleSheetsGameExporter
 
         await ApplyStructureAsync(sheets, spreadsheetId, sheetId, sheet.GridProperties, plan, ct);
         await WriteValuesAsync(sheets, spreadsheetId, sheetRef, plan, ct);
+        await WriteCoversAsync(sheets, spreadsheetId, sheetRef, plan, ct);
         await ApplyCheckboxesAsync(sheets, spreadsheetId, sheetId, plan, ct);
+        _backlog?.Record(BacklogSnapshot.From(
+            SyncHistory.GoogleSheets, DateTimeOffset.Now, plan.Tracked ?? [], plan.NewRows.Count));
 
         _log.WriteInfo(
             $"Google Sheets: added {plan.NewRows.Count}, updated {plan.Updates.Count} games in \"{spreadsheetName}\".");
@@ -185,6 +192,8 @@ public sealed class GoogleSheetsGameExporter
                 data.Add(CellValue(sheetRef, plan.Columns.LastPlayed, update.RowIndex, lastPlayed));
             if (update.Owned is { } owned)
                 data.Add(CellValue(sheetRef, plan.Columns.Owned, update.RowIndex, owned));
+            if (update.StoreLink is { } link)
+                data.Add(CellValue(sheetRef, plan.Columns.StoreLink, update.RowIndex, link));
         }
 
         if (plan.NewRows.Count > 0)
@@ -214,7 +223,30 @@ public sealed class GoogleSheetsGameExporter
         if (columns.Playtime >= 0 && row.PlaytimeHours is { } hours) cells[columns.Playtime] = hours;
         if (columns.LastPlayed >= 0 && row.LastPlayedDate is { } lastPlayed) cells[columns.LastPlayed] = lastPlayed;
         if (columns.Owned >= 0) cells[columns.Owned] = true;
+        if (columns.StoreLink >= 0 && row.StoreUrl is { } link) cells[columns.StoreLink] = link;
         return cells;
+    }
+
+    // Cover images as =IMAGE(…) formulas: a separate USER_ENTERED write, since the RAW write above
+    // stores text verbatim (on purpose, for names and ids).
+    private static async Task WriteCoversAsync(
+        SheetsService sheets, string spreadsheetId, string sheetRef, GoogleSheetsSyncPlan plan, CancellationToken ct)
+    {
+        if (plan.Columns.Cover < 0) return;
+
+        var data = plan.Updates
+            .Where(u => u.CoverUrl != null)
+            .Select(u => CellValue(sheetRef, plan.Columns.Cover, u.RowIndex, GoogleSheetsSyncPlanner.CoverFormula(u.CoverUrl!)))
+            .Concat(plan.NewRows
+                .Select((row, i) => (row.CoverUrl, Index: plan.FirstNewRowIndex + i))
+                .Where(c => c.CoverUrl != null)
+                .Select(c => CellValue(sheetRef, plan.Columns.Cover, c.Index, GoogleSheetsSyncPlanner.CoverFormula(c.CoverUrl!))))
+            .ToList();
+        if (data.Count == 0) return;
+
+        await sheets.Spreadsheets.Values
+            .BatchUpdate(new BatchUpdateValuesRequest { ValueInputOption = "USER_ENTERED", Data = data }, spreadsheetId)
+            .ExecuteAsync(ct);
     }
 
     // Completed (and the opt-in Owned column) as checkboxes for every data row — idempotent, and

@@ -20,9 +20,12 @@ public sealed class NotionGameExporter
     private readonly IGameLibraryService _library;
     private readonly INotionGateway _notion;
     private readonly ILogService _log;
+    private readonly BacklogProgress? _backlog;
 
-    public NotionGameExporter(IGameLibraryService library, INotionGateway notion, ILogService log)
+    public NotionGameExporter(
+        IGameLibraryService library, INotionGateway notion, ILogService log, BacklogProgress? backlog = null)
     {
+        _backlog = backlog;
         _library = library;
         _notion = notion;
         _log = log;
@@ -70,6 +73,7 @@ public sealed class NotionGameExporter
         var optional = schema.Optional;
         var matcher = new CsvGameExportService.RowMatcher(existing.Select(e => e.Row));
         var matched = new HashSet<CsvGameExportRow>(ReferenceEqualityComparer.Instance);
+        var hiddenRows = new HashSet<CsvGameExportRow>(ReferenceEqualityComparer.Instance);
 
         var toCreate = new List<NotionPageCreate>();
 
@@ -92,7 +96,10 @@ public sealed class NotionGameExporter
         // Hidden games: their pages are left as they are, but they're still owned.
         foreach (var row in library.Ignored)
             if (matcher.Match(row) is { } hidden)
+            {
                 matched.Add(hidden);
+                hiddenRows.Add(hidden);
+            }
 
         // Update any existing page whose stored value no longer matches the desired one.
         // This covers merged-in platforms AND normalising legacy bare ids to the prefixed
@@ -136,7 +143,10 @@ public sealed class NotionGameExporter
             toUpdate.OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase).ToList(),
             existing.Count - toUpdate.Count,
             noLongerOwned,
-            optional.Owned);
+            optional.Owned,
+            BacklogSnapshot.From(SyncHistory.Notion, DateTimeOffset.Now,
+                existing.Where(e => !hiddenRows.Contains(e.Row)).Select(e => (e.Row, e.Completed)),
+                toCreate.Count));
     }
 
     /// <summary>Writes a plan from <see cref="PlanAsync"/> to the database.</summary>
@@ -145,6 +155,9 @@ public sealed class NotionGameExporter
         IProgress<StoreFetchProgress>? progress = null, Action<string>? onStatus = null,
         CancellationToken ct = default)
     {
+        // Read during the plan; recorded only for a real export (a dry run never applies).
+        _backlog?.Record(plan.Backlog);
+
         if (plan.IsEmpty)
         {
             _log.WriteInfo("Notion: already up to date.");
@@ -334,7 +347,8 @@ public sealed record NotionExportPlan(
     IReadOnlyList<NotionPageUpdate> ToUpdate,
     int Unchanged,
     IReadOnlyList<NotionGoneGame> NoLongerOwned,
-    bool HasOwnedColumn)
+    bool HasOwnedColumn,
+    BacklogSnapshot? Backlog = null)
 {
     public bool IsEmpty => PropertiesToCreate.Count == 0 && ToCreate.Count == 0 && ToUpdate.Count == 0;
 }

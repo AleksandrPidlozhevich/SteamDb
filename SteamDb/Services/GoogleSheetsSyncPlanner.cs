@@ -6,22 +6,25 @@ using System.Linq;
 namespace SteamDb.Services;
 
 /// <summary>0-based column indexes of the SteamDb columns, after any migration has been applied.
-/// <see cref="Playtime"/> / <see cref="LastPlayed"/> are opt-in (the user adds the header); -1 = absent.</summary>
+/// <see cref="Playtime"/>, <see cref="LastPlayed"/>, <see cref="Owned"/>, <see cref="StoreLink"/> and
+/// <see cref="Cover"/> are opt-in (the user adds the header); -1 = absent.</summary>
 public sealed record SheetColumns(
-    int Platform, int Name, int Id, int Completed, int Playtime = -1, int LastPlayed = -1, int Owned = -1)
+    int Platform, int Name, int Id, int Completed, int Playtime = -1, int LastPlayed = -1, int Owned = -1,
+    int StoreLink = -1, int Cover = -1)
 {
     /// <summary>Number of columns needed to hold every SteamDb column.</summary>
-    public int Width => new[] { Platform, Name, Id, Completed, Playtime, LastPlayed, Owned }.Max() + 1;
+    public int Width => new[] { Platform, Name, Id, Completed, Playtime, LastPlayed, Owned, StoreLink, Cover }.Max() + 1;
 }
 
 /// <summary>A header cell to write (row 0) — only the SteamDb columns the sheet is missing.</summary>
 public sealed record SheetHeaderCell(int Column, string Text);
 
 /// <summary>New values for an existing row (0-based index in the migrated sheet). Playtime /
-/// LastPlayed are null when there's nothing to write (column absent or no fresh data).</summary>
+/// LastPlayed are null when there's nothing to write (column absent or no fresh data); StoreLink /
+/// CoverUrl only fill an empty cell.</summary>
 public sealed record SheetRowUpdate(
     int RowIndex, string Platform, string Id, double? PlaytimeHours = null, string? LastPlayed = null,
-    bool? Owned = null);
+    bool? Owned = null, string? StoreLink = null, string? CoverUrl = null);
 
 /// <summary>
 /// Everything the Google Sheets export has to write, computed from the sheet's current values.
@@ -36,7 +39,8 @@ public sealed record GoogleSheetsSyncPlan(
     IReadOnlyList<SheetRowUpdate> Updates,
     IReadOnlyList<CsvGameExportRow> NewRows,
     int FirstNewRowIndex,
-    IReadOnlyList<string> NoLongerOwned)
+    IReadOnlyList<string> NoLongerOwned,
+    IReadOnlyList<(CsvGameExportRow Row, bool? Completed)>? Tracked = null)
 {
     /// <summary>Rows the sheet holds once the plan is applied (header included).</summary>
     public int TotalRows => FirstNewRowIndex + NewRows.Count;
@@ -62,6 +66,11 @@ public static class GoogleSheetsSyncPlanner
     public const string PlaytimeHeader = "Playtime";
     public const string LastPlayedHeader = "Last played";
     public const string OwnedHeader = "Owned";
+    public const string StoreLinkHeader = "Store link";
+    public const string CoverHeader = "Cover";
+
+    /// <summary>The cell formula that shows a cover image (quotes doubled for the formula string).</summary>
+    public static string CoverFormula(string url) => $"=IMAGE(\"{url.Replace("\"", "\"\"")}\")";
 
     private static readonly string[] IdHeaders = [IdHeader, "Game ID", "GameID"];
 
@@ -80,6 +89,7 @@ public static class GoogleSheetsSyncPlanner
         var matcher = new CsvGameExportService.RowMatcher(existing.Select(e => e.Row));
         var newRows = new List<CsvGameExportRow>();
         var matched = new HashSet<CsvGameExportRow>(ReferenceEqualityComparer.Instance);
+        var hiddenRows = new HashSet<CsvGameExportRow>(ReferenceEqualityComparer.Instance);
 
         // Merge each owned game into its existing row, or queue a brand-new row.
         foreach (var row in incoming)
@@ -99,7 +109,10 @@ public static class GoogleSheetsSyncPlanner
         // Hidden games: their rows are left as they are, but they're still owned.
         foreach (var row in ignored ?? [])
             if (matcher.Match(row) is { } hidden)
+            {
                 matched.Add(hidden);
+                hiddenRows.Add(hidden);
+            }
 
         // Rewrite any row whose stored cells no longer match — merged-in platforms, legacy bare ids /
         // missing platforms normalised to the current form, and fresh playtime / last-played values
@@ -115,13 +128,18 @@ public static class GoogleSheetsSyncPlanner
             var hours = columns.Playtime >= 0 ? e.Row.PlaytimeHours : null;
             var lastPlayed = columns.LastPlayed >= 0 ? e.Row.LastPlayedDate : null;
             var owned = columns.Owned >= 0 ? ownership : null;
+            // Links / covers only go into empty cells (yours stay), and never onto hidden games.
+            var fillable = !hiddenRows.Contains(e.Row);
+            var link = fillable && columns.StoreLink >= 0 && e.StoredLink.Length == 0 ? e.Row.StoreUrl : null;
+            var cover = fillable && columns.Cover >= 0 && e.StoredCover.Length == 0 ? e.Row.CoverUrl : null;
             var changed = e.Row.PlatformText != e.StoredPlatform || e.Row.IdText != e.StoredId ||
                           (hours != null && hours != e.StoredPlaytime) ||
                           (lastPlayed != null && lastPlayed != e.StoredLastPlayed) ||
-                          (owned != null && owned != e.StoredOwned);
+                          (owned != null && owned != e.StoredOwned) ||
+                          link != null || cover != null;
             if (changed)
                 updates.Add(new SheetRowUpdate(
-                    e.RowIndex, e.Row.PlatformText, e.Row.IdText, hours, lastPlayed, owned));
+                    e.RowIndex, e.Row.PlatformText, e.Row.IdText, hours, lastPlayed, owned, link, cover));
         }
 
         return new GoogleSheetsSyncPlan(
@@ -133,7 +151,9 @@ public static class GoogleSheetsSyncPlanner
             newRows.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList(),
             // Row 0 is always the header (written now if the sheet was empty).
             Math.Max(values.Count + rowShift, 1),
-            noLongerOwned.Order(StringComparer.OrdinalIgnoreCase).ToList());
+            noLongerOwned.Order(StringComparer.OrdinalIgnoreCase).ToList(),
+            // The rows the backlog progress is counted over (hidden games left out).
+            existing.Where(e => !hiddenRows.Contains(e.Row)).Select(e => (e.Row, e.StoredCompleted)).ToList());
     }
 
     // Where the SteamDb columns are in the sheet as read (Orig*, -1 = absent) and where they end up.
@@ -148,7 +168,10 @@ public static class GoogleSheetsSyncPlanner
         IReadOnlyList<SheetHeaderCell> HeaderCells,
         int OrigPlaytime = -1,
         int OrigLastPlayed = -1,
-        int OrigOwned = -1);
+        int OrigOwned = -1,
+        int OrigStoreLink = -1,
+        int OrigCover = -1,
+        int OrigCompleted = -1);
 
     private static Layout DetectLayout(IList<IList<object>> values)
     {
@@ -166,7 +189,7 @@ public static class GoogleSheetsSyncPlanner
         {
             // Headerless sheet from the old exporter: Name, bare Steam id, Completed from row 0.
             if (header.Count >= 2 && long.TryParse(Cell(header, 1), out _))
-                return new Layout(true, true, -1, 0, 1, 0, fresh, FullHeader(fresh));
+                return new Layout(true, true, -1, 0, 1, 0, fresh, FullHeader(fresh), OrigCompleted: 2);
 
             throw new InvalidOperationException(
                 "This spreadsheet doesn't look like a SteamDb sheet: the first row of its first tab " +
@@ -179,6 +202,8 @@ public static class GoogleSheetsSyncPlanner
         var playtime = FindColumn(header, PlaytimeHeader);
         var lastPlayed = FindColumn(header, LastPlayedHeader);
         var owned = FindColumn(header, OwnedHeader);
+        var storeLink = FindColumn(header, StoreLinkHeader);
+        var cover = FindColumn(header, CoverHeader);
         var insertPlatform = platform < 0;
         var shift = insertPlatform ? 1 : 0;
 
@@ -190,13 +215,16 @@ public static class GoogleSheetsSyncPlanner
             completed >= 0 ? completed + shift : header.Count + shift,
             playtime >= 0 ? playtime + shift : -1,
             lastPlayed >= 0 ? lastPlayed + shift : -1,
-            owned >= 0 ? owned + shift : -1);
+            owned >= 0 ? owned + shift : -1,
+            storeLink >= 0 ? storeLink + shift : -1,
+            cover >= 0 ? cover + shift : -1);
 
         var headerCells = new List<SheetHeaderCell>();
         if (insertPlatform) headerCells.Add(new SheetHeaderCell(columns.Platform, PlatformHeader));
         if (completed < 0) headerCells.Add(new SheetHeaderCell(columns.Completed, CompletedHeader));
 
-        return new Layout(insertPlatform, false, platform, name, id, 1, columns, headerCells, playtime, lastPlayed, owned);
+        return new Layout(insertPlatform, false, platform, name, id, 1, columns, headerCells, playtime, lastPlayed,
+            owned, storeLink, cover, completed);
     }
 
     private static List<SheetHeaderCell> FullHeader(SheetColumns c) =>
@@ -209,7 +237,8 @@ public static class GoogleSheetsSyncPlanner
 
     private sealed record ExistingRow(
         int RowIndex, CsvGameExportRow Row, string StoredPlatform, string StoredId,
-        double? StoredPlaytime, string StoredLastPlayed, bool? StoredOwned);
+        double? StoredPlaytime, string StoredLastPlayed, bool? StoredOwned, string StoredLink, string StoredCover,
+        bool? StoredCompleted);
 
     private static List<ExistingRow> ReadExistingRows(IList<IList<object>> values, Layout layout, int rowShift)
     {
@@ -227,7 +256,10 @@ public static class GoogleSheetsSyncPlanner
 
             rows.Add(new ExistingRow(r + rowShift, row, platform, id,
                 Number(cells, layout.OrigPlaytime), Cell(cells, layout.OrigLastPlayed),
-                layout.OrigOwned >= 0 && layout.OrigOwned < cells.Count ? cells[layout.OrigOwned] as bool? : null));
+                layout.OrigOwned >= 0 && layout.OrigOwned < cells.Count ? cells[layout.OrigOwned] as bool? : null,
+                Cell(cells, layout.OrigStoreLink), Cell(cells, layout.OrigCover),
+                // An empty Completed cell is "not completed"; no column at all is "unknown".
+                layout.OrigCompleted < 0 ? null : Flag(cells, layout.OrigCompleted) ?? false));
         }
 
         return rows;
@@ -251,6 +283,18 @@ public static class GoogleSheetsSyncPlanner
             long l => l,
             int i => i,
             string s when double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) => v,
+            _ => null
+        };
+    }
+
+    // A checkbox cell: a boolean, or TRUE / FALSE text in sheets typed by hand.
+    private static bool? Flag(IList<object> row, int index)
+    {
+        if (index < 0 || index >= row.Count) return null;
+        return row[index] switch
+        {
+            bool b => b,
+            string s when bool.TryParse(s.Trim(), out var v) => v,
             _ => null
         };
     }

@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using SteamDb.Services;
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Velopack;
@@ -30,6 +31,18 @@ internal sealed class Program
         Environment.SetEnvironmentVariable(
             "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu-compositing --disable-logging");
 
+        // One window per user: a second start (shortcut while it sits in the tray) shows the
+        // running one instead, so two auto-syncs never run side by side. A login start
+        // (--minimized) just leaves quietly.
+        using var instance = SingleInstance.TryAcquire(SingleInstance.CurrentUserName);
+        if (instance == null)
+        {
+            if (!args.Contains(AutoStart.MinimizedArgument))
+                SingleInstance.SignalExisting(SingleInstance.CurrentUserName, TimeSpan.FromSeconds(3));
+            return;
+        }
+
+        App.Instance = instance;
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }

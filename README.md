@@ -72,7 +72,8 @@ the file for your system:
 | --- | --- |
 | 🎮 **Four stores, one list** | Fetches owned games from Steam, Epic, GOG and Xbox and merges duplicates across stores. Untick a store to leave it out of exports. |
 | 📤 **Three export targets** | A Notion database, Google Sheets, or a local CSV file. |
-| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. |
+| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. A footer sums it up: share of games played, total hours, most played. |
+| ✅ **Backlog progress** | After an export to Notion or Google Sheets, the card shows *Completed 120 of 640 (19%)*, and the library viewer marks completed games ✓ with **Completed / Not completed** filters. |
 | 🖼️ **Covers & store links** | New Notion pages get the game's cover image and a `Store link`; existing pages without one are filled in. |
 | 🧹 **Duplicate finder** | **Find duplicates…** spots Notion pages of the same game and merges them (you confirm first; extras go to Notion's trash). |
 | 🗑️ **No longer owned** | Spots games in your tracker that left your library (refunds, delistings). They're never deleted. An optional `Owned` checkbox column gets unticked for them. |
@@ -292,6 +293,10 @@ Optional: add any of these and SteamDb keeps them up to date too:
 A game only counts as "no longer owned" when every store it's tagged with was loaded in that run,
 so an expired Epic or GOG session never marks those games as gone.
 
+**Backlog progress** is read from your own completion column, which SteamDb never changes: a
+checkbox named `Completed`, `Done`, `Finished` or `Beaten`, or a `Status` (status or select)
+property set to `Done`, `Completed`, `Finished`, `Beaten` or `Played`.
+
 ![Required Notion properties](docs/images/notion-properties.png)
 
 </details>
@@ -325,6 +330,8 @@ The first tab gets the same columns as the CSV, plus a checkbox to mark games as
 Want playtime too? Add a `Playtime`, `Last played` and/or `Owned` header to the first row (any free
 column). SteamDb fills them with hours played (Steam), the date of the last session
 (Steam / Xbox) and an ownership checkbox (unticked for games that left your library).
+A `Store link` header gets the game's store page and a `Cover` header its cover image (an
+`=IMAGE(…)` formula); both are filled only while the cell is empty, so your own values stay.
 
 Re-running the export adds new games and updates platform tags in place. Your ticks, row order
 and any extra columns you added are kept. Sheets created by older versions (Steam-only
