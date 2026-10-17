@@ -7,8 +7,8 @@ namespace SteamDb.Services;
 
 /// <summary>
 /// The in-app auto-sync choice: how often (hours, 0 = off) and which targets. Saved in the remembered
-/// settings as <c>Auto Sync: 24h Notion, Sheets</c>. Only Notion and Google Sheets can auto-sync
-/// (a CSV needs a file picked each time).
+/// settings as <c>Auto Sync: 24h Notion, Sheets, CSV</c>. CSV updates the file last written by
+/// Export / Update .csv (remembered as <c>CSV File</c>).
 /// </summary>
 public sealed record AutoSyncSettings(int IntervalHours, IReadOnlyList<SyncTarget> Targets)
 {
@@ -42,6 +42,7 @@ public sealed record AutoSyncSettings(int IntervalHours, IReadOnlyList<SyncTarge
             {
                 "notion" => SyncTarget.Notion,
                 "sheets" => SyncTarget.Sheets,
+                "csv" => SyncTarget.Csv,
                 _ => null
             };
             if (target is { } t && !targets.Contains(t)) targets.Add(t);
@@ -50,7 +51,12 @@ public sealed record AutoSyncSettings(int IntervalHours, IReadOnlyList<SyncTarge
         return targets.Count == 0 ? Off : new AutoSyncSettings(hours, targets);
     }
 
-    private static string Name(SyncTarget target) => target == SyncTarget.Notion ? "Notion" : "Sheets";
+    private static string Name(SyncTarget target) => target switch
+    {
+        SyncTarget.Notion => "Notion",
+        SyncTarget.Sheets => "Sheets",
+        _ => "CSV"
+    };
 }
 
 /// <summary>Decides which auto-sync targets are due. Pure, so it's unit-tested.</summary>

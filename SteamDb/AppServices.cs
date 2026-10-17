@@ -32,6 +32,7 @@ public static class AppServices
         services.AddSingleton<StoreSelection>();
         services.AddSingleton<IgnoredGames>(sp => new IgnoredGames(sp.GetRequiredService<ISecretStore>()));
         services.AddSingleton<BacklogProgress>(sp => new BacklogProgress(sp.GetRequiredService<ISecretStore>()));
+        services.AddSingleton<SyncLog>(sp => new SyncLog(sp.GetRequiredService<ISecretStore>()));
         services.AddSingleton<IGameLibraryService, GameLibraryService>();
         services.AddSingleton<INotionGateway, NotionGateway>();
         services.AddSingleton<NotionGameExporter>();

@@ -25,6 +25,9 @@ public interface IDialogService
     /// <summary>Shows the Notion dry run; true when the user confirms the export.</summary>
     Task<bool> ConfirmNotionExportAsync(NotionExportPreviewViewModel preview);
 
+    /// <summary>Opens (or brings up) the Sync history window.</summary>
+    void ShowSyncLog(SyncLogViewModel log);
+
     /// <summary>Shows the duplicate pages found in Notion; true when the user confirms the merge.</summary>
     Task<bool> ConfirmNotionDuplicatesAsync(NotionDuplicatesViewModel duplicates);
 

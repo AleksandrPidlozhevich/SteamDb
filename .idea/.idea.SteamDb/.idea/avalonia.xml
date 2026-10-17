@@ -7,6 +7,8 @@
         <entry key="SteamDb/Views/Error.axaml" value="SteamDb/SteamDb.csproj" />
         <entry key="SteamDb/Views/LibraryWindow.axaml" value="SteamDb/SteamDb.csproj" />
         <entry key="SteamDb/Views/MainWindow.axaml" value="SteamDb/SteamDb.csproj" />
+        <entry key="SteamDb/Views/NotionDuplicatesWindow.axaml" value="SteamDb/SteamDb.csproj" />
+        <entry key="SteamDb/Views/NotionExportPreviewWindow.axaml" value="SteamDb/SteamDb.csproj" />
         <entry key="SteamDb/Views/SStoreConnectRow.axaml" value="SteamDb/SteamDb.csproj" />
         <entry key="SteamDb/Views/StoreConnectRow.axaml" value="SteamDb/SteamDb.csproj" />
         <entry key="SteamDb/Views/WebLoginWindow.axaml" value="SteamDb/SteamDb.csproj" />

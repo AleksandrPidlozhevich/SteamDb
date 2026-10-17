@@ -29,7 +29,7 @@ public class AutoSyncTests
     [InlineData("5h Notion")]          // not an offered interval
     [InlineData("0h Notion")]
     [InlineData("24 Notion")]
-    [InlineData("24h csv")]            // csv can't auto-sync
+    [InlineData("24h steam")]          // not a sync target
     [InlineData("daily Notion")]
     public void Parse_Invalid_IsOff(string? value) => Assert.False(AutoSyncSettings.Parse(value).IsOn);
 

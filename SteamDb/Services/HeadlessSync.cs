@@ -21,11 +21,18 @@ public sealed class HeadlessSync
     private readonly ILogService _log;
     private readonly TextWriter _out;
     private readonly StoreSelection? _selection;
+    private readonly SyncLog? _syncLog;
+    private readonly string _source;
 
+    /// <param name="syncLog">Where each run is listed for the Sync history window (null: not listed).</param>
+    /// <param name="source">What started the run, as shown in the history ("Auto-sync", "Command line"…).</param>
     public HeadlessSync(
         ISecretStore secrets, IGameLibraryService library, NotionGameExporter notion,
-        GoogleSheetsGameExporter sheets, ILogService log, TextWriter output, StoreSelection? selection = null)
+        GoogleSheetsGameExporter sheets, ILogService log, TextWriter output, StoreSelection? selection = null,
+        SyncLog? syncLog = null, string source = SyncLog.CommandLine)
     {
+        _syncLog = syncLog;
+        _source = source;
         _selection = selection;
         _secrets = secrets;
         _library = library;
@@ -57,7 +64,10 @@ public sealed class HeadlessSync
                 };
                 Write(summary);
                 if (!options.DryRun)
+                {
                     history.Record(SyncHistory.KeyOf(target), DateTimeOffset.Now);
+                    _syncLog?.Add(new SyncLogEntry(DateTimeOffset.Now, SyncHistory.KeyOf(target), true, summary, _source));
+                }
             }
             catch (OperationCanceledException)
             {
@@ -69,6 +79,8 @@ public sealed class HeadlessSync
                 failed = true;
                 _log.WriteException(ex, $"Headless sync of {target} failed");
                 Write($"FAILED: {Flatten(ex)}");
+                if (!options.DryRun)
+                    _syncLog?.Add(new SyncLogEntry(DateTimeOffset.Now, SyncHistory.KeyOf(target), false, Flatten(ex), _source));
             }
         }
 
@@ -77,8 +89,13 @@ public sealed class HeadlessSync
 
     private async Task<string> SyncCsvAsync(AppSettings settings, SyncOptions options, CancellationToken ct)
     {
+        var file = options.CsvFile ?? settings.CsvFile;
+        if (string.IsNullOrWhiteSpace(file))
+            throw new InvalidOperationException(
+                "No CSV file: pass --file <path>, or export / update a CSV once in the app so it's remembered.");
+
         var library = await FetchAsync(settings, ct);
-        var path = Path.GetFullPath(options.CsvFile!);
+        var path = Path.GetFullPath(file);
 
         int added, total;
         string content;

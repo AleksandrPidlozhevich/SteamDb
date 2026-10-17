@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
 
 namespace SteamDb.Views;
 
@@ -8,7 +9,9 @@ public partial class NotionDuplicatesWindow : Window
 {
     public NotionDuplicatesWindow()
     {
-        InitializeComponent();
+        // Loaded directly rather than through the generated InitializeComponent: the window has no
+        // named controls, and this way it doesn't depend on the IDE having run the source generator.
+        AvaloniaXamlLoader.Load(this);
     }
 
     private void OnConfirm(object? sender, RoutedEventArgs e) => Close(true);

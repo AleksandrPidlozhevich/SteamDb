@@ -44,6 +44,11 @@ public sealed record LibraryGameItem(
     /// <summary>Local date of the last session, or "—".</summary>
     public string LastPlayedText => LastPlayed?.ToLocalTime().ToString("d") ?? "—";
 
+    /// <summary>The game's store page (Steam first), or null.</summary>
+    public string? StoreUrl => Row?.StoreUrl;
+
+    public bool HasStoreUrl => StoreUrl != null;
+
     public string HideLabel => IsHidden ? "Unhide" : "Hide";
 
     public string HideTip => IsHidden
@@ -158,14 +163,43 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Totals over the exported (not hidden) games; independent of search and filter.</summary>
     [ObservableProperty] private LibraryStats stats = LibraryStats.Compute([]);
 
+    /// <summary>The list's selection (a pick selects and scrolls to its game).</summary>
+    [ObservableProperty] private LibraryGameItem? selectedGame;
+
+    /// <summary>The game "Pick for me" suggested, or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPicked), nameof(PickedText))]
+    private LibraryGameItem? picked;
+
+    [ObservableProperty] private string? pickMessage;
+
+    public bool HasPicked => Picked != null;
+
+    /// <summary>"Hades — Steam · never played".</summary>
+    public string PickedText => Picked == null ? "" : $"🎲 {Picked.Name} — {Describe(Picked)}";
+
+    private static string Describe(LibraryGameItem game)
+    {
+        var stores = string.Join("/", game.Platforms);
+        var played = game.IsNeverPlayed ? "never played"
+            : game.PlaytimeMinutes is > 0 ? $"{game.PlaytimeText} played"
+            : "no playtime data";
+        return $"{stores} · {played}";
+    }
+
+    private readonly Action<string>? _openLink;
+    private readonly Random _random;
+
     /// <param name="rows">The games that will be exported.</param>
     /// <param name="hidden">Fetched games the user hid (shown under the "Hidden" filter).</param>
     /// <param name="ignored">Where Hide / Unhide is saved; null makes the viewer read-only.</param>
     /// <param name="backlog">Completed marks from the last tracker export (Notion / Sheets), if any.</param>
     public LibraryViewModel(
         IEnumerable<CsvGameExportRow> rows, IEnumerable<CsvGameExportRow>? hidden = null, IgnoredGames? ignored = null,
-        BacklogSnapshot? backlog = null)
+        BacklogSnapshot? backlog = null, Action<string>? openLink = null, Random? random = null)
     {
+        _openLink = openLink;
+        _random = random ?? Random.Shared;
         _ignored = ignored;
         _backlog = backlog;
         var completed = new HashSet<string>(backlog?.CompletedKeys ?? [], StringComparer.OrdinalIgnoreCase);
@@ -226,6 +260,49 @@ public sealed partial class LibraryViewModel : ViewModelBase
     partial void OnSelectedFilterChanged(LibraryFilterOption value) => ApplyFilter();
 
     partial void OnSelectedSortChanged(LibrarySortOption value) => ApplyFilter();
+
+    /// <summary>Store pages can be opened (not in tests / the previewer).</summary>
+    public bool CanOpenStorePage => _openLink != null;
+
+    [RelayCommand]
+    private void OpenStorePage(LibraryGameItem? item)
+    {
+        if (item?.StoreUrl is { } url) _openLink?.Invoke(url);
+    }
+
+    /// <summary>
+    /// Suggests a game to play from the games currently shown (search / filter apply): never hidden
+    /// or completed ones, and preferably one that's barely been touched. Picking again avoids
+    /// repeating the current suggestion when there's another choice.
+    /// </summary>
+    [RelayCommand]
+    private void PickForMe()
+    {
+        var pick = Pick(VisibleGames, _random, Picked);
+        Picked = pick;
+        PickMessage = pick == null ? "Nothing to pick: every game shown is completed or hidden." : null;
+        if (pick != null) SelectedGame = pick;
+    }
+
+    [RelayCommand]
+    private void DismissPick()
+    {
+        Picked = null;
+        PickMessage = null;
+    }
+
+    /// <summary>The pick rule (pure): not hidden or completed; never played, under 2 h or without
+    /// playtime data first; the previous pick only when it's the sole candidate.</summary>
+    public static LibraryGameItem? Pick(IEnumerable<LibraryGameItem> shown, Random random, LibraryGameItem? previous = null)
+    {
+        var pool = shown.Where(g => !g.IsHidden && !g.IsCompleted).ToList();
+        if (pool.Count == 0) return null;
+
+        var fresh = pool.Where(g => g.IsNeverPlayed || g.PlaytimeMinutes is null or < 120).ToList();
+        var from = fresh.Count > 0 ? fresh : pool;
+        if (from.Count > 1 && previous != null) from.Remove(previous);
+        return from[random.Next(from.Count)];
+    }
 
     /// <summary>Hides a game from every export, or brings a hidden one back.</summary>
     [RelayCommand]

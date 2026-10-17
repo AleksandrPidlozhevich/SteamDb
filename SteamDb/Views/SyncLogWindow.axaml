@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SteamDb.ViewModels"
+        xmlns:services="using:SteamDb.Services"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="420"
+        x:Class="SteamDb.Views.SyncLogWindow"
+        x:DataType="vm:SyncLogViewModel"
+        Icon="/Assets/gamedate.ico"
+        Title="Sync history"
+        Width="720" Height="420" MinWidth="480" MinHeight="240"
+        WindowStartupLocation="CenterOwner">
+
+    <Design.DataContext>
+        <vm:SyncLogViewModel />
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="TextBlock.column-header">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*">
+
+        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+            <TextBlock VerticalAlignment="Center" Opacity="0.7" Text="{Binding Summary}" />
+            <Button Grid.Column="1" Content="Clear" FontSize="11" Padding="10,2"
+                    Command="{Binding ClearCommand}" IsEnabled="{Binding !IsEmpty}" />
+        </Grid>
+
+        <!-- Column headers (same widths as the item template below). -->
+        <Grid Grid.Row="1" ColumnDefinitions="28,100,110,96,*" Margin="12,0,12,4">
+            <TextBlock Grid.Column="1" Classes="column-header" Text="When" />
+            <TextBlock Grid.Column="2" Classes="column-header" Text="Target" />
+            <TextBlock Grid.Column="3" Classes="column-header" Text="Started by" />
+            <TextBlock Grid.Column="4" Classes="column-header" Text="Result" />
+        </Grid>
+
+        <Border Grid.Row="2" BorderBrush="#40808080" BorderThickness="1" CornerRadius="6">
+            <Panel>
+                <ListBox ItemsSource="{Binding Entries}" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="services:SyncLogEntry">
+                            <Grid ColumnDefinitions="28,100,110,96,*">
+                                <TextBlock Grid.Column="0" VerticalAlignment="Top" FontWeight="Bold"
+                                           Text="{Binding StatusIcon}" />
+                                <TextBlock Grid.Column="1" VerticalAlignment="Top" FontSize="12"
+                                           Text="{Binding WhenText}" />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Top" FontSize="12"
+                                           Text="{Binding Target}" />
+                                <TextBlock Grid.Column="3" VerticalAlignment="Top" FontSize="12" Opacity="0.7"
+                                           Text="{Binding Source}" />
+                                <SelectableTextBlock Grid.Column="4" VerticalAlignment="Top" FontSize="12"
+                                                     TextWrapping="Wrap" Text="{Binding Summary}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6"
+                           TextAlignment="Center"
+                           Text="No syncs yet. Exports, auto-sync and SteamDb --sync runs are listed here."
+                           IsVisible="{Binding IsEmpty}" />
+            </Panel>
+        </Border>
+    </Grid>
+</Window>

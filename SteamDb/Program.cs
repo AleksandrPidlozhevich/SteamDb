@@ -26,10 +26,11 @@ internal sealed class Program
         }
 
         // --disable-gpu-compositing: fixes a black-screen issue in this windowing setup.
-        // --disable-logging: silences harmless Chromium teardown noise on the console
-        //   (e.g. "Failed to unregister class Chrome_WidgetWin_0").
+        // --disable-logging --log-level=3: silence harmless Chromium teardown noise on the console
+        //   (e.g. "Failed to unregister class Chrome_WidgetWin_0. Error = 1412"); --disable-logging alone
+        //   still lets ERROR lines through, level 3 keeps only fatal ones.
         Environment.SetEnvironmentVariable(
-            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu-compositing --disable-logging");
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu-compositing --disable-logging --log-level=3");
 
         // One window per user: a second start (shortcut while it sits in the tray) shows the
         // running one instead, so two auto-syncs never run side by side. A login start
@@ -75,7 +76,8 @@ internal sealed class Program
             services.GetRequiredService<GoogleSheetsGameExporter>(),
             services.GetRequiredService<ILogService>(),
             Console.Out,
-            services.GetRequiredService<StoreSelection>());
+            services.GetRequiredService<StoreSelection>(),
+            services.GetRequiredService<SyncLog>());
         return sync.RunAsync(command.Options, cancel.Token).GetAwaiter().GetResult();
     }
 

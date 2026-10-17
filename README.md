@@ -72,12 +72,13 @@ the file for your system:
 | --- | --- |
 | 🎮 **Four stores, one list** | Fetches owned games from Steam, Epic, GOG and Xbox and merges duplicates across stores. Untick a store to leave it out of exports. |
 | 📤 **Three export targets** | A Notion database, Google Sheets, or a local CSV file. |
-| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. A footer sums it up: share of games played, total hours, most played. |
+| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. A footer sums it up: share of games played, total hours, most played. Double-click a game to open its store page. |
+| 🎲 **Pick for me** | Can't decide? The library viewer suggests a game from the list shown, skipping completed and hidden ones and preferring games you've barely touched. |
 | ✅ **Backlog progress** | After an export to Notion or Google Sheets, the card shows *Completed 120 of 640 (19%)*, and the library viewer marks completed games ✓ with **Completed / Not completed** filters. |
 | 🖼️ **Covers & store links** | New Notion pages get the game's cover image and a `Store link`; existing pages without one are filled in. |
 | 🧹 **Duplicate finder** | **Find duplicates…** spots Notion pages of the same game and merges them (you confirm first; extras go to Notion's trash). |
 | 🗑️ **No longer owned** | Spots games in your tracker that left your library (refunds, delistings). They're never deleted. An optional `Owned` checkbox column gets unticked for them. |
-| ⏰ **Scheduled sync** | **Auto-sync** keeps Notion and Google Sheets up to date (hourly, every 6 hours or daily) while the app runs; with **Close to tray** and **Start at login** it keeps going in the background on Windows, macOS and Linux. `SteamDb --sync notion,sheets` syncs without opening the window, ready for Task Scheduler or cron. |
+| ⏰ **Scheduled sync** | **Auto-sync** keeps Notion, Google Sheets and your CSV up to date (hourly, every 6 hours or daily) while the app runs; with **Close to tray** and **Start at login** it keeps going in the background on Windows, macOS and Linux. `SteamDb --sync notion,sheets` syncs without opening the window, ready for Task Scheduler or cron. **History…** (also in the tray menu) lists every recent sync and its result. |
 | ⏱️ **Playtime** | Optional `Playtime` and `Last played` columns in Notion and Google Sheets are filled from Steam (last played from Xbox too). |
 | 🔁 **Incremental sync** | Re-running an export reconciles with what's already there. It adds new games and updates platform tags without creating duplicates. |
 | 👀 **Preview before Notion** | See exactly which games will be added or updated, and confirm before anything is written. |
@@ -200,7 +201,8 @@ The simplest target. No account or token needed.
 - **Export to CSV** writes the full merged library to a CSV file you pick.
 - **Update CSV** merges the current library into an existing CSV. It keeps your completion
   status and doesn't create duplicates. The previous version is saved next to it as
-  `<name>.csv.bak`: to undo an update, delete the CSV and rename the `.bak` back.
+  `<name>.csv.bak`, and **Undo** in the result banner puts it back (by hand: delete the CSV and
+  rename the `.bak`).
 
 The file is written as UTF-8 with a BOM so it opens cleanly in Excel.
 
@@ -359,7 +361,9 @@ SteamDb --help
 - Credentials, the Google Sheets table name, the ticked stores and store logins are the ones saved
   by the app.
   Settings are saved when you start an export and when you close the window.
+- `--file` can be left out: `--sync csv` then updates the CSV you last exported or updated in the app.
 - Notion changes are applied **without** the preview window. Run with `--dry-run` first to check.
+- Each run (not `--dry-run`) also shows up in the app's **History…** window.
 - Output goes to the console and to the log. Exit code: `0` success, `1` a sync failed, `2` bad arguments.
 - On Windows the app installs to `%LocalAppData%\SteamDb\current\SteamDb.exe`. It's a GUI app, so
   from a terminal start it with `Start-Process … -Wait -NoNewWindow` (PowerShell) or

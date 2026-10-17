@@ -35,7 +35,6 @@ public class HeadlessSyncTests : IDisposable
     [Theory]
     [InlineData("--sync")]
     [InlineData("--sync|steam")]
-    [InlineData("--sync|csv")]
     [InlineData("--sync|notion|--bogus")]
     [InlineData("")]
     public void Parse_BadArguments_ExitCode2WithUsage(string joined)
@@ -147,7 +146,84 @@ public class HeadlessSyncTests : IDisposable
         Assert.Equal(1, await sync.RunAsync(Options(Path.Combine(_dir, "games.csv"))));
     }
 
+    [Fact]
+    public async Task Csv_WithoutFile_UsesTheCsvRememberedByTheApp_AndListsTheRun()
+    {
+        var path = Path.Combine(_dir, "remembered.csv");
+        var (_, output, secrets) = Create(Steam("Portal", 400));
+        secrets.Save(AppSettingsService.SecretKey,
+            AppSettingsService.Serialize(new AppSettings("k", "i", null, null, CsvFile: path)));
+        var syncLog = new SyncLog(secrets);
+        var sync = CreateWith(secrets, output, syncLog, "Auto-sync", Steam("Portal", 400));
+
+        var exit = await sync.RunAsync(new SyncOptions([SyncTarget.Csv], null, null, false));
+
+        Assert.Equal(0, exit);
+        Assert.Contains("Steam:400", await File.ReadAllTextAsync(path));
+        var entry = Assert.Single(syncLog.Entries);
+        Assert.True(entry.Ok);
+        Assert.Equal(("CSV", "Auto-sync"), (entry.Target, entry.Source));
+    }
+
+    [Fact]
+    public async Task Csv_NoFileAnywhere_FailsWithAHint_AndListsTheFailure()
+    {
+        var secrets = new MemorySecrets();
+        var output = new StringWriter();
+        var syncLog = new SyncLog(secrets);
+        var sync = CreateWith(secrets, output, syncLog, SyncLog.CommandLine, Steam("Portal", 400));
+
+        var exit = await sync.RunAsync(new SyncOptions([SyncTarget.Csv], null, null, false));
+
+        Assert.Equal(1, exit);
+        Assert.Contains("No CSV file", output.ToString());
+        var entry = Assert.Single(syncLog.Entries);
+        Assert.False(entry.Ok);
+        Assert.Contains("No CSV file", entry.Summary);
+    }
+
+    [Fact]
+    public async Task DryRun_IsNotListedInTheHistory()
+    {
+        var secrets = new MemorySecrets();
+        var syncLog = new SyncLog(secrets);
+        var sync = CreateWith(secrets, new StringWriter(), syncLog, SyncLog.CommandLine, Steam("Portal", 400));
+
+        await sync.RunAsync(Options(Path.Combine(_dir, "games.csv")) with { DryRun = true });
+
+        Assert.Empty(syncLog.Entries);
+    }
+
+    [Fact]
+    public void Settings_CsvFile_RoundTrips_AndIsOmittedWhenEmpty()
+    {
+        var with = AppSettingsService.Serialize(new AppSettings("k", "i", "t", "d", CsvFile: @"C:\games\list.csv"));
+        Assert.Equal(@"C:\games\list.csv", AppSettingsService.Parse(with).CsvFile);
+        Assert.DoesNotContain("CSV File", AppSettingsService.Serialize(new AppSettings("k", "i", "t", "d")));
+    }
+
+    [Fact]
+    public void CommandLine_CsvWithoutFile_IsAccepted()
+    {
+        var command = SyncCommandLine.Parse(["--sync", "csv"]);
+
+        Assert.Equal(0, command.ExitCode);
+        Assert.Null(command.Options!.CsvFile);
+    }
+
     // ---- helpers -------------------------------------------------------------------------
+
+    private static HeadlessSync CreateWith(
+        MemorySecrets secrets, StringWriter output, SyncLog syncLog, string source, params CsvGameExportRow[] rows)
+    {
+        var log = new SilentLog();
+        var library = new FixedLibrary(new GameLibraryResult(rows.ToList(), false, false, false, false, false, false, true));
+        return new HeadlessSync(
+            secrets, library,
+            new NotionGameExporter(library, new NotionGateway(log), log),
+            new GoogleSheetsGameExporter(secrets, library, log),
+            log, output, null, syncLog, source);
+    }
 
     private static SyncOptions Options(string csvPath) => new([SyncTarget.Csv], csvPath, null, false);
 

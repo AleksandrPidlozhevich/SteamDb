@@ -81,6 +81,8 @@ public partial class App : Application
         open.Click += (_, _) => ShowMainWindow();
         var syncNow = new NativeMenuItem("Sync now");
         syncNow.Click += async (_, _) => await viewModel.SyncNowAsync();
+        var history = new NativeMenuItem("Sync history…");
+        history.Click += (_, _) => viewModel.ShowSyncHistory();
         var quit = new NativeMenuItem("Quit");
         quit.Click += (_, _) => Quit();
 
@@ -88,7 +90,7 @@ public partial class App : Application
         {
             Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://SteamDb/Assets/gamedate.ico"))),
             ToolTipText = "SteamDb",
-            Menu = new NativeMenu { Items = { open, syncNow, new NativeMenuItemSeparator(), quit } }
+            Menu = new NativeMenu { Items = { open, syncNow, history, new NativeMenuItemSeparator(), quit } }
         };
         _tray.Clicked += (_, _) => ShowMainWindow();
 

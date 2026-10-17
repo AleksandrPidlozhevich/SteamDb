@@ -6,8 +6,8 @@ namespace SteamDb.Services;
 
 /// <summary>
 /// Keeps the previous version of a CSV before Update .csv (or <c>--sync csv</c>) rewrites it:
-/// <c>games.csv</c> → <c>games.csv.bak</c>, replaced on every update. To undo an update, delete the
-/// CSV and rename the .bak back.
+/// <c>games.csv</c> → <c>games.csv.bak</c>, replaced on every update. The result banner's
+/// <b>Undo</b> puts it back (<see cref="RestoreAsync"/>); by hand: delete the CSV and rename the .bak.
 /// </summary>
 public static class CsvBackup
 {
@@ -23,5 +23,18 @@ public static class CsvBackup
         // Same encoding as the CSV itself (UTF-8 with BOM, for Excel).
         await File.WriteAllTextAsync(backup, previousContent, new UTF8Encoding(true));
         return backup;
+    }
+
+    /// <summary>Puts the backup back over the CSV and removes it (so a second undo can't apply a
+    /// stale copy). False when there's no backup.</summary>
+    public static async Task<bool> RestoreAsync(string csvPath)
+    {
+        var backup = PathFor(csvPath);
+        if (!File.Exists(backup)) return false;
+
+        var content = await File.ReadAllTextAsync(backup);
+        await File.WriteAllTextAsync(csvPath, content, new UTF8Encoding(true));
+        File.Delete(backup);
+        return true;
     }
 }

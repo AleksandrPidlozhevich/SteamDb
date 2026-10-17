@@ -60,6 +60,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private Action? _resultAction;
 
+    /// <summary>A second banner action (e.g. "Undo" after Update .csv), or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasResultSecondaryAction))]
+    private string? resultSecondaryLabel;
+
+    private Func<Task>? _resultSecondaryAction;
+
+    public bool HasResultSecondaryAction => ResultSecondaryLabel is not null;
+
     public bool HasResult => ResultMessage is not null;
 
     /// <summary>"Last sync: today 14:20" under each export button; null when never synced.</summary>
@@ -98,6 +107,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private bool autoSyncNotion;
 
     [ObservableProperty] private bool autoSyncSheets;
+
+    [ObservableProperty] private bool autoSyncCsv;
+
+    /// <summary>The CSV last written by Export / Update .csv (saved): what CSV auto-sync updates.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutoSyncCsvHint))]
+    private string? csvFilePath;
+
+    public string AutoSyncCsvHint => CsvFilePath is { } path
+        ? $"Update {path} on the schedule (a .bak of the previous version is kept)"
+        : "Export or update a CSV once and it's remembered here for auto-sync";
 
     public bool IsAutoSyncOn => AutoSyncIntervalIndex > 0;
 
@@ -147,6 +167,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IgnoredGames _ignored;
     private readonly IAutoStart _autoStart;
     private readonly BacklogProgress _backlog;
+    private readonly SyncLog _syncLog;
 
     public MainWindowViewModel(
         ISecretStore secrets,
@@ -162,9 +183,11 @@ public partial class MainWindowViewModel : ViewModelBase
         StoreSelection selection,
         IgnoredGames ignored,
         IAutoStart autoStart,
-        BacklogProgress backlog)
+        BacklogProgress backlog,
+        SyncLog syncLog)
     {
         _backlog = backlog;
+        _syncLog = syncLog;
         _selection = selection;
         _ignored = ignored;
         _autoStart = autoStart;
@@ -235,6 +258,9 @@ public partial class MainWindowViewModel : ViewModelBase
             };
         RefreshCanExport();
 
+        // The IDE previewer builds this view model too: no sessions, update checks or auto-sync there.
+        if (Design.IsDesignMode) return;
+
         _ = Epic.InitializeFromCacheAsync();
         _ = Gog.InitializeFromCacheAsync();
         _ = Xbox.InitializeFromCacheAsync();
@@ -251,6 +277,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var targets = new List<SyncTarget>();
         if (AutoSyncNotion) targets.Add(SyncTarget.Notion);
         if (AutoSyncSheets) targets.Add(SyncTarget.Sheets);
+        if (AutoSyncCsv) targets.Add(SyncTarget.Csv);
         var index = Math.Clamp(AutoSyncIntervalIndex, 0, AutoSyncSettings.Intervals.Count - 1);
         return new AutoSyncSettings(AutoSyncSettings.Intervals[index], targets);
     }
@@ -281,6 +308,7 @@ public partial class MainWindowViewModel : ViewModelBase
         AutoSyncIntervalIndex = Math.Max(index, 0);
         AutoSyncNotion = settings.Targets.Contains(SyncTarget.Notion);
         AutoSyncSheets = settings.Targets.Contains(SyncTarget.Sheets);
+        AutoSyncCsv = settings.Targets.Contains(SyncTarget.Csv);
     }
 
     /// <summary>
@@ -303,7 +331,12 @@ public partial class MainWindowViewModel : ViewModelBase
         await RunSyncTargetsAsync(due, "Auto-sync");
     }
 
-    private bool CanAutoSync(SyncTarget target) => target == SyncTarget.Notion ? CanExportNotion : CanExportSheets;
+    private bool CanAutoSync(SyncTarget target) => target switch
+    {
+        SyncTarget.Notion => CanExportNotion,
+        SyncTarget.Sheets => CanExportSheets,
+        _ => CanFetchLibrary && CsvFilePath != null
+    };
 
     /// <summary>
     /// Tray "Sync now": runs the targets ticked under Auto-sync right away (ignoring the schedule).
@@ -316,9 +349,10 @@ public partial class MainWindowViewModel : ViewModelBase
         var targets = new List<SyncTarget>();
         if (AutoSyncNotion && CanExportNotion) targets.Add(SyncTarget.Notion);
         if (AutoSyncSheets && CanExportSheets) targets.Add(SyncTarget.Sheets);
+        if (AutoSyncCsv && CanAutoSync(SyncTarget.Csv)) targets.Add(SyncTarget.Csv);
         if (targets.Count == 0)
         {
-            ShowResult("Pick an Auto-sync interval and tick Notion / Sheets (with their fields filled in) to use Sync now.");
+            ShowResult("Pick an Auto-sync interval and tick Notion / Sheets / CSV (with their fields filled in) to use Sync now.");
             ShowWindowRequested?.Invoke();
             return;
         }
@@ -344,7 +378,8 @@ public partial class MainWindowViewModel : ViewModelBase
                     lastLine = line;
                     Dispatcher.UIThread.Post(() => Progress.Status = $"{label} {name}: {line}");
                 });
-                var sync = new HeadlessSync(_secrets, _library, _notionExporter, _sheetsExporter, _log, output, _selection);
+                var sync = new HeadlessSync(
+                    _secrets, _library, _notionExporter, _sheetsExporter, _log, output, _selection, _syncLog, label);
                 var code = await sync.RunAsync(new SyncOptions([target], null, null, false), Progress.Token);
 
                 if (Progress.Token.IsCancellationRequested)
@@ -445,8 +480,9 @@ public partial class MainWindowViewModel : ViewModelBase
     // previewer gets a working view model without a DI container.
     private static Dependencies BuildDefaultDependencies()
     {
-        var log = new FileLogService();
-        var secrets = new MsalSecretStore(log);
+        // In-memory / no-op: the previewer must never touch the user's settings, tokens or log.
+        ILogService log = new DesignTimeLog();
+        ISecretStore secrets = new DesignTimeSecretStore();
         var clients = new StoreClientFactory(secrets, log);
         var selection = new StoreSelection();
         var ignored = new IgnoredGames(secrets);
@@ -466,12 +502,13 @@ public partial class MainWindowViewModel : ViewModelBase
             selection,
             ignored,
             new AutoStart(log),
-            backlog);
+            backlog,
+            new SyncLog(secrets));
     }
 
     private MainWindowViewModel(Dependencies d)
         : this(d.Secrets, d.WebAuth, d.Clients, d.Library, d.NotionExporter, d.SheetsExporter, d.Dialogs,
-            d.Csv, d.Log, d.Updates, d.Selection, d.Ignored, d.AutoStart, d.Backlog)
+            d.Csv, d.Log, d.Updates, d.Selection, d.Ignored, d.AutoStart, d.Backlog, d.SyncLog)
     {
     }
 
@@ -489,7 +526,8 @@ public partial class MainWindowViewModel : ViewModelBase
         StoreSelection Selection,
         IgnoredGames Ignored,
         IAutoStart AutoStart,
-        BacklogProgress Backlog);
+        BacklogProgress Backlog,
+        SyncLog SyncLog);
 
     private static TopLevel? DefaultTopLevel() =>
         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
@@ -529,6 +567,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (settings.ExcludedStores != null) ApplyExcludedStores(settings.ExcludedStores);
         if (settings.AutoSync != null) ApplyAutoSync(settings.AutoSync);
         if (settings.CloseToTray != null) CloseToTray = settings.CloseToTray.Value;
+        if (settings.CsvFile != null) CsvFilePath = settings.CsvFile;
         PersistSettings();
     }
 
@@ -547,11 +586,12 @@ public partial class MainWindowViewModel : ViewModelBase
         ApplyExcludedStores(settings.ExcludedStores);
         ApplyAutoSync(settings.AutoSync);
         CloseToTray = settings.CloseToTray ?? false;
+        CsvFilePath = settings.CsvFile;
     }
 
     private AppSettings CurrentSettings() =>
         new(SteamApiKey, SteamId, NotionToken, DbId, GoogleSheetsTableName, _selection.Serialize(),
-            CurrentAutoSync().Serialize(), CloseToTray);
+            CurrentAutoSync().Serialize(), CloseToTray, CsvFilePath);
 
     private void ApplyExcludedStores(string? excluded)
     {
@@ -677,6 +717,7 @@ public partial class MainWindowViewModel : ViewModelBase
             await _csv.WriteAsync(file, CsvGameExportService.Serialize(result.Rows));
             _log.WriteInfo($"CSV created with {result.Rows.Count} rows.");
             ShowResult($"✓ Saved {result.Rows.Count} games to {file.Name}", "Open file", OpenFileAction(file));
+            RememberCsvFile(file);
             RecordSync(SyncHistory.Csv);
         }
         catch (UnauthorizedAccessException ex)
@@ -691,6 +732,7 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (Exception ex)
         {
             _log.WriteException(ex, "Error exporting to CSV");
+            LogFailure(SyncHistory.Csv, ex);
             await _dialogs.ShowErrorAsync("CSV export error", ex);
         }
         finally
@@ -790,7 +832,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 (added == 0
                     ? $"✓ {file.Name} is already up to date ({total} games)"
                     : $"✓ Added {added} new games to {file.Name} ({total} total)") + backupNote,
-                "Open file", OpenFileAction(file));
+                "Open file", OpenFileAction(file),
+                "Undo", added > 0 ? UndoCsvUpdateAction(file, backup) : null);
+            RememberCsvFile(file);
             RecordSync(SyncHistory.Csv);
         }
         catch (UnauthorizedAccessException ex)
@@ -805,6 +849,7 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (Exception ex)
         {
             _log.WriteException(ex, "Error updating CSV");
+            LogFailure(SyncHistory.Csv, ex);
             await _dialogs.ShowErrorAsync("CSV update error", ex);
         }
         finally
@@ -818,8 +863,25 @@ public partial class MainWindowViewModel : ViewModelBase
     private void RecordSync(string target)
     {
         _syncHistory.Record(target, DateTimeOffset.Now);
+        _syncLog.Add(new SyncLogEntry(DateTimeOffset.Now, target, true,
+            (ResultMessage ?? "Done").TrimStart('✓', ' '), SyncLog.Manual));
         RefreshLastSync();
     }
+
+    private void LogFailure(string target, Exception ex) =>
+        _syncLog.Add(new SyncLogEntry(DateTimeOffset.Now, target, false, ex.Message, SyncLog.Manual));
+
+    // The CSV just written becomes the one CSV auto-sync (and `--sync csv` without --file) updates.
+    private void RememberCsvFile(IStorageFile file)
+    {
+        if (file.TryGetLocalPath() is not { } path) return;
+        CsvFilePath = path;
+        PersistSettings();
+    }
+
+    /// <summary>Opens the list of recent sync runs (manual, auto-sync, tray and command line).</summary>
+    [RelayCommand]
+    public void ShowSyncHistory() => _dialogs.ShowSyncLog(new SyncLogViewModel(_syncLog));
 
     private void RefreshLastSync()
     {
@@ -831,15 +893,53 @@ public partial class MainWindowViewModel : ViewModelBase
         SheetsProgress = _backlog.Get(SyncHistory.GoogleSheets)?.Text;
     }
 
-    private void ShowResult(string message, string? actionLabel = null, Action? action = null)
+    private void ShowResult(
+        string message, string? actionLabel = null, Action? action = null,
+        string? secondaryLabel = null, Func<Task>? secondaryAction = null)
     {
         ResultMessage = message;
         ResultActionLabel = action != null ? actionLabel : null;
         _resultAction = action;
+        ResultSecondaryLabel = secondaryAction != null ? secondaryLabel : null;
+        _resultSecondaryAction = secondaryAction;
     }
 
     [RelayCommand]
     private void RunResultAction() => _resultAction?.Invoke();
+
+    [RelayCommand]
+    private async Task RunResultSecondaryAction()
+    {
+        if (_resultSecondaryAction != null) await _resultSecondaryAction();
+    }
+
+    // Undo for Update .csv: the .bak written just before goes back over the file.
+    private Func<Task>? UndoCsvUpdateAction(IStorageFile file, string? backup)
+    {
+        var path = file.TryGetLocalPath();
+        if (path == null || backup == null) return null;
+
+        return async () =>
+        {
+            try
+            {
+                if (await CsvBackup.RestoreAsync(path))
+                {
+                    _log.WriteInfo($"Update CSV undone: restored {path} from its backup.");
+                    ShowResult($"↶ Restored the previous version of {file.Name}", "Open file", OpenFileAction(file));
+                }
+                else
+                {
+                    ShowResult($"⚠ The backup of {file.Name} is gone, so the update can't be undone");
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.WriteException(ex, "Error restoring the CSV backup");
+                await _dialogs.ShowErrorAsync("Undo CSV update", ex);
+            }
+        };
+    }
 
     [RelayCommand]
     private void DismissResult()
@@ -847,6 +947,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ResultMessage = null;
         ResultActionLabel = null;
         _resultAction = null;
+        ResultSecondaryLabel = null;
+        _resultSecondaryAction = null;
     }
 
     // Opens a just-written file in its default app (Excel etc.); null when it has no local path.
@@ -944,7 +1046,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
             if (!await HandleFetchedLibraryAsync(result, "Game library")) return;
 
-            _dialogs.ShowLibrary(new LibraryViewModel(result.Rows, result.Ignored, _ignored, _backlog.Latest()));
+            _dialogs.ShowLibrary(new LibraryViewModel(
+                result.Rows, result.Ignored, _ignored, _backlog.Latest(), _dialogs.OpenLink));
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -1014,6 +1117,7 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (Exception ex)
         {
             _log.WriteError($"Data Export Failed to Notion: {ex.Message}");
+            LogFailure(SyncHistory.Notion, ex);
             await _dialogs.ShowErrorAsync("Export error in Notion", ex);
         }
         finally
@@ -1096,6 +1200,7 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (Exception ex)
         {
             _log.WriteException(ex, "Error exporting to Google Sheets");
+            LogFailure(SyncHistory.GoogleSheets, ex);
             await _dialogs.ShowErrorAsync("Google Sheets export error", ex);
         }
         finally

@@ -79,6 +79,28 @@ public sealed class WindowDialogService : IDialogService
         return await new NotionExportPreviewWindow { DataContext = preview }.ShowDialog<bool>(window);
     }
 
+    private SyncLogWindow? _syncLogWindow;
+
+    public void ShowSyncLog(SyncLogViewModel log)
+    {
+        // One history window: a second click brings the open one forward.
+        if (_syncLogWindow != null)
+        {
+            _syncLogWindow.Activate();
+            return;
+        }
+
+        var window = new SyncLogWindow { DataContext = log };
+        window.Closed += (_, _) =>
+        {
+            log.Dispose();
+            _syncLogWindow = null;
+        };
+        _syncLogWindow = window;
+        if (MainWindow is { IsVisible: true } owner) window.Show(owner);
+        else window.Show();
+    }
+
     public async Task<bool> ConfirmNotionDuplicatesAsync(NotionDuplicatesViewModel duplicates)
     {
         var window = MainWindow;

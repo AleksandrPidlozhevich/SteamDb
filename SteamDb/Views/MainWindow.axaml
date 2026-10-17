@@ -185,13 +185,16 @@
                     <Binding Path="!Progress.IsBusy" />
                 </MultiBinding>
             </Border.IsVisible>
-            <Grid ColumnDefinitions="*,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
                            TextTrimming="CharacterEllipsis" Text="{Binding ResultMessage}"
                            ToolTip.Tip="{Binding ResultMessage}" />
                 <Button Grid.Column="1" Content="{Binding ResultActionLabel}" FontSize="11" Padding="10,2"
                         IsVisible="{Binding HasResultAction}" Command="{Binding RunResultActionCommand}" />
-                <Button Grid.Column="2" Content="✕" FontSize="11" Padding="8,2" Margin="6,0,0,0"
+                <Button Grid.Column="2" Content="{Binding ResultSecondaryLabel}" FontSize="11" Padding="10,2"
+                        Margin="6,0,0,0" IsVisible="{Binding HasResultSecondaryAction}"
+                        Command="{Binding RunResultSecondaryActionCommand}" />
+                <Button Grid.Column="3" Content="✕" FontSize="11" Padding="8,2" Margin="6,0,0,0"
                         Background="Transparent" ToolTip.Tip="Dismiss" AutomationProperties.Name="Dismiss"
                         Command="{Binding DismissResultCommand}" />
             </Grid>
@@ -313,6 +316,9 @@
                               IsEnabled="{Binding IsAutoSyncOn}" />
                     <CheckBox Classes="include" Content="Sheets" IsChecked="{Binding AutoSyncSheets}"
                               IsEnabled="{Binding IsAutoSyncOn}" />
+                    <CheckBox Classes="include" Content="CSV" IsChecked="{Binding AutoSyncCsv}"
+                              IsEnabled="{Binding IsAutoSyncOn}"
+                              ToolTip.Tip="{Binding AutoSyncCsvHint}" ToolTip.ShowOnDisabled="True" />
                 </StackPanel>
 
                 <!-- Background mode: keep running in the tray, and start hidden at login. -->
@@ -323,6 +329,9 @@
                     <CheckBox Classes="include" Content="Start at login" IsChecked="{Binding StartAtLogin}"
                               IsVisible="{Binding CanStartAtLogin}"
                               ToolTip.Tip="{Binding StartAtLoginHint}" />
+                    <Button Content="History…" FontSize="11" Padding="8,2" VerticalAlignment="Center"
+                            Command="{Binding ShowSyncHistoryCommand}"
+                            ToolTip.Tip="Recent syncs: manual exports, auto-sync, tray and command line, with their results" />
                 </StackPanel>
             </StackPanel>
 

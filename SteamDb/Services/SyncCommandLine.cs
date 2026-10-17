@@ -36,7 +36,8 @@ public static class SyncCommandLine
         Usage: SteamDb --sync <targets> [options]
 
           <targets>        Comma-separated: csv, notion, sheets
-          --file <path>    CSV file to update (created if missing). Required for csv.
+          --file <path>    CSV file to update (created if missing). Default: the CSV last
+                           exported / updated in the app.
           --sheet <name>   Google Sheets table name (default: the one saved in the app).
           --dry-run        Show what would change without writing anything.
           --help           Show this help.
@@ -95,8 +96,6 @@ public static class SyncCommandLine
         }
 
         if (targets.Count == 0) return SyncCommand.Error("Nothing to sync: pass --sync csv, notion or sheets.");
-        if (targets.Contains(SyncTarget.Csv) && string.IsNullOrWhiteSpace(file))
-            return SyncCommand.Error("The csv target needs --file <path>.");
 
         return new SyncCommand(new SyncOptions(targets, file, sheet, dryRun), null, 0);
     }
