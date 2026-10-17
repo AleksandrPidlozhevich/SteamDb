@@ -1,0 +1,60 @@
+using System.Collections.Generic;
+using System.Linq;
+using SteamDb.Services;
+using Xunit;
+
+namespace SteamDb.Tests;
+
+public class NotionSchemaCheckTests
+{
+    [Fact]
+    public void Check_CorrectSchema_NothingToDo()
+    {
+        var result = NotionSchemaCheck.Check(Schema(("Name", "title"), ("Platform's", "multi_select"),
+            ("GameID", "rich_text"), ("Status", "status")));
+
+        Assert.True(result.IsUsable);
+        Assert.Empty(result.ToCreate);
+    }
+
+    [Fact]
+    public void Check_FreshDatabase_PlansBothMissingProperties()
+    {
+        // A new Notion database has only the "Name" title column.
+        var result = NotionSchemaCheck.Check(Schema(("Name", "title")));
+
+        Assert.True(result.IsUsable);
+        Assert.Equal(
+            [("Platform's", "multi_select"), ("GameID", "rich_text")],
+            result.ToCreate.Select(p => (p.Name, p.Type)));
+    }
+
+    [Fact]
+    public void Check_LegacyNumberGameId_IsAProblem()
+    {
+        var result = NotionSchemaCheck.Check(Schema(("Name", "title"), ("Platform's", "multi_select"),
+            ("GameID", "number")));
+
+        Assert.False(result.IsUsable);
+        Assert.Contains("Change the type of \"GameID\" to Text (it is number).", result.Problems);
+    }
+
+    [Fact]
+    public void Check_TitleNamedDifferently_AsksToRename()
+    {
+        var result = NotionSchemaCheck.Check(Schema(("Game", "title")));
+
+        Assert.Equal("Rename the title column \"Game\" to \"Name\".", Assert.Single(result.Problems));
+    }
+
+    [Fact]
+    public void Check_NameIsNotTheTitle_IsAProblem()
+    {
+        var result = NotionSchemaCheck.Check(Schema(("Title", "title"), ("Name", "rich_text")));
+
+        Assert.Contains("\"Name\" must be the title column (it is rich_text).", result.Problems);
+    }
+
+    private static Dictionary<string, string> Schema(params (string Name, string Type)[] properties) =>
+        properties.ToDictionary(p => p.Name, p => p.Type);
+}
