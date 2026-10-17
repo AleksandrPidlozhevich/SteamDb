@@ -40,6 +40,17 @@ public sealed class CsvGameExportRow
     /// <summary>Last session (Steam / Xbox), null when unknown or never played.</summary>
     public DateTimeOffset? LastPlayed { get; set; }
 
+    /// <summary>Cover image / store page reported by the fetch (Epic / GOG / Xbox). Not in the CSV.</summary>
+    public string? FetchedCoverUrl { get; set; }
+
+    public string? FetchedStoreUrl { get; set; }
+
+    /// <summary>Cover for the Notion page: Steam's header image (from the id), else the fetched one.</summary>
+    public string? CoverUrl => SteamGameId is { } id ? StoreLinks.SteamCover(id) : FetchedCoverUrl;
+
+    /// <summary>Store page link: Steam's (from the id), else the fetched one.</summary>
+    public string? StoreUrl => SteamGameId is { } id ? StoreLinks.SteamStore(id) : FetchedStoreUrl;
+
     /// <summary>Playtime in hours, rounded to 0.1 (the value written to Notion / Sheets).</summary>
     public double? PlaytimeHours => PlaytimeMinutes is { } m ? Math.Round(m / 60.0, 1) : null;
 
@@ -104,6 +115,9 @@ public sealed class CsvGameExportRow
             PlaytimeMinutes = minutes;
         if (other.LastPlayed is { } lastPlayed && (LastPlayed == null || lastPlayed > LastPlayed))
             LastPlayed = lastPlayed;
+
+        FetchedCoverUrl ??= other.FetchedCoverUrl;
+        FetchedStoreUrl ??= other.FetchedStoreUrl;
 
         if (!string.IsNullOrEmpty(other.Name))
             Name = other.Name;
@@ -190,7 +204,9 @@ public static class CsvGameExportService
                     Name = game.Title ?? game.AppName,
                     HasEpic = true,
                     CatalogItemId = game.CatalogItemId,
-                    Namespace = game.Namespace
+                    Namespace = game.Namespace,
+                    FetchedCoverUrl = game.CoverUrl,
+                    FetchedStoreUrl = game.StoreUrl
                 };
 
                 AddOrMerge(rows, indexes, incoming);
@@ -203,7 +219,9 @@ public static class CsvGameExportService
                 {
                     Name = game.Title,
                     HasGog = true,
-                    GogId = game.Id
+                    GogId = game.Id,
+                    FetchedCoverUrl = StoreLinks.GogCover(game.Image),
+                    FetchedStoreUrl = StoreLinks.GogStore(game.Url, game.Slug)
                 };
 
                 AddOrMerge(rows, indexes, incoming);
@@ -218,7 +236,9 @@ public static class CsvGameExportService
                     HasXbox = true,
                     XboxTitleId = game.TitleId,
                     IsGamePass = game.IsGamePass,
-                    LastPlayed = game.LastPlayed
+                    LastPlayed = game.LastPlayed,
+                    FetchedCoverUrl = StoreLinks.XboxCover(game.ImageUrl),
+                    FetchedStoreUrl = StoreLinks.XboxStore(game.ProductId)
                 };
 
                 AddOrMerge(rows, indexes, incoming);
@@ -519,7 +539,9 @@ public static class CsvGameExportService
             GogId = row.GogId,
             XboxTitleId = row.XboxTitleId,
             PlaytimeMinutes = row.PlaytimeMinutes,
-            LastPlayed = row.LastPlayed
+            LastPlayed = row.LastPlayed,
+            FetchedCoverUrl = row.FetchedCoverUrl,
+            FetchedStoreUrl = row.FetchedStoreUrl
         };
     }
 

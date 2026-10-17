@@ -15,8 +15,13 @@ public sealed record GameLibraryResult(
     bool XboxAuthenticated,
     bool XboxSessionExpired,
     bool SteamFetched = false,
-    IReadOnlySet<string>? SkippedStores = null)
+    IReadOnlySet<string>? SkippedStores = null,
+    IReadOnlyList<CsvGameExportRow>? IgnoredRows = null)
 {
+    /// <summary>Fetched games the user hid (<see cref="IgnoredGames"/>): not exported, but their existing
+    /// rows in a target count as matched, so they're never reported as no longer owned.</summary>
+    public IReadOnlyList<CsvGameExportRow> Ignored => IgnoredRows ?? [];
+
     /// <summary>Labels of the stores whose library was loaded this run. A game missing from the
     /// fetch only counts as "no longer owned" when all of its stores are in this set.</summary>
     public IReadOnlySet<string> FetchedStores
@@ -53,11 +58,13 @@ public sealed class GameLibraryService : IGameLibraryService
 {
     private readonly IStoreClientFactory _clients;
     private readonly StoreSelection _selection;
+    private readonly IgnoredGames _ignored;
 
-    public GameLibraryService(IStoreClientFactory clients, StoreSelection? selection = null)
+    public GameLibraryService(IStoreClientFactory clients, StoreSelection? selection = null, IgnoredGames? ignored = null)
     {
         _clients = clients;
         _selection = selection ?? new StoreSelection();
+        _ignored = ignored ?? new IgnoredGames();
     }
 
     public async Task<GameLibraryResult> FetchAsync(
@@ -137,8 +144,11 @@ public sealed class GameLibraryService : IGameLibraryService
         if (steamGames == null && epicGames == null && gogGames == null && xboxGames == null)
             throw new Exception("Every available store is unticked. Tick at least one store to include.");
 
+        var (rows, ignoredRows) = _ignored.Split(
+            CsvGameExportService.BuildFromLibraries(steamGames, epicGames, gogGames, xboxGames));
+
         return new GameLibraryResult(
-            CsvGameExportService.BuildFromLibraries(steamGames, epicGames, gogGames, xboxGames),
+            rows,
             isEpicAuthenticated,
             epicStatus == StoreAuthFromCacheStatus.SessionExpired,
             isGogAuthenticated,
@@ -146,6 +156,7 @@ public sealed class GameLibraryService : IGameLibraryService
             isXboxAuthenticated,
             xboxStatus == StoreAuthFromCacheStatus.SessionExpired,
             steamGames != null,
-            skipped);
+            skipped,
+            ignoredRows);
     }
 }

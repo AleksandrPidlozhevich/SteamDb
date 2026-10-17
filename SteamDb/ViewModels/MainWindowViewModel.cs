@@ -6,7 +6,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SteamDb.Models;
 using SteamDb.Services;
+using Avalonia.Threading;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -81,6 +83,35 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool HasResultAction => ResultActionLabel is not null;
 
+    /// <summary>In-app auto-sync (while the window is open): interval picker + targets (saved).</summary>
+    public IReadOnlyList<string> AutoSyncIntervalLabels => AutoSyncSettings.IntervalLabels;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAutoSyncOn))]
+    private int autoSyncIntervalIndex;
+
+    [ObservableProperty] private bool autoSyncNotion;
+
+    [ObservableProperty] private bool autoSyncSheets;
+
+    public bool IsAutoSyncOn => AutoSyncIntervalIndex > 0;
+
+    /// <summary>Closing the window keeps SteamDb running in the tray (saved).</summary>
+    [ObservableProperty] private bool closeToTray;
+
+    /// <summary>Start hidden in the tray at login (a system login item, not a saved setting).</summary>
+    [ObservableProperty] private bool startAtLogin;
+
+    public bool CanStartAtLogin => _autoStart.IsSupported;
+
+    private bool _syncingStartAtLogin;
+
+    /// <summary>Raised when the window should be brought up (e.g. Sync now has nothing to do).</summary>
+    public event Action? ShowWindowRequested;
+
+    private readonly DispatcherTimer _autoSyncTimer = new() { Interval = TimeSpan.FromMinutes(1) };
+    private readonly Dictionary<SyncTarget, DateTimeOffset> _autoSyncFailures = [];
+
 
     private readonly ISecretStore _secrets;
     private readonly IWebAuthenticator _webAuth;
@@ -92,6 +123,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly CsvFileService _csv;
     private readonly ILogService _log;
     private readonly IUpdateService _updates;
+    private readonly IgnoredGames _ignored;
+    private readonly IAutoStart _autoStart;
 
     public MainWindowViewModel(
         ISecretStore secrets,
@@ -104,9 +137,13 @@ public partial class MainWindowViewModel : ViewModelBase
         CsvFileService csv,
         ILogService log,
         IUpdateService updates,
-        StoreSelection selection)
+        StoreSelection selection,
+        IgnoredGames ignored,
+        IAutoStart autoStart)
     {
         _selection = selection;
+        _ignored = ignored;
+        _autoStart = autoStart;
         _secrets = secrets;
         _webAuth = webAuth;
         _clients = clients;
@@ -121,6 +158,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
         LoadPersistedSettings();
         RefreshLastSync();
+
+        _syncingStartAtLogin = true;
+        StartAtLogin = _autoStart.IsSupported && _autoStart.IsEnabled;
+        _syncingStartAtLogin = false;
 
         // Epic stays on the system-browser paste flow — its login blocks embedded webviews (CAPTCHA);
         // GOG/Xbox log in through the embedded WebView.
@@ -174,6 +215,152 @@ public partial class MainWindowViewModel : ViewModelBase
         _ = Gog.InitializeFromCacheAsync();
         _ = Xbox.InitializeFromCacheAsync();
         _ = CheckForUpdateAsync();
+
+        // Checked once a minute, so the first auto-sync starts a minute after launch (after the
+        // cached store sessions have been restored).
+        _autoSyncTimer.Tick += async (_, _) => await RunDueAutoSyncAsync();
+        _autoSyncTimer.Start();
+    }
+
+    private AutoSyncSettings CurrentAutoSync()
+    {
+        var targets = new List<SyncTarget>();
+        if (AutoSyncNotion) targets.Add(SyncTarget.Notion);
+        if (AutoSyncSheets) targets.Add(SyncTarget.Sheets);
+        var index = Math.Clamp(AutoSyncIntervalIndex, 0, AutoSyncSettings.Intervals.Count - 1);
+        return new AutoSyncSettings(AutoSyncSettings.Intervals[index], targets);
+    }
+
+    partial void OnStartAtLoginChanged(bool value)
+    {
+        if (_syncingStartAtLogin) return;
+        try
+        {
+            _autoStart.SetEnabled(value);
+            // Starting hidden only makes sense if closing keeps it in the tray too.
+            if (value) CloseToTray = true;
+        }
+        catch (Exception ex)
+        {
+            _log.WriteException(ex, "Couldn't change the login item");
+            ShowResult($"⚠ Couldn't change \"Start at login\": {ex.Message}");
+            _syncingStartAtLogin = true;
+            StartAtLogin = !value;
+            _syncingStartAtLogin = false;
+        }
+    }
+
+    private void ApplyAutoSync(string? value)
+    {
+        var settings = AutoSyncSettings.Parse(value);
+        var index = AutoSyncSettings.Intervals.ToList().IndexOf(settings.IntervalHours);
+        AutoSyncIntervalIndex = Math.Max(index, 0);
+        AutoSyncNotion = settings.Targets.Contains(SyncTarget.Notion);
+        AutoSyncSheets = settings.Targets.Contains(SyncTarget.Sheets);
+    }
+
+    /// <summary>
+    /// Runs the auto-sync targets that are due, like <c>--sync</c> does (Notion is applied without the
+    /// preview), and reports the outcome in the result banner instead of a dialog. Skipped while
+    /// anything else runs.
+    /// </summary>
+    private async Task RunDueAutoSyncAsync()
+    {
+        if (Progress.IsBusy) return;
+
+        var due = AutoSyncPlanner.Due(
+            CurrentAutoSync(),
+            t => _syncHistory.Get(SyncHistory.KeyOf(t)),
+            _autoSyncFailures,
+            CanAutoSync,
+            DateTimeOffset.Now);
+        if (due.Count == 0) return;
+
+        await RunSyncTargetsAsync(due, "Auto-sync");
+    }
+
+    private bool CanAutoSync(SyncTarget target) => target == SyncTarget.Notion ? CanExportNotion : CanExportSheets;
+
+    /// <summary>
+    /// Tray "Sync now": runs the targets ticked under Auto-sync right away (ignoring the schedule).
+    /// With none ticked or ready, brings the window up with a hint instead.
+    /// </summary>
+    public async Task SyncNowAsync()
+    {
+        if (Progress.IsBusy) return;
+
+        var targets = new List<SyncTarget>();
+        if (AutoSyncNotion && CanExportNotion) targets.Add(SyncTarget.Notion);
+        if (AutoSyncSheets && CanExportSheets) targets.Add(SyncTarget.Sheets);
+        if (targets.Count == 0)
+        {
+            ShowResult("Pick an Auto-sync interval and tick Notion / Sheets (with their fields filled in) to use Sync now.");
+            ShowWindowRequested?.Invoke();
+            return;
+        }
+
+        await RunSyncTargetsAsync(targets, "Sync");
+    }
+
+    private async Task RunSyncTargetsAsync(IReadOnlyList<SyncTarget> due, string label)
+    {
+        Progress.Begin($"{label}…");
+        PersistSettings(); // HeadlessSync reads the remembered settings
+        var started = DateTimeOffset.Now;
+        var outcomes = new List<string>();
+        var failed = false;
+        try
+        {
+            foreach (var target in due)
+            {
+                var name = SyncHistory.KeyOf(target);
+                string? lastLine = null;
+                var output = new CallbackTextWriter(line =>
+                {
+                    lastLine = line;
+                    Dispatcher.UIThread.Post(() => Progress.Status = $"{label} {name}: {line}");
+                });
+                var sync = new HeadlessSync(_secrets, _library, _notionExporter, _sheetsExporter, _log, output, _selection);
+                var code = await sync.RunAsync(new SyncOptions([target], null, null, false), Progress.Token);
+
+                if (Progress.Token.IsCancellationRequested)
+                {
+                    // Don't restart right away: a cancel waits like a failure (retry in an hour).
+                    foreach (var t in due) _autoSyncFailures[t] = started;
+                    outcomes.Add("cancelled");
+                    failed = true;
+                    break;
+                }
+
+                if (code == 0)
+                {
+                    _autoSyncFailures.Remove(target);
+                    outcomes.Add($"{name}: {lastLine}");
+                }
+                else
+                {
+                    _autoSyncFailures[target] = started;
+                    outcomes.Add($"{name}: {lastLine ?? "failed"}");
+                    failed = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.WriteException(ex, $"{label} failed");
+            foreach (var t in due) _autoSyncFailures[t] = started;
+            outcomes.Add(ex.Message);
+            failed = true;
+        }
+        finally
+        {
+            Progress.End();
+            RefreshLastSync();
+        }
+
+        var message = $"{(failed ? "⚠" : "✓")} {label} {started:HH:mm} — {string.Join(" · ", outcomes)}";
+        if (failed) ShowResult(message, "Open logs", OpenLogsFolder);
+        else ShowResult(message);
     }
 
     private async Task CheckForUpdateAsync()
@@ -238,7 +425,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var secrets = new MsalSecretStore(log);
         var clients = new StoreClientFactory(secrets, log);
         var selection = new StoreSelection();
-        var library = new GameLibraryService(clients, selection);
+        var ignored = new IgnoredGames(secrets);
+        var library = new GameLibraryService(clients, selection, ignored);
         return new Dependencies(
             secrets,
             new EmbeddedWebViewAuthenticator(DefaultTopLevel),
@@ -250,12 +438,14 @@ public partial class MainWindowViewModel : ViewModelBase
             new CsvFileService(log),
             log,
             new VelopackUpdateService(log),
-            selection);
+            selection,
+            ignored,
+            new AutoStart(log));
     }
 
     private MainWindowViewModel(Dependencies d)
         : this(d.Secrets, d.WebAuth, d.Clients, d.Library, d.NotionExporter, d.SheetsExporter, d.Dialogs,
-            d.Csv, d.Log, d.Updates, d.Selection)
+            d.Csv, d.Log, d.Updates, d.Selection, d.Ignored, d.AutoStart)
     {
     }
 
@@ -270,7 +460,9 @@ public partial class MainWindowViewModel : ViewModelBase
         CsvFileService Csv,
         ILogService Log,
         IUpdateService Updates,
-        StoreSelection Selection);
+        StoreSelection Selection,
+        IgnoredGames Ignored,
+        IAutoStart AutoStart);
 
     private static TopLevel? DefaultTopLevel() =>
         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
@@ -308,6 +500,8 @@ public partial class MainWindowViewModel : ViewModelBase
         DbId = settings.DbId ?? DbId;
         GoogleSheetsTableName = settings.GoogleSheetsTableName ?? GoogleSheetsTableName;
         if (settings.ExcludedStores != null) ApplyExcludedStores(settings.ExcludedStores);
+        if (settings.AutoSync != null) ApplyAutoSync(settings.AutoSync);
+        if (settings.CloseToTray != null) CloseToTray = settings.CloseToTray.Value;
         PersistSettings();
     }
 
@@ -324,10 +518,13 @@ public partial class MainWindowViewModel : ViewModelBase
         DbId = settings.DbId ?? DbId;
         GoogleSheetsTableName = settings.GoogleSheetsTableName ?? GoogleSheetsTableName;
         ApplyExcludedStores(settings.ExcludedStores);
+        ApplyAutoSync(settings.AutoSync);
+        CloseToTray = settings.CloseToTray ?? false;
     }
 
     private AppSettings CurrentSettings() =>
-        new(SteamApiKey, SteamId, NotionToken, DbId, GoogleSheetsTableName, _selection.Serialize());
+        new(SteamApiKey, SteamId, NotionToken, DbId, GoogleSheetsTableName, _selection.Serialize(),
+            CurrentAutoSync().Serialize(), CloseToTray);
 
     private void ApplyExcludedStores(string? excluded)
     {
@@ -373,6 +570,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool CanExportSheets => HasSource && !string.IsNullOrWhiteSpace(GoogleSheetsTableName);
 
+    /// <summary>Finding duplicates reads only the Notion database, so no store is needed.</summary>
+    public bool CanFindNotionDuplicates => !string.IsNullOrWhiteSpace(NotionToken) && !string.IsNullOrWhiteSpace(DbId);
+
     /// <summary>Why the CSV / library buttons are disabled, or null.</summary>
     public string? LibraryHint => HasSource ? null : NoSourceHint;
 
@@ -409,6 +609,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ViewLibraryCommand.NotifyCanExecuteChanged();
         ExportToNotionCommand.NotifyCanExecuteChanged();
         ExportToGoogleSheetsCommand.NotifyCanExecuteChanged();
+        FindNotionDuplicatesCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
@@ -556,11 +757,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
             if (!await HandleFetchedLibraryAsync(result, "Update CSV")) return;
 
-            var (added, total) = await _csv.WriteMergedAsync(file, existingContent, result.Rows);
+            var (added, total, backup) = await _csv.WriteMergedAsync(file, existingContent, result.Rows);
+            var backupNote = backup != null ? $" · previous version saved as {Path.GetFileName(backup)}" : "";
             ShowResult(
-                added == 0
+                (added == 0
                     ? $"✓ {file.Name} is already up to date ({total} games)"
-                    : $"✓ Added {added} new games to {file.Name} ({total} total)",
+                    : $"✓ Added {added} new games to {file.Name} ({total} total)") + backupNote,
                 "Open file", OpenFileAction(file));
             RecordSync(SyncHistory.Csv);
         }
@@ -713,7 +915,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
             if (!await HandleFetchedLibraryAsync(result, "Game library")) return;
 
-            _dialogs.ShowLibrary(new LibraryViewModel(result.Rows));
+            _dialogs.ShowLibrary(new LibraryViewModel(result.Rows, result.Ignored, _ignored));
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -782,6 +984,50 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _log.WriteError($"Data Export Failed to Notion: {ex.Message}");
             await _dialogs.ShowErrorAsync("Export error in Notion", ex);
+        }
+        finally
+        {
+            Progress.End();
+        }
+    }
+
+    /// <summary>Finds pages of the same game in Notion and, after confirmation, merges them.</summary>
+    [RelayCommand(CanExecute = nameof(CanFindNotionDuplicates))]
+    private async Task FindNotionDuplicates()
+    {
+        if (Progress.IsBusy) return;
+        Progress.Begin("Reading the Notion database…");
+        DismissResult();
+        PersistSettings();
+        try
+        {
+            var groups = await _notionExporter.FindDuplicatesAsync(NotionToken, DbId, Progress.Token);
+            if (groups.Count == 0)
+            {
+                ShowResult("✓ No duplicate pages in Notion", "Open database", NotionDatabaseAction());
+                return;
+            }
+
+            Progress.SetIndeterminate("Waiting for confirmation…");
+            if (!await _dialogs.ConfirmNotionDuplicatesAsync(new NotionDuplicatesViewModel(groups)))
+            {
+                _log.WriteInfo("Notion duplicate merge not confirmed; nothing changed.");
+                return;
+            }
+
+            await _notionExporter.MergeDuplicatesAsync(NotionToken, DbId, groups, Progress.CreateReporter(), Progress.Token);
+            var trashed = groups.Sum(g => g.Remove.Count);
+            ShowResult($"✓ Merged {groups.Count} duplicate games · {trashed} pages moved to Notion's trash",
+                "Open database", NotionDatabaseAction());
+        }
+        catch (OperationCanceledException)
+        {
+            _log.WriteInfo("Notion duplicate search cancelled by user.");
+        }
+        catch (Exception ex)
+        {
+            _log.WriteException(ex, "Error merging Notion duplicates");
+            await _dialogs.ShowErrorAsync("Notion duplicates error", ex);
         }
         finally
         {

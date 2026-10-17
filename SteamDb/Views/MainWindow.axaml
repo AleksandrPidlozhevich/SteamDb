@@ -299,6 +299,30 @@
                     <CheckBox Classes="include" Content="GOG" IsChecked="{Binding IncludeGog}" />
                     <CheckBox Classes="include" Content="Xbox" IsChecked="{Binding IncludeXbox}" />
                 </StackPanel>
+
+                <!-- In-app auto-sync while the window is open (saved). Runs like the command-line sync:
+                     Notion is applied without the preview; the outcome shows in the result banner. -->
+                <StackPanel Orientation="Horizontal" Spacing="8"
+                            ToolTip.Tip="While SteamDb is open, sync the ticked targets on this schedule. Notion changes are applied without the preview; the result appears in the banner at the top.">
+                    <TextBlock Text="Auto-sync" FontSize="11" VerticalAlignment="Center" />
+                    <ComboBox FontSize="11" Width="104" Padding="8,2" VerticalAlignment="Center"
+                              AutomationProperties.Name="Auto-sync interval"
+                              ItemsSource="{Binding AutoSyncIntervalLabels}"
+                              SelectedIndex="{Binding AutoSyncIntervalIndex}" />
+                    <CheckBox Classes="include" Content="Notion" IsChecked="{Binding AutoSyncNotion}"
+                              IsEnabled="{Binding IsAutoSyncOn}" />
+                    <CheckBox Classes="include" Content="Sheets" IsChecked="{Binding AutoSyncSheets}"
+                              IsEnabled="{Binding IsAutoSyncOn}" />
+                </StackPanel>
+
+                <!-- Background mode: keep running in the tray, and start hidden at login. -->
+                <StackPanel Orientation="Horizontal" Spacing="12" Margin="52,-4,0,0">
+                    <CheckBox Classes="include" Content="Close to tray" IsChecked="{Binding CloseToTray}"
+                              ToolTip.Tip="Closing the window keeps SteamDb running in the tray (so auto-sync keeps going). Quit from the tray icon's menu." />
+                    <CheckBox Classes="include" Content="Start at login" IsChecked="{Binding StartAtLogin}"
+                              IsVisible="{Binding CanStartAtLogin}"
+                              ToolTip.Tip="Start SteamDb hidden in the tray when you log in (turns on Close to tray as well)." />
+                </StackPanel>
             </StackPanel>
 
             <!-- ===== Right: action cards (uniform width, evenly spaced) =====
@@ -328,6 +352,9 @@
                         <StackPanel Orientation="Vertical" Spacing="8">
                             <Button Content="Export to Notion" Command="{Binding ExportToNotionCommand}"
                                     ToolTip.Tip="{Binding NotionHint}" ToolTip.ShowOnDisabled="True" />
+                            <Button Content="Find duplicates…" Command="{Binding FindNotionDuplicatesCommand}"
+                                    ToolTip.Tip="Find pages of the same game in the Notion database and merge them (you confirm first)"
+                                    ToolTip.ShowOnDisabled="True" />
                             <TextBlock Classes="last-sync" Text="{Binding NotionLastSync}"
                                        IsVisible="{Binding NotionLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
                         </StackPanel>

@@ -15,7 +15,7 @@ public sealed record AutoSyncSettings(int IntervalHours, IReadOnlyList<SyncTarge
     /// <summary>The intervals offered in the UI, in hours (index = combo box position).</summary>
     public static readonly IReadOnlyList<int> Intervals = [0, 1, 6, 24];
 
-    public static readonly IReadOnlyList<string> IntervalLabels = ["Off", "Every hour", "Every 6 hours", "Daily"];
+    public static readonly IReadOnlyList<string> IntervalLabels = ["Off", "Hourly", "Every 6h", "Daily"];
 
     public static AutoSyncSettings Off { get; } = new(0, []);
 

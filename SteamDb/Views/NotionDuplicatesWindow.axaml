@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SteamDb.ViewModels"
+        xmlns:services="using:SteamDb.Services"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="480"
+        x:Class="SteamDb.Views.NotionDuplicatesWindow"
+        x:DataType="vm:NotionDuplicatesViewModel"
+        Icon="/Assets/gamedate.ico"
+        Title="Notion: duplicate pages"
+        Width="640" Height="480" MinWidth="420" MinHeight="260"
+        WindowStartupLocation="CenterOwner">
+
+    <Design.DataContext>
+        <vm:NotionDuplicatesViewModel />
+    </Design.DataContext>
+
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto">
+        <StackPanel Spacing="4" Margin="0,0,0,12">
+            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Nothing has been changed yet" />
+            <TextBlock Opacity="0.8" TextWrapping="Wrap" Text="{Binding Summary}" />
+        </StackPanel>
+
+        <ListBox Grid.Row="1" ItemsSource="{Binding Groups}" IsVisible="{Binding HasGroups}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="services:NotionDuplicateGroup">
+                    <StackPanel Spacing="2">
+                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                        <TextBlock FontSize="11" Opacity="0.8" TextWrapping="Wrap">
+                            <Run Text="Keeps: " />
+                            <Run Text="{Binding ResultText}" />
+                        </TextBlock>
+                        <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap">
+                            <Run Text="To trash: " />
+                            <Run Text="{Binding RemoveText}" />
+                        </TextBlock>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8"
+                    Margin="0,12,0,0">
+            <Button MinWidth="80" HorizontalContentAlignment="Center" Click="OnCancel"
+                    Content="{Binding CancelLabel}" />
+            <Button Classes="accent" MinWidth="80" HorizontalContentAlignment="Center" Click="OnConfirm"
+                    Content="{Binding ConfirmLabel}" IsVisible="{Binding HasGroups}" />
+        </StackPanel>
+    </Grid>
+</Window>

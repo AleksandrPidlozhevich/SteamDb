@@ -42,7 +42,8 @@ public static class DroppedFile
         var settings = AppSettingsService.Parse(content);
         var anyField = settings.SteamApiKey != null || settings.SteamId != null ||
                        settings.NotionToken != null || settings.DbId != null ||
-                       settings.GoogleSheetsTableName != null || settings.ExcludedStores != null;
+                       settings.GoogleSheetsTableName != null || settings.ExcludedStores != null ||
+                       settings.AutoSync != null || settings.CloseToTray != null;
         return anyField ? DroppedFileKind.Settings : DroppedFileKind.Unknown;
     }
 }

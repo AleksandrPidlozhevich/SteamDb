@@ -246,10 +246,100 @@ public class NotionGameExporterTests
         Assert.False(plan.HasOwnedColumn);
     }
 
+    [Fact]
+    public async Task Plan_NewSteamGame_GetsCoverAndStoreLink()
+    {
+        var (exporter, _, _) = CreateExporter(
+            Library(CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")), existing: []);
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        var create = Assert.Single(plan.ToCreate);
+        Assert.Equal("https://cdn.akamai.steamstatic.com/steam/apps/400/header.jpg", create.CoverUrl);
+        Assert.True(((Dictionary<string, object>)create.Properties).ContainsKey("Store link"));
+    }
+
+    [Fact]
+    public async Task Plan_PageWithoutCoverOrLink_IsFilled_ButUserValuesAreKept()
+    {
+        var row = CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400");
+        var bare = new NotionGameRow(row, "p1", new HashSet<string> { "Steam" }, "Steam:400");
+        var custom = new NotionGameRow(CsvGameExportService.CreateRow("Steam", "Doom", "Steam:379720"), "p2",
+            new HashSet<string> { "Steam" }, "Steam:379720", HasCover: true, StoreLink: "https://my.link");
+        var (exporter, _, _) = CreateExporter(Library(), [bare, custom]);
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        var update = Assert.Single(plan.ToUpdate);
+        Assert.Equal("p1", update.PageId);
+        Assert.EndsWith("+ cover · + store link", update.After);
+        Assert.NotNull(update.CoverUrl);
+    }
+
+    [Fact]
+    public async Task Plan_FreshDatabase_CreatesStoreLinkProperty()
+    {
+        var client = new FakeNotionApiClient();
+        client.PropertyTypes.Remove("Store link");
+        var exporter = new NotionGameExporter(new FakeGameLibraryService(Library()),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher([])), new NullLogService());
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        Assert.Equal(("Store link", "url"), Assert.Single(plan.PropertiesToCreate) is var p ? (p.Name, p.Type) : default);
+    }
+
+    [Fact]
+    public async Task Plan_HiddenGame_IsNotCreated_AndItsPageIsNotGone()
+    {
+        var client = new FakeNotionApiClient();
+        client.PropertyTypes["Owned"] = "checkbox";
+        var demo = CsvGameExportService.CreateRow("Steam", "Some Demo", "Steam:9");
+        var page = Existing("p1", CsvGameExportService.CreateRow("Steam", "Some Demo", "Steam:9"),
+            gameId: "Steam:9", platforms: "Steam") with { Owned = true };
+        var library = Library(CsvGameExportService.CreateRow("Steam", "Hidden New", "Steam:10")) with
+        {
+            SteamFetched = true,
+            Rows = [],
+            IgnoredRows = [demo, CsvGameExportService.CreateRow("Steam", "Hidden New", "Steam:10")]
+        };
+        var exporter = new NotionGameExporter(new FakeGameLibraryService(library),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher([page])), new NullLogService());
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        Assert.Empty(plan.ToCreate);
+        Assert.Empty(plan.NoLongerOwned);
+        Assert.Empty(plan.ToUpdate);
+    }
+
+    [Fact]
+    public async Task Duplicates_MergeUpdatesTheKeptPage_AndTrashesTheRest()
+    {
+        var client = new FakeNotionApiClient();
+        var steam = Existing("p1", CsvGameExportService.CreateRow("Steam", "Hades", "Steam:1145360"),
+            gameId: "Steam:1145360", platforms: "Steam");
+        var epic = Existing("p2", CsvGameExportService.CreateRow("Epic", "Hades", "Epic:ns/cat"),
+            gameId: "Epic:ns/cat", platforms: "Epic");
+        var exporter = new NotionGameExporter(new FakeGameLibraryService(Library()),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher([steam, epic])), new NullLogService());
+
+        var groups = await exporter.FindDuplicatesAsync("token", "db");
+        Assert.Empty(client.Updated); // finding is read-only
+        await exporter.MergeDuplicatesAsync("token", "db", groups);
+
+        var (pageId, body) = Assert.Single(client.Updated);
+        Assert.Equal("p1", pageId);
+        Assert.Null(body.CoverUrl);
+        var properties = (Dictionary<string, object>)body.Properties;
+        Assert.False(properties.ContainsKey("Store link"));
+        Assert.Equal(["p2"], client.Trashed);
+    }
+
     // ---- helpers ---------------------------------------------------------------------
 
     // Returns the fake client's recorded writes (the fake itself is file-local).
-    private static (NotionGameExporter Exporter, List<object> Created, List<(string PageId, object Properties)> Updated)
+    private static (NotionGameExporter Exporter, List<NotionPageBody> Created, List<(string PageId, NotionPageBody Body)> Updated)
         CreateExporter(
         GameLibraryResult library, IReadOnlyList<NotionGameRow> existing)
     {
@@ -261,7 +351,7 @@ public class NotionGameExporterTests
         return (exporter, client.Created, client.Updated);
     }
 
-    private static async Task<(List<object> Created, List<(string PageId, object Properties)> Updated, bool Disposed)>
+    private static async Task<(List<NotionPageBody> Created, List<(string PageId, NotionPageBody Body)> Updated, bool Disposed)>
         RunExport(GameLibraryResult library, IReadOnlyList<NotionGameRow> existing)
     {
         var client = new FakeNotionApiClient();
@@ -278,8 +368,10 @@ public class NotionGameExporterTests
     private static GameLibraryResult Library(params CsvGameExportRow[] rows) =>
         new(rows.ToList(), false, false, false, false, false, false);
 
+    // An existing page that already has a cover and its store link (so only the tested change shows).
     private static NotionGameRow Existing(string pageId, CsvGameExportRow row, string gameId, params string[] platforms) =>
-        new(row, pageId, new HashSet<string>(platforms, StringComparer.OrdinalIgnoreCase), gameId);
+        new(row, pageId, new HashSet<string>(platforms, StringComparer.OrdinalIgnoreCase), gameId,
+            HasCover: true, StoreLink: row.StoreUrl ?? "https://example.com");
 }
 
 // ---- fakes -----------------------------------------------------------------------------
@@ -305,8 +397,9 @@ file sealed class FakeNotionDataFetcher(List<NotionGameRow> rows) : INotionDataF
 
 file sealed class FakeNotionApiClient : INotionApiClient
 {
-    public List<object> Created { get; } = [];
-    public List<(string PageId, object Properties)> Updated { get; } = [];
+    public List<NotionPageBody> Created { get; } = [];
+    public List<(string PageId, NotionPageBody Body)> Updated { get; } = [];
+    public List<string> Trashed { get; } = [];
     public bool Disposed { get; private set; }
 
     public Task<List<JObject>> QueryAllPagesAsync(CancellationToken ct = default) =>
@@ -315,7 +408,7 @@ file sealed class FakeNotionApiClient : INotionApiClient
     // A correctly set-up database by default; tests replace it to simulate a broken schema.
     public Dictionary<string, string> PropertyTypes { get; set; } = new()
     {
-        ["Name"] = "title", ["Platform's"] = "multi_select", ["GameID"] = "rich_text"
+        ["Name"] = "title", ["Platform's"] = "multi_select", ["GameID"] = "rich_text", ["Store link"] = "url"
     };
 
     public List<IReadOnlyDictionary<string, string>> AddedProperties { get; } = [];
@@ -330,7 +423,7 @@ file sealed class FakeNotionApiClient : INotionApiClient
     }
 
     public Task AddPagesToDatabaseParallel(
-        IEnumerable<object> pages, Action? onPageDone = null, CancellationToken ct = default)
+        IEnumerable<NotionPageBody> pages, Action? onPageDone = null, CancellationToken ct = default)
     {
         foreach (var page in pages)
         {
@@ -342,7 +435,7 @@ file sealed class FakeNotionApiClient : INotionApiClient
     }
 
     public Task UpdatePagesParallel(
-        IEnumerable<(string PageId, object Properties)> updates,
+        IEnumerable<(string PageId, NotionPageBody Body)> updates,
         Action? onPageDone = null, CancellationToken ct = default)
     {
         foreach (var update in updates)
@@ -351,6 +444,12 @@ file sealed class FakeNotionApiClient : INotionApiClient
             onPageDone?.Invoke();
         }
 
+        return Task.CompletedTask;
+    }
+
+    public Task TrashPagesParallel(IEnumerable<string> pageIds, Action? onPageDone = null, CancellationToken ct = default)
+    {
+        Trashed.AddRange(pageIds);
         return Task.CompletedTask;
     }
 

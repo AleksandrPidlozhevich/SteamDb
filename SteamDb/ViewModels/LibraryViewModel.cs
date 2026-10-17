@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using SteamDb.Services;
 using System;
 using System.Collections.Generic;
@@ -12,13 +13,15 @@ public sealed record LibraryGameItem(
     IReadOnlyList<string> Platforms,
     string Id,
     int? PlaytimeMinutes,
-    DateTimeOffset? LastPlayed)
+    DateTimeOffset? LastPlayed,
+    bool IsHidden = false,
+    CsvGameExportRow? Row = null)
 {
-    public static LibraryGameItem From(CsvGameExportRow row)
+    public static LibraryGameItem From(CsvGameExportRow row, bool hidden = false)
     {
         var platforms = PlatformCatalog.All.Where(d => d.Has(row)).Select(d => d.Label).ToList();
         if (row.IsGamePass) platforms.Add(Services.Platforms.GamePass);
-        return new LibraryGameItem(row.Name, platforms, row.IdText, row.PlaytimeMinutes, row.LastPlayed);
+        return new LibraryGameItem(row.Name, platforms, row.IdText, row.PlaytimeMinutes, row.LastPlayed, hidden, row);
     }
 
     /// <summary>Owned on two or more stores (Game Pass is a tag, not a purchase).</summary>
@@ -38,6 +41,12 @@ public sealed record LibraryGameItem(
 
     /// <summary>Local date of the last session, or "—".</summary>
     public string LastPlayedText => LastPlayed?.ToLocalTime().ToString("d") ?? "—";
+
+    public string HideLabel => IsHidden ? "Unhide" : "Hide";
+
+    public string HideTip => IsHidden
+        ? "Include this game in exports again"
+        : "Leave this game out of every export (demos, test servers, tools…)";
 }
 
 /// <summary>A sort choice for the library list.</summary>
@@ -61,15 +70,18 @@ public sealed record LibraryFilterOption(string Label, string Key, int Count)
 
 /// <summary>
 /// The merged library as fetched (before any export): searchable by name, filterable by platform,
-/// with per-platform counts. Read-only — nothing here writes to an export target.
+/// with per-platform counts. Nothing here writes to an export target; the only change it makes is
+/// hiding / unhiding games (<see cref="IgnoredGames"/>), which the next exports honour.
 /// </summary>
 public sealed partial class LibraryViewModel : ViewModelBase
 {
     public const string AllKey = "*";
     public const string MultiStoreKey = "multi";
     public const string NeverPlayedKey = "never";
+    public const string HiddenKey = "hidden";
 
-    private readonly IReadOnlyList<LibraryGameItem> _all;
+    private readonly List<LibraryGameItem> _all;
+    private readonly IgnoredGames? _ignored;
 
     [ObservableProperty] private string? searchText;
 
@@ -79,29 +91,20 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     [ObservableProperty] private IReadOnlyList<LibraryGameItem> visibleGames = [];
 
-    public LibraryViewModel(IEnumerable<CsvGameExportRow> rows)
+    [ObservableProperty] private IReadOnlyList<LibraryFilterOption> filters = [];
+
+    /// <param name="rows">The games that will be exported.</param>
+    /// <param name="hidden">Fetched games the user hid (shown under the "Hidden" filter).</param>
+    /// <param name="ignored">Where Hide / Unhide is saved; null makes the viewer read-only.</param>
+    public LibraryViewModel(
+        IEnumerable<CsvGameExportRow> rows, IEnumerable<CsvGameExportRow>? hidden = null, IgnoredGames? ignored = null)
     {
-        _all = rows
-            .Where(r => r.HasContent)
-            .Select(LibraryGameItem.From)
+        _ignored = ignored;
+        _all = rows.Where(r => r.HasContent).Select(r => LibraryGameItem.From(r))
+            .Concat((hidden ?? []).Where(r => r.HasContent).Select(r => LibraryGameItem.From(r, true)))
             .OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        var options = new List<LibraryFilterOption> { new("All platforms", AllKey, _all.Count) };
-        foreach (var label in PlatformCatalog.All.Select(d => d.Label).Append(Services.Platforms.GamePass))
-        {
-            var count = _all.Count(g => g.Platforms.Contains(label));
-            if (count > 0) options.Add(new LibraryFilterOption(label, label, count));
-        }
-
-        var multi = _all.Count(g => g.IsMultiStore);
-        if (multi > 0) options.Add(new LibraryFilterOption("Owned on 2+ stores", MultiStoreKey, multi));
-
-        var never = _all.Count(g => g.IsNeverPlayed);
-        if (never > 0) options.Add(new LibraryFilterOption("Never played", NeverPlayedKey, never));
-
-        Filters = options;
-        selectedFilter = options[0];
         Sorts =
         [
             new LibrarySortOption("Sort: name", LibrarySort.Name),
@@ -109,6 +112,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
             new LibrarySortOption("Sort: recently played", LibrarySort.RecentlyPlayed)
         ];
         selectedSort = Sorts[0];
+        filters = BuildFilters();
+        selectedFilter = filters[0];
         ApplyFilter();
     }
 
@@ -122,16 +127,27 @@ public sealed partial class LibraryViewModel : ViewModelBase
     {
     }
 
-    public IReadOnlyList<LibraryFilterOption> Filters { get; }
-
     public IReadOnlyList<LibrarySortOption> Sorts { get; }
 
     public bool HasVisibleGames => VisibleGames.Count > 0;
 
-    /// <summary>"Showing 12 of 340 games".</summary>
-    public string Summary => VisibleGames.Count == _all.Count
-        ? $"{_all.Count} games"
-        : $"Showing {VisibleGames.Count} of {_all.Count} games";
+    /// <summary>Hide / Unhide buttons are shown only when the choice can be saved.</summary>
+    public bool CanHide => _ignored != null;
+
+    private int ExportedCount => _all.Count(g => !g.IsHidden);
+
+    /// <summary>"Showing 12 of 340 games" (hidden games aren't counted).</summary>
+    public string Summary
+    {
+        get
+        {
+            var hidden = _all.Count - ExportedCount;
+            var suffix = hidden > 0 ? $" · {hidden} hidden" : "";
+            return VisibleGames.Count == ExportedCount && SelectedFilter?.Key != HiddenKey
+                ? $"{ExportedCount} games{suffix}"
+                : $"Showing {VisibleGames.Count} of {ExportedCount} games{suffix}";
+        }
+    }
 
     partial void OnSearchTextChanged(string? value) => ApplyFilter();
 
@@ -139,15 +155,57 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     partial void OnSelectedSortChanged(LibrarySortOption value) => ApplyFilter();
 
+    /// <summary>Hides a game from every export, or brings a hidden one back.</summary>
+    [RelayCommand]
+    private void ToggleHidden(LibraryGameItem? item)
+    {
+        if (item?.Row == null || _ignored == null) return;
+
+        if (item.IsHidden) _ignored.Unignore(item.Row);
+        else _ignored.Ignore(item.Row);
+
+        var index = _all.IndexOf(item);
+        if (index >= 0) _all[index] = item with { IsHidden = !item.IsHidden };
+
+        // Rebuild the counts but stay on the same filter.
+        var key = SelectedFilter?.Key ?? AllKey;
+        Filters = BuildFilters();
+        SelectedFilter = Filters.FirstOrDefault(f => f.Key == key) ?? Filters[0];
+        ApplyFilter();
+    }
+
+    private List<LibraryFilterOption> BuildFilters()
+    {
+        var exported = _all.Where(g => !g.IsHidden).ToList();
+        var options = new List<LibraryFilterOption> { new("All platforms", AllKey, exported.Count) };
+        foreach (var label in PlatformCatalog.All.Select(d => d.Label).Append(Services.Platforms.GamePass))
+        {
+            var count = exported.Count(g => g.Platforms.Contains(label));
+            if (count > 0) options.Add(new LibraryFilterOption(label, label, count));
+        }
+
+        var multi = exported.Count(g => g.IsMultiStore);
+        if (multi > 0) options.Add(new LibraryFilterOption("Owned on 2+ stores", MultiStoreKey, multi));
+
+        var never = exported.Count(g => g.IsNeverPlayed);
+        if (never > 0) options.Add(new LibraryFilterOption("Never played", NeverPlayedKey, never));
+
+        var hidden = _all.Count - exported.Count;
+        if (hidden > 0) options.Add(new LibraryFilterOption("Hidden", HiddenKey, hidden));
+
+        return options;
+    }
+
     private void ApplyFilter()
     {
         var query = SearchText?.Trim();
         var key = SelectedFilter?.Key ?? AllKey;
 
         var filtered = _all
+            .Where(g => key == HiddenKey ? g.IsHidden : !g.IsHidden)
             .Where(g => key switch
             {
-                AllKey => true,
+                AllKey or HiddenKey => true,
                 MultiStoreKey => g.IsMultiStore,
                 NeverPlayedKey => g.IsNeverPlayed,
                 _ => g.Platforms.Contains(key)

@@ -79,7 +79,8 @@ public sealed class NotionGameExporter
             var match = matcher.Match(row);
             if (match == null)
             {
-                toCreate.Add(new NotionPageCreate(row.Name, row.PlatformText, BuildProperties(row, true, optional, true)));
+                toCreate.Add(new NotionPageCreate(row.Name, row.PlatformText,
+                    BuildProperties(row, true, optional, true, setLink: true), row.CoverUrl));
                 matcher.Register(row);
                 continue;
             }
@@ -87,6 +88,11 @@ public sealed class NotionGameExporter
             match.MergeFrom(row);
             matched.Add(match);
         }
+
+        // Hidden games: their pages are left as they are, but they're still owned.
+        foreach (var row in library.Ignored)
+            if (matcher.Match(row) is { } hidden)
+                matched.Add(hidden);
 
         // Update any existing page whose stored value no longer matches the desired one.
         // This covers merged-in platforms AND normalising legacy bare ids to the prefixed
@@ -102,9 +108,11 @@ public sealed class NotionGameExporter
             .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // With the opt-in Playtime / Last played / Owned columns, a changed value also triggers an update.
+        // With the opt-in Playtime / Last played / Owned columns, a changed value also triggers an update;
+        // so does a page without a cover or an empty Store link that we can now fill.
         var toUpdate = existing
-            .Where(e => NotionSignature(e.Row, optional, owned[e.PageId]) != StoredSignature(e, optional, owned[e.PageId]))
+            .Where(e => NotionSignature(e.Row, optional, owned[e.PageId]) != StoredSignature(e, optional, owned[e.PageId]) ||
+                        NeedsCover(e) || NeedsLink(e))
             .Select(e => new NotionPageUpdate(
                 e.PageId,
                 e.Row.Name,
@@ -115,8 +123,10 @@ public sealed class NotionGameExporter
                 Describe(e.Row.PlatformText, e.Row.IdText,
                     Wanted(optional.Playtime, e.Row.PlaytimeHours, e.Row.PlaytimeHours),
                     Wanted(optional.LastPlayed, e.Row.LastPlayedDate, e.Row.LastPlayedDate),
-                    Wanted(optional.Owned, owned[e.PageId], owned[e.PageId])),
-                BuildProperties(e.Row, false, optional, owned[e.PageId])))
+                    Wanted(optional.Owned, owned[e.PageId], owned[e.PageId]),
+                    NeedsCover(e), NeedsLink(e)),
+                BuildProperties(e.Row, false, optional, owned[e.PageId], NeedsLink(e)),
+                NeedsCover(e) ? e.Row.CoverUrl : null))
             .ToList();
 
         return new NotionExportPlan(
@@ -168,25 +178,74 @@ public sealed class NotionGameExporter
 
         if (plan.ToCreate.Count > 0)
             await notionApiClient.AddPagesToDatabaseParallel(
-                plan.ToCreate.Select(c => c.Properties).ToList(), ReportPage, ct);
+                plan.ToCreate.Select(c => new NotionPageBody(c.Properties, c.CoverUrl)).ToList(), ReportPage, ct);
 
         if (plan.ToUpdate.Count > 0)
             await notionApiClient.UpdatePagesParallel(
-                plan.ToUpdate.Select(u => (u.PageId, u.Properties)).ToList(), ReportPage, ct);
+                plan.ToUpdate.Select(u => (u.PageId, new NotionPageBody(u.Properties, u.CoverUrl))).ToList(),
+                ReportPage, ct);
 
         _log.WriteInfo($"Notion: created {plan.ToCreate.Count}, updated {plan.ToUpdate.Count} games.");
     }
 
+    /// <summary>Read-only: finds pages of the same game in the database (no library fetch needed).</summary>
+    public async Task<IReadOnlyList<NotionDuplicateGroup>> FindDuplicatesAsync(
+        string? notionToken, string? dbId, CancellationToken ct = default)
+    {
+        using var notionApiClient = _notion.CreateClient(notionToken, dbId);
+        var rows = await _notion.CreateFetcher(notionApiClient).FetchRowsAsync(ct);
+        return NotionDuplicateFinder.Find(rows);
+    }
+
+    /// <summary>
+    /// Merges each group: the kept page gets every store tag and id of the group, the others go to
+    /// Notion's trash (restorable there for 30 days). Other columns of the kept page are untouched.
+    /// </summary>
+    public async Task MergeDuplicatesAsync(
+        string? notionToken, string? dbId, IReadOnlyList<NotionDuplicateGroup> groups,
+        IProgress<StoreFetchProgress>? progress = null, CancellationToken ct = default)
+    {
+        if (groups.Count == 0) return;
+        using var notionApiClient = _notion.CreateClient(notionToken, dbId);
+
+        var removed = groups.SelectMany(g => g.Remove.Select(r => r.PageId)).ToList();
+        var total = groups.Count + removed.Count;
+        var done = 0;
+
+        void ReportPage() =>
+            progress?.Report(new StoreFetchProgress(Interlocked.Increment(ref done), total, "Merging duplicates"));
+
+        // Tags + ids only: no opt-in columns, and the Store link is left as the user has it.
+        var none = new NotionOptionalColumns(false, false);
+        await notionApiClient.UpdatePagesParallel(
+            groups.Select(g => (g.Keep.PageId, new NotionPageBody(BuildProperties(g.Merged, false, none, null, false))))
+                .ToList(),
+            ReportPage, ct);
+        await notionApiClient.TrashPagesParallel(removed, ReportPage, ct);
+
+        _log.WriteInfo($"Notion: merged {groups.Count} duplicate groups, moved {removed.Count} pages to the trash.");
+    }
+
     // "Steam/GOG · Steam:1; GOG:2 · 12.5 h · last played 2024-05-01" — preview before/after text.
     private static string Describe(
-        string platforms, string gameId, double? hours = null, string? lastPlayed = null, bool? owned = null) =>
+        string platforms, string gameId, double? hours = null, string? lastPlayed = null, bool? owned = null,
+        bool addsCover = false, bool addsLink = false) =>
         string.Join(" · ", new[]
         {
             platforms, gameId,
             hours is { } h ? $"{h.ToString(CultureInfo.InvariantCulture)} h" : null,
             lastPlayed != null ? $"last played {lastPlayed}" : null,
-            owned switch { true => "owned", false => "not owned", null => null }
+            owned switch { true => "owned", false => "not owned", null => null },
+            addsCover ? "+ cover" : null,
+            addsLink ? "+ store link" : null
         }.Where(part => !string.IsNullOrEmpty(part)));
+
+    // A page gets a cover only when it has none (a cover the user picked is never replaced) …
+    private static bool NeedsCover(NotionGameRow page) => !page.HasCover && page.Row.CoverUrl != null;
+
+    // … and a Store link only while the cell is empty.
+    private static bool NeedsLink(NotionGameRow page) =>
+        string.IsNullOrWhiteSpace(page.StoreLink) && page.Row.StoreUrl != null;
 
     // An opt-in column's value, only when the column exists and fresh data was fetched for the row
     // (games no longer owned / stores without playtime keep whatever the page already holds).
@@ -224,7 +283,7 @@ public sealed class NotionGameExporter
     private static string? Format(double? hours) => hours?.ToString(CultureInfo.InvariantCulture);
 
     private static object BuildProperties(
-        CsvGameExportRow row, bool includeName, NotionOptionalColumns optional, bool? owned)
+        CsvGameExportRow row, bool includeName, NotionOptionalColumns optional, bool? owned, bool setLink)
     {
         var platforms = new List<object>();
         foreach (var d in PlatformCatalog.All)
@@ -250,19 +309,22 @@ public sealed class NotionGameExporter
             properties[NotionDataFetcher.LastPlayedProperty] = new { date = new { start = lastPlayed } };
         if (optional.Owned && owned is { } isOwned)
             properties[NotionDataFetcher.OwnedProperty] = new { checkbox = isOwned };
+        if (setLink && row.StoreUrl is { } link)
+            properties[NotionDataFetcher.StoreLinkProperty] = new { url = link };
 
         return properties;
     }
 }
 
-/// <summary>A page the export would create.</summary>
-public sealed record NotionPageCreate(string Name, string Platforms, object Properties);
+/// <summary>A page the export would create (with a cover image when one is known).</summary>
+public sealed record NotionPageCreate(string Name, string Platforms, object Properties, string? CoverUrl = null);
 
 /// <summary>A game in the database that none of its (fetched) stores lists any more.</summary>
 public sealed record NotionGoneGame(string Name, string Platforms);
 
 /// <summary>A page the export would update; <see cref="Before"/>/<see cref="After"/> are display text.</summary>
-public sealed record NotionPageUpdate(string PageId, string Name, string Before, string After, object Properties);
+public sealed record NotionPageUpdate(
+    string PageId, string Name, string Before, string After, object Properties, string? CoverUrl = null);
 
 /// <summary>Result of <see cref="NotionGameExporter.PlanAsync"/>: what an export would change.</summary>
 public sealed record NotionExportPlan(

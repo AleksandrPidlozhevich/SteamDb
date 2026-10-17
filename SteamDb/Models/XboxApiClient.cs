@@ -386,7 +386,9 @@ public class XboxApiClient : IXboxClient
             {
                 TitleId = titleId,
                 Name = info.Name ?? titleId,
-                LastPlayed = info.LastPlayed
+                LastPlayed = info.LastPlayed,
+                ImageUrl = info.Image,
+                ProductId = info.ProductId
             });
         }
 
@@ -399,10 +401,10 @@ public class XboxApiClient : IXboxClient
     // Maps owned title ids to a display name (and last-played) from the title-history feed. Used
     // purely as a name lookup for the owned library — never as a list of games to export. Returns
     // an empty map on any failure (owned titles then fall back to their title id as the name).
-    private async Task<Dictionary<string, (string? Name, DateTimeOffset? LastPlayed)>> GetTitleNamesAsync(
-        CancellationToken ct)
+    private async Task<Dictionary<string, (string? Name, DateTimeOffset? LastPlayed, string? Image, string? ProductId)>>
+        GetTitleNamesAsync(CancellationToken ct)
     {
-        var map = new Dictionary<string, (string?, DateTimeOffset?)>(StringComparer.OrdinalIgnoreCase);
+        var map = new Dictionary<string, (string?, DateTimeOffset?, string?, string?)>(StringComparer.OrdinalIgnoreCase);
         try
         {
             var url = string.Format(TitleHistoryUrlTemplate, _xuid);
@@ -426,7 +428,8 @@ public class XboxApiClient : IXboxClient
                 var lastPlayedRaw = title["titleHistory"]?["lastTimePlayed"]?.Value<string>();
                 if (DateTimeOffset.TryParse(lastPlayedRaw, out var parsed)) lastPlayed = parsed;
 
-                map[titleId] = (name, lastPlayed);
+                var productId = title["productId"]?.Value<string>() ?? title["detail"]?["productId"]?.Value<string>();
+                map[titleId] = (name, lastPlayed, title["displayImage"]?.Value<string>(), productId);
             }
         }
         catch (Exception ex)

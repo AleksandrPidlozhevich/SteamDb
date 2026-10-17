@@ -162,22 +162,22 @@ public class NotionApiClient : INotionApiClient
     }
 
     public async Task AddPagesToDatabaseParallel(
-        IEnumerable<object> pageProperties, Action? onPageDone = null, CancellationToken ct = default)
+        IEnumerable<NotionPageBody> pages, Action? onPageDone = null, CancellationToken ct = default)
     {
         var dataSourceId = await ResolveDataSourceIdAsync(ct);
-        var tasks = pageProperties
-            .Select(properties => AddPageWithThrottling(properties, dataSourceId, onPageDone, ct))
+        var tasks = pages
+            .Select(page => AddPageWithThrottling(page, dataSourceId, onPageDone, ct))
             .ToList();
         await Task.WhenAll(tasks);
     }
 
     private async Task AddPageWithThrottling(
-        object properties, string dataSourceId, Action? onPageDone, CancellationToken ct)
+        NotionPageBody page, string dataSourceId, Action? onPageDone, CancellationToken ct)
     {
         await _semaphore.WaitAsync(ct);
         try
         {
-            await AddPageToDatabaseWithRetry(properties, dataSourceId, ct);
+            await AddPageToDatabaseWithRetry(page, dataSourceId, ct);
             onPageDone?.Invoke();
         }
         finally
@@ -188,13 +188,10 @@ public class NotionApiClient : INotionApiClient
     }
 
     private async Task AddPageToDatabaseWithRetry(
-        object properties, string dataSourceId, CancellationToken ct, int maxRetries = 3)
+        NotionPageBody page, string dataSourceId, CancellationToken ct, int maxRetries = 3)
     {
-        var newPageData = new
-        {
-            parent = new { type = "data_source_id", data_source_id = dataSourceId },
-            properties
-        };
+        var newPageData = page.ToJson();
+        newPageData["parent"] = new { type = "data_source_id", data_source_id = dataSourceId };
 
         for (var retry = 0; retry <= maxRetries; retry++)
             try
@@ -225,21 +222,29 @@ public class NotionApiClient : INotionApiClient
     }
 
     public async Task UpdatePagesParallel(
-        IEnumerable<(string PageId, object Properties)> updates,
+        IEnumerable<(string PageId, NotionPageBody Body)> updates,
         Action? onPageDone = null,
         CancellationToken ct = default)
     {
-        var tasks = updates.Select(u => UpdatePageWithThrottling(u.PageId, u.Properties, onPageDone, ct)).ToList();
+        var tasks = updates.Select(u => UpdatePageWithThrottling(u.PageId, u.Body.ToJson(), onPageDone, ct)).ToList();
+        await Task.WhenAll(tasks);
+    }
+
+    public async Task TrashPagesParallel(
+        IEnumerable<string> pageIds, Action? onPageDone = null, CancellationToken ct = default)
+    {
+        var body = new Dictionary<string, object> { ["in_trash"] = true };
+        var tasks = pageIds.Select(id => UpdatePageWithThrottling(id, body, onPageDone, ct)).ToList();
         await Task.WhenAll(tasks);
     }
 
     private async Task UpdatePageWithThrottling(
-        string pageId, object properties, Action? onPageDone, CancellationToken ct)
+        string pageId, Dictionary<string, object> body, Action? onPageDone, CancellationToken ct)
     {
         await _semaphore.WaitAsync(ct);
         try
         {
-            await UpdatePageWithRetry(pageId, properties, ct);
+            await UpdatePageWithRetry(pageId, body, ct);
             onPageDone?.Invoke();
         }
         finally
@@ -249,7 +254,8 @@ public class NotionApiClient : INotionApiClient
         }
     }
 
-    private async Task UpdatePageWithRetry(string pageId, object properties, CancellationToken ct, int maxRetries = 3)
+    private async Task UpdatePageWithRetry(
+        string pageId, Dictionary<string, object> body, CancellationToken ct, int maxRetries = 3)
     {
         for (var retry = 0; retry <= maxRetries; retry++)
             try
@@ -258,7 +264,7 @@ public class NotionApiClient : INotionApiClient
                     new HttpRequestMessage(HttpMethod.Patch, $"https://api.notion.com/v1/pages/{pageId}")
                     {
                         Content = new StringContent(
-                            JsonConvert.SerializeObject(new { properties }), Encoding.UTF8, "application/json")
+                            JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json")
                     };
                 var response = await _httpClient.SendAsync(request, ct);
 

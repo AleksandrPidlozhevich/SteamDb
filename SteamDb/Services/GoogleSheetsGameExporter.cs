@@ -85,7 +85,7 @@ public sealed class GoogleSheetsGameExporter
         getValues.ValueRenderOption =
             SpreadsheetsResource.ValuesResource.GetRequest.ValueRenderOptionEnum.UNFORMATTEDVALUE;
         var existing = await getValues.ExecuteAsync(ct);
-        var plan = GoogleSheetsSyncPlanner.Plan(existing.Values, library.Rows, library.FetchedStores);
+        var plan = GoogleSheetsSyncPlanner.Plan(existing.Values, library.Rows, library.FetchedStores, library.Ignored);
         if (dryRun)
             return new GoogleSheetsExportResult(library, plan.NewRows.Count, plan.Updates.Count,
                 spreadsheet.SpreadsheetUrl, plan.NoLongerOwned.Count, DryRun: true);

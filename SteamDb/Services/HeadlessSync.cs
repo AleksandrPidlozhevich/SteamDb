@@ -57,12 +57,7 @@ public sealed class HeadlessSync
                 };
                 Write(summary);
                 if (!options.DryRun)
-                    history.Record(target switch
-                    {
-                        SyncTarget.Csv => SyncHistory.Csv,
-                        SyncTarget.Notion => SyncHistory.Notion,
-                        _ => SyncHistory.GoogleSheets
-                    }, DateTimeOffset.Now);
+                    history.Record(SyncHistory.KeyOf(target), DateTimeOffset.Now);
             }
             catch (OperationCanceledException)
             {
@@ -105,9 +100,12 @@ public sealed class HeadlessSync
 
         if (options.DryRun) return $"Dry run: would add {added} games to {path} ({total} total).";
 
+        var backup = await CsvBackup.WriteAsync(path, File.Exists(path) ? await File.ReadAllTextAsync(path, ct) : null);
+
         // UTF-8 with BOM, like the app, so Excel reads non-ASCII names correctly.
         await File.WriteAllTextAsync(path, content, new UTF8Encoding(true), ct);
-        return $"Added {added} games to {path} ({total} total).";
+        return $"Added {added} games to {path} ({total} total)." +
+               (backup != null ? $" Previous version: {backup}" : "");
     }
 
     private async Task<string> SyncNotionAsync(AppSettings settings, SyncOptions options, CancellationToken ct)

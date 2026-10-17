@@ -69,7 +69,7 @@ public static class GoogleSheetsSyncPlanner
     /// is "no longer owned" only when all of its stores are in here (see <c>Ownership</c>).</param>
     public static GoogleSheetsSyncPlan Plan(
         IList<IList<object>>? values, IEnumerable<CsvGameExportRow> incoming,
-        IReadOnlySet<string>? fetchedStores = null)
+        IReadOnlySet<string>? fetchedStores = null, IEnumerable<CsvGameExportRow>? ignored = null)
     {
         fetchedStores ??= new HashSet<string>();
         values ??= [];
@@ -95,6 +95,11 @@ public static class GoogleSheetsSyncPlanner
             match.MergeFrom(row);
             matched.Add(match);
         }
+
+        // Hidden games: their rows are left as they are, but they're still owned.
+        foreach (var row in ignored ?? [])
+            if (matcher.Match(row) is { } hidden)
+                matched.Add(hidden);
 
         // Rewrite any row whose stored cells no longer match — merged-in platforms, legacy bare ids /
         // missing platforms normalised to the current form, and fresh playtime / last-played values

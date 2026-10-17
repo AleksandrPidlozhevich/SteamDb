@@ -17,7 +17,10 @@ public sealed record NotionGameRow(
     string GameId,
     double? PlaytimeHours = null,
     string? LastPlayed = null,
-    bool? Owned = null);
+    bool? Owned = null,
+    bool HasCover = false,
+    string? StoreLink = null,
+    DateTimeOffset? CreatedTime = null);
 
 public class NotionDataFetcher : INotionDataFetcher
 {
@@ -30,6 +33,9 @@ public class NotionDataFetcher : INotionDataFetcher
     public const string PlaytimeProperty = "Playtime";
     public const string LastPlayedProperty = "Last played";
     public const string OwnedProperty = "Owned";
+
+    // Created automatically like Platform's / GameID; filled only while empty (user edits are kept).
+    public const string StoreLinkProperty = "Store link";
 
     private readonly INotionApiClient _notionApiClient;
     private readonly ILogService _log;
@@ -80,7 +86,12 @@ public class NotionDataFetcher : INotionDataFetcher
                 ? new NotionGameRow(row, pageId, platforms, idField ?? string.Empty,
                     properties?[PlaytimeProperty]?["number"]?.Value<double?>(),
                     ReadDate(properties?[LastPlayedProperty]),
-                    properties?[OwnedProperty]?["checkbox"]?.Value<bool?>())
+                    properties?[OwnedProperty]?["checkbox"]?.Value<bool?>(),
+                    page["cover"] is JObject,
+                    properties?[StoreLinkProperty]?["url"]?.Value<string>(),
+                    page["created_time"]?.Type == JTokenType.Date
+                        ? page["created_time"]!.Value<DateTime>()
+                        : DateTimeOffset.TryParse(page["created_time"]?.Value<string>(), out var created) ? created : null)
                 : null;
         }
         catch (Exception ex)

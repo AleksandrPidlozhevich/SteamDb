@@ -95,6 +95,21 @@ public class HeadlessSyncTests : IDisposable
         var rows = CsvGameExportService.Parse(await File.ReadAllTextAsync(path));
         Assert.Equal(["Gwent", "Portal"], rows.Select(r => r.Name).Order());
         Assert.Contains("(2 total)", output.ToString());
+
+        // The previous version is kept next to it, so the update can be undone.
+        Assert.Equal("Platform,Name,ID\nGOG,Gwent,GOG:9\n", await File.ReadAllTextAsync(path + ".bak"));
+        Assert.Contains("games.csv.bak", output.ToString());
+    }
+
+    [Fact]
+    public async Task Csv_NewFile_HasNoBackup()
+    {
+        var path = Path.Combine(_dir, "fresh.csv");
+        var (sync, _, _) = Create(Steam("Portal", 400));
+
+        await sync.RunAsync(Options(path));
+
+        Assert.False(File.Exists(path + ".bak"));
     }
 
     [Fact]

@@ -11,21 +11,21 @@ public class NotionSchemaCheckTests
     public void Check_CorrectSchema_NothingToDo()
     {
         var result = NotionSchemaCheck.Check(Schema(("Name", "title"), ("Platform's", "multi_select"),
-            ("GameID", "rich_text"), ("Status", "status")));
+            ("GameID", "rich_text"), ("Store link", "url"), ("Status", "status")));
 
         Assert.True(result.IsUsable);
         Assert.Empty(result.ToCreate);
     }
 
     [Fact]
-    public void Check_FreshDatabase_PlansBothMissingProperties()
+    public void Check_FreshDatabase_PlansEveryMissingProperty()
     {
         // A new Notion database has only the "Name" title column.
         var result = NotionSchemaCheck.Check(Schema(("Name", "title")));
 
         Assert.True(result.IsUsable);
         Assert.Equal(
-            [("Platform's", "multi_select"), ("GameID", "rich_text")],
+            [("Platform's", "multi_select"), ("GameID", "rich_text"), ("Store link", "url")],
             result.ToCreate.Select(p => (p.Name, p.Type)));
     }
 

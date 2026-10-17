@@ -56,7 +56,7 @@
         </Grid>
 
         <!-- Column headers (same widths as the item template below). -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,170,80,100,220" Margin="12,0,12,4">
+        <Grid Grid.Row="1" ColumnDefinitions="*,170,80,100,220,76" Margin="12,0,12,4">
             <TextBlock Grid.Column="0" Classes="column-header" Text="Name" />
             <TextBlock Grid.Column="1" Classes="column-header" Text="Platform" />
             <TextBlock Grid.Column="2" Classes="column-header" Text="Playtime" />
@@ -69,7 +69,7 @@
                 <ListBox ItemsSource="{Binding VisibleGames}" Background="Transparent">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:LibraryGameItem">
-                            <Grid ColumnDefinitions="*,170,80,100,220">
+                            <Grid ColumnDefinitions="*,170,80,100,220,76">
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0"
                                            TextTrimming="CharacterEllipsis" Text="{Binding Name}"
                                            ToolTip.Tip="{Binding Name}" />
@@ -95,6 +95,12 @@
                                 <TextBlock Grid.Column="4" VerticalAlignment="Center" FontSize="11"
                                            Opacity="0.7" TextTrimming="CharacterEllipsis"
                                            Text="{Binding Id}" ToolTip.Tip="{Binding Id}" />
+                                <!-- Hide / Unhide: leaves the game out of every export (saved). -->
+                                <Button Grid.Column="5" FontSize="11" Padding="8,2" HorizontalAlignment="Right"
+                                        Content="{Binding HideLabel}" ToolTip.Tip="{Binding HideTip}"
+                                        IsVisible="{Binding $parent[ListBox].((vm:LibraryViewModel)DataContext).CanHide}"
+                                        Command="{Binding $parent[ListBox].((vm:LibraryViewModel)DataContext).ToggleHiddenCommand}"
+                                        CommandParameter="{Binding}" />
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

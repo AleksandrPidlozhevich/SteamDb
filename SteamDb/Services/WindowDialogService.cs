@@ -79,6 +79,14 @@ public sealed class WindowDialogService : IDialogService
         return await new NotionExportPreviewWindow { DataContext = preview }.ShowDialog<bool>(window);
     }
 
+    public async Task<bool> ConfirmNotionDuplicatesAsync(NotionDuplicatesViewModel duplicates)
+    {
+        var window = MainWindow;
+        if (window == null) return false;
+
+        return await new NotionDuplicatesWindow { DataContext = duplicates }.ShowDialog<bool>(window);
+    }
+
     public void OpenLink(string url)
     {
         SystemBrowser.Open(url);

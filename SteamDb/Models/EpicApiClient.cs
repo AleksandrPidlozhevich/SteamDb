@@ -165,6 +165,8 @@ public class EpicApiClient : RefreshTokenStoreClient, IEpicClient
                     }
 
                     game.Title = item["title"]?.Value<string>() ?? game.AppName;
+                    game.CoverUrl = StoreLinks.EpicCover(item);
+                    game.StoreUrl = StoreLinks.EpicStore(item);
                     ownedGames.Add((orderByCatalogId[game.CatalogItemId], game));
                 }
             }

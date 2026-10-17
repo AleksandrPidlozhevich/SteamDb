@@ -17,4 +17,10 @@ public sealed class XboxGame
     public bool IsGamePass { get; set; }
 
     public DateTimeOffset? LastPlayed { get; set; }
+
+    /// <summary>Title-hub display image (cover), when resolved.</summary>
+    public string? ImageUrl { get; set; }
+
+    /// <summary>Microsoft Store product id (for the store link), when resolved.</summary>
+    public string? ProductId { get; set; }
 }

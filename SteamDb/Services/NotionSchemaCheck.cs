@@ -56,6 +56,7 @@ public static class NotionSchemaCheck
 
         Require(NotionDataFetcher.PlatformProperty, "multi_select", "Multi-select");
         Require(NotionDataFetcher.GameIdProperty, "rich_text", "Text");
+        Require(NotionDataFetcher.StoreLinkProperty, "url", "URL");
 
         var optional = new NotionOptionalColumns(
             Optional(NotionDataFetcher.PlaytimeProperty, "number", "Number"),

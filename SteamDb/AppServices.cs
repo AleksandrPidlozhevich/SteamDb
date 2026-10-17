@@ -27,8 +27,10 @@ public static class AppServices
         services.AddSingleton<IWebAuthenticator>(_ => new EmbeddedWebViewAuthenticator(MainWindow));
         services.AddSingleton<CsvFileService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();
+        services.AddSingleton<IAutoStart, AutoStart>();
 
         services.AddSingleton<StoreSelection>();
+        services.AddSingleton<IgnoredGames>(sp => new IgnoredGames(sp.GetRequiredService<ISecretStore>()));
         services.AddSingleton<IGameLibraryService, GameLibraryService>();
         services.AddSingleton<INotionGateway, NotionGateway>();
         services.AddSingleton<NotionGameExporter>();

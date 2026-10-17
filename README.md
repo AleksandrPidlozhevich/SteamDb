@@ -72,12 +72,15 @@ the file for your system:
 | --- | --- |
 | 🎮 **Four stores, one list** | Fetches owned games from Steam, Epic, GOG and Xbox and merges duplicates across stores. Untick a store to leave it out of exports. |
 | 📤 **Three export targets** | A Notion database, Google Sheets, or a local CSV file. |
-| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. |
+| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. |
+| 🖼️ **Covers & store links** | New Notion pages get the game's cover image and a `Store link`; existing pages without one are filled in. |
+| 🧹 **Duplicate finder** | **Find duplicates…** spots Notion pages of the same game and merges them (you confirm first; extras go to Notion's trash). |
 | 🗑️ **No longer owned** | Spots games in your tracker that left your library (refunds, delistings). They're never deleted. An optional `Owned` checkbox column gets unticked for them. |
-| ⏰ **Scheduled sync** | `SteamDb --sync notion,sheets` syncs without opening the window, ready for Task Scheduler or cron. |
+| ⏰ **Scheduled sync** | **Auto-sync** keeps Notion and Google Sheets up to date (hourly, every 6 hours or daily) while the app runs; with **Close to tray** and **Start at login** it keeps going in the background on Windows, macOS and Linux. `SteamDb --sync notion,sheets` syncs without opening the window, ready for Task Scheduler or cron. |
 | ⏱️ **Playtime** | Optional `Playtime` and `Last played` columns in Notion and Google Sheets are filled from Steam (last played from Xbox too). |
 | 🔁 **Incremental sync** | Re-running an export reconciles with what's already there. It adds new games and updates platform tags without creating duplicates. |
 | 👀 **Preview before Notion** | See exactly which games will be added or updated, and confirm before anything is written. |
+| 🪟 **Remembers the window** | Size, position and maximized state are restored on the next start. |
 | 🖱️ **Drag & drop** | Drop a SteamDb `.csv` onto the window to update it with your current library, or a saved settings file to import it. |
 | ⏹️ **Cancellable** | Every export shows a progress bar with a **Cancel** button. |
 | 🔒 **Secure by default** | Store tokens and remembered credentials are cached **encrypted** (DPAPI on Windows, Keychain on macOS, libsecret on Linux) and refreshed automatically. |
@@ -195,7 +198,8 @@ The simplest target. No account or token needed.
 
 - **Export to CSV** writes the full merged library to a CSV file you pick.
 - **Update CSV** merges the current library into an existing CSV. It keeps your completion
-  status and doesn't create duplicates.
+  status and doesn't create duplicates. The previous version is saved next to it as
+  `<name>.csv.bak`: to undo an update, delete the CSV and rename the `.bak` back.
 
 The file is written as UTF-8 with a BOM so it opens cleanly in Excel.
 
@@ -272,6 +276,10 @@ The target database **must** have these properties (names are case-sensitive):
 | `Name` | Title | The game's title |
 | `Platform's` | Multi-select | The store(s) the game is owned on (Steam, Epic, GOG, Xbox) |
 | `GameID` | Text | Platform-prefixed id(s), e.g. `Steam:236870; GOG:123` |
+| `Store link` | URL | The game's store page (filled only while empty, so your own links stay) |
+
+Each page also gets the game's **cover image** (Steam's header image; the GOG, Epic or Xbox art for
+games not on Steam). A cover you set yourself is never replaced.
 
 Optional: add any of these and SteamDb keeps them up to date too:
 
@@ -288,10 +296,16 @@ so an expired Epic or GOG session never marks those games as gone.
 
 </details>
 
-When you click **Export to Notion**, SteamDb first checks the database. A missing `Platform's` or
-`GameID` property is added for you (the preview says so). A misnamed title column or a wrong
+When you click **Export to Notion**, SteamDb first checks the database. A missing `Platform's`,
+`GameID` or `Store link` property is added for you (the preview says so). The first export after
+updating SteamDb also adds covers and links to your existing pages, so it updates many pages once. A misnamed title column or a wrong
 property type is reported with what to change. Then it shows a **preview**: the games it will add
 and the rows it will update (before → after). Nothing is written until you click **Export**.
+
+**Find duplicates…** looks for pages of the same game (same store id, or the same name without a
+conflicting id). For each, the oldest page is kept and gets every store tag and id; the others are
+moved to Notion's trash (restorable for 30 days). Other columns of the kept page aren't touched, so
+copy any notes from the extra pages first.
 
 ### Google Sheets (beta)
 

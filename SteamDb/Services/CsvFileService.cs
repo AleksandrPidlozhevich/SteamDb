@@ -32,18 +32,24 @@ public sealed class CsvFileService
         await writer.WriteAsync(content);
     }
 
-    /// <summary>Merges incoming games into the existing CSV content and writes the result.
-    /// Returns how many rows were added and the file's total row count.</summary>
-    public async Task<(int Added, int Total)> WriteMergedAsync(
+    /// <summary>Merges incoming games into the existing CSV content and writes the result. The file's
+    /// previous content is first saved next to it as <c>&lt;name&gt;.bak</c>, so a bad update can be undone.
+    /// Returns how many rows were added, the file's total row count and the backup path (null when the
+    /// file isn't a local file or was empty).</summary>
+    public async Task<(int Added, int Total, string? BackupPath)> WriteMergedAsync(
         IStorageFile file,
         string? existingContent,
         List<CsvGameExportRow> incomingRows)
     {
         var existingRows = CsvGameExportService.Parse(existingContent ?? string.Empty);
         var (mergedRows, added, updated) = CsvGameExportService.Merge(existingRows, incomingRows);
+
+        var backup = await CsvBackup.WriteAsync(file.TryGetLocalPath(), existingContent);
+        if (backup != null) _log.WriteInfo($"CSV backup written to {backup}.");
+
         await WriteAsync(file, CsvGameExportService.Serialize(mergedRows));
 
         _log.WriteInfo($"CSV updated: {added} new, {updated} changed, {mergedRows.Count} total rows.");
-        return (added, mergedRows.Count);
+        return (added, mergedRows.Count, backup);
     }
 }

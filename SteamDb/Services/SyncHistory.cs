@@ -27,10 +27,25 @@ public sealed class SyncHistory
         _entries = Parse(secrets.Load(SecretKey));
     }
 
-    public DateTimeOffset? Get(string target) => _entries.TryGetValue(target, out var when) ? when : null;
+    /// <summary>The history key of a command-line / auto-sync target.</summary>
+    public static string KeyOf(SyncTarget target) => target switch
+    {
+        SyncTarget.Csv => Csv,
+        SyncTarget.Notion => Notion,
+        _ => GoogleSheets
+    };
+
+    // Re-read on every access: the in-app auto-sync records through its own instance (via HeadlessSync),
+    // so a cached copy would go stale and a later Record would overwrite the newer time.
+    public DateTimeOffset? Get(string target)
+    {
+        Reload();
+        return _entries.TryGetValue(target, out var when) ? when : null;
+    }
 
     public void Record(string target, DateTimeOffset when)
     {
+        Reload();
         _entries[target] = when;
         _secrets.Save(SecretKey, string.Join("\n",
             _entries.Select(e => $"{e.Key}={e.Value.ToString("O", CultureInfo.InvariantCulture)}")));
@@ -50,6 +65,12 @@ public sealed class SyncHistory
             _ => local.ToString(local.Year == now.Year ? "d MMM" : "d MMM yyyy", CultureInfo.CurrentCulture)
         };
         return $"Last sync: {day} {local:HH:mm}";
+    }
+
+    private void Reload()
+    {
+        _entries.Clear();
+        foreach (var (key, value) in Parse(_secrets.Load(SecretKey))) _entries[key] = value;
     }
 
     private static Dictionary<string, DateTimeOffset> Parse(string? content)

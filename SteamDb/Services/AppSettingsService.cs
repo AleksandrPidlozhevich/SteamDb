@@ -5,7 +5,7 @@ namespace SteamDb.Services;
 /// <summary>Credentials persisted to / loaded from the plaintext settings file.</summary>
 public sealed record AppSettings(
     string? SteamApiKey, string? SteamId, string? NotionToken, string? DbId, string? GoogleSheetsTableName = null,
-    string? ExcludedStores = null);
+    string? ExcludedStores = null, string? AutoSync = null, bool? CloseToTray = null);
 
 public static class AppSettingsService
 {
@@ -24,7 +24,11 @@ public static class AppSettingsService
                    : $"Google Sheets Table: {settings.GoogleSheetsTableName}" + Environment.NewLine) +
                (string.IsNullOrEmpty(settings.ExcludedStores)
                    ? string.Empty
-                   : $"Excluded Stores: {settings.ExcludedStores}" + Environment.NewLine);
+                   : $"Excluded Stores: {settings.ExcludedStores}" + Environment.NewLine) +
+               (string.IsNullOrEmpty(settings.AutoSync)
+                   ? string.Empty
+                   : $"Auto Sync: {settings.AutoSync}" + Environment.NewLine) +
+               (settings.CloseToTray == true ? "Close To Tray: yes" + Environment.NewLine : string.Empty);
     }
 
     /// <summary>
@@ -34,7 +38,8 @@ public static class AppSettingsService
     public static AppSettings Parse(string content)
     {
         string? steamApiKey = null, steamId = null, notionToken = null, dbId = null, sheetsTable = null,
-            excludedStores = null;
+            excludedStores = null, autoSync = null;
+        bool? closeToTray = null;
 
         foreach (var line in content.Split(["\r\n", "\r", "\n"], StringSplitOptions.RemoveEmptyEntries))
         {
@@ -49,9 +54,14 @@ public static class AppSettingsService
                 case "DbId": dbId = keyValue[1]; break;
                 case "Google Sheets Table": sheetsTable = keyValue[1]; break;
                 case "Excluded Stores": excludedStores = keyValue[1]; break;
+                case "Auto Sync": autoSync = keyValue[1]; break;
+                case "Close To Tray":
+                    closeToTray = keyValue[1].Trim() is "yes" or "true";
+                    break;
             }
         }
 
-        return new AppSettings(steamApiKey, steamId, notionToken, dbId, sheetsTable, excludedStores);
+        return new AppSettings(steamApiKey, steamId, notionToken, dbId, sheetsTable, excludedStores, autoSync,
+            closeToTray);
     }
 }
