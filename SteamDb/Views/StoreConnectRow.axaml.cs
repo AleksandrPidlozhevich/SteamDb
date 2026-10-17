@@ -23,11 +23,6 @@ public partial class StoreConnectRow : UserControl
 
     public StoreConnectRow()
     {
-        InitializeComponent();
-    }
-
-    private void InitializeComponent()
-    {
         AvaloniaXamlLoader.Load(this);
     }
 }

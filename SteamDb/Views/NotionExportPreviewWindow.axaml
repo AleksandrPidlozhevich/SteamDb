@@ -1,27 +1,55 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:SteamDb.ViewModels"
-        xmlns:services="using:SteamDb.Services"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="480"
-        x:Class="SteamDb.Views.NotionExportPreviewWindow"
-        x:DataType="vm:NotionExportPreviewViewModel"
-        Icon="/Assets/gamedate.ico"
-        Title="Export to Notion: preview"
-        Width="640" Height="480" MinWidth="420" MinHeight="260"
-        WindowStartupLocation="CenterOwner">
+<views:DialogWindow xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="using:SteamDb.ViewModels"
+                    xmlns:views="using:SteamDb.Views"
+                    xmlns:services="using:SteamDb.Services"
+                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="480"
+                    x:Class="SteamDb.Views.NotionExportPreviewWindow"
+                    x:DataType="vm:NotionExportPreviewViewModel"
+                    Icon="/Assets/gamedate.ico"
+                    Title="Export to Notion: preview"
+                    Width="640" Height="480" MinWidth="420" MinHeight="260"
+                    WindowStartupLocation="CenterOwner">
 
     <Design.DataContext>
         <vm:NotionExportPreviewViewModel />
     </Design.DataContext>
 
+    <Window.DataTemplates>
+        <!-- "Name ··· Steam/GOG" rows for the pages to create and the games no longer owned. -->
+        <DataTemplate x:DataType="services:NotionPageCreate">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                <TextBlock Grid.Column="1" Margin="12,0,0,0" FontSize="11" Opacity="0.7"
+                           VerticalAlignment="Center" Text="{Binding Platforms}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:DataType="services:NotionGoneGame">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                <TextBlock Grid.Column="1" Margin="12,0,0,0" FontSize="11" Opacity="0.7"
+                           VerticalAlignment="Center" Text="{Binding Platforms}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:DataType="services:NotionPageUpdate">
+            <StackPanel Spacing="2">
+                <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap">
+                    <Run Text="{Binding Before}" />
+                    <Run Text="  →  " />
+                    <Run Text="{Binding After}" />
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
+    </Window.DataTemplates>
+
     <Grid Margin="16" RowDefinitions="Auto,*,Auto">
         <StackPanel Spacing="4" Margin="0,0,0,12">
-            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Nothing has been written yet" />
+            <TextBlock Classes="dialog-title" Text="Nothing has been written yet" />
             <TextBlock Opacity="0.8" TextWrapping="Wrap" Text="{Binding Summary}" />
-            <Border Margin="0,6,0,0" Padding="10,6" CornerRadius="6"
-                    Background="#1FF59E0B" BorderBrush="#80F59E0B" BorderThickness="1"
+            <Border Classes="banner warning" Margin="0,6,0,0" Padding="10,6"
                     IsVisible="{Binding HasNewProperties}">
                 <TextBlock TextWrapping="Wrap" Text="{Binding NewPropertiesText}" />
             </Border>
@@ -36,60 +64,24 @@
                 </MultiBinding>
             </TabControl.IsVisible>
             <TabItem Header="{Binding CreateHeader}" IsVisible="{Binding HasCreates}">
-                <ListBox ItemsSource="{Binding ToCreate}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="services:NotionPageCreate">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
-                                <TextBlock Grid.Column="1" Margin="12,0,0,0" FontSize="11" Opacity="0.7"
-                                           VerticalAlignment="Center" Text="{Binding Platforms}" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <ListBox ItemsSource="{Binding ToCreate}" />
             </TabItem>
             <TabItem Header="{Binding UpdateHeader}" IsVisible="{Binding HasUpdates}">
-                <ListBox ItemsSource="{Binding ToUpdate}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="services:NotionPageUpdate">
-                            <StackPanel Spacing="2">
-                                <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
-                                <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap">
-                                    <Run Text="{Binding Before}" />
-                                    <Run Text="  →  " />
-                                    <Run Text="{Binding After}" />
-                                </TextBlock>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <ListBox ItemsSource="{Binding ToUpdate}" />
             </TabItem>
             <TabItem Header="{Binding GoneHeader}" IsVisible="{Binding HasGone}">
                 <Grid RowDefinitions="Auto,*">
                     <TextBlock Margin="0,0,0,8" Opacity="0.8" TextWrapping="Wrap" Text="{Binding GoneNote}" />
-                    <ListBox Grid.Row="1" ItemsSource="{Binding NoLongerOwned}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="services:NotionGoneGame">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
-                                    <TextBlock Grid.Column="1" Margin="12,0,0,0" FontSize="11" Opacity="0.7"
-                                               VerticalAlignment="Center" Text="{Binding Platforms}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <ListBox Grid.Row="1" ItemsSource="{Binding NoLongerOwned}" />
                 </Grid>
             </TabItem>
         </TabControl>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8"
-                    Margin="0,12,0,0">
-            <Button MinWidth="80" HorizontalContentAlignment="Center" Click="OnCancel"
-                    Content="Cancel" IsVisible="{Binding HasChanges}" />
-            <Button MinWidth="80" HorizontalContentAlignment="Center" Click="OnCancel"
-                    Content="Close" IsVisible="{Binding !HasChanges}" />
-            <Button Classes="accent" MinWidth="80" HorizontalContentAlignment="Center" Click="OnConfirm"
-                    Content="{Binding ConfirmLabel}" IsVisible="{Binding HasChanges}" />
+        <!-- confirm / cancel close the dialog with true / false (DialogWindow). -->
+        <StackPanel Grid.Row="2" Classes="dialog-buttons">
+            <Button Classes="cancel" Content="Cancel" IsVisible="{Binding HasChanges}" />
+            <Button Classes="cancel" Content="Close" IsVisible="{Binding !HasChanges}" />
+            <Button Classes="accent confirm" Content="{Binding ConfirmLabel}" IsVisible="{Binding HasChanges}" />
         </StackPanel>
     </Grid>
-</Window>
+</views:DialogWindow>

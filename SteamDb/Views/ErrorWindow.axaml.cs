@@ -1,35 +1,29 @@
-using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
-namespace SteamDb;
+namespace SteamDb.Views;
 
-public partial class Error : Window
+/// <summary>Modal error dialog: the message (inner exceptions included) with Copy and OK.</summary>
+public partial class ErrorWindow : DialogWindow
 {
-    public string Message { get; private set; } = "";
-
-    public Error()
+    /// <summary>For the XAML loader / previewer.</summary>
+    public ErrorWindow()
+        : this("Error", "")
     {
-        InitializeComponent();
+    }
+
+    public ErrorWindow(string title, string message)
+    {
+        Message = message;
         DataContext = this;
+        AvaloniaXamlLoader.Load(this);
+        Title = title; // after Load, which sets the XAML default
     }
 
-    public Error(string title, string message)
-    {
-        InitializeComponent();
-        Title = title;
-        Message = message ?? "";
-        DataContext = this;
-    }
+    public string Message { get; }
 
-    private void CloseButtonClick(object? sender, RoutedEventArgs e)
-    {
-        Close();
-    }
-
-    private async void CopyButtonClick(object? sender, RoutedEventArgs e)
+    private async void OnCopy(object? sender, RoutedEventArgs e)
     {
         if (Clipboard is { } clipboard)
             await clipboard.SetTextAsync(Message);

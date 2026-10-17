@@ -30,13 +30,9 @@
             </StackPanel>
         </Panel>
         <!-- Per-store info: opens the relevant README section on GitHub. -->
-        <Button Classes="animated-button icon-button"
+        <Button Classes="info"
                 ToolTip.Tip="{Binding InfoTip}" AutomationProperties.Name="{Binding InfoTip}"
                 IsVisible="{Binding HasInfo}"
-                Command="{Binding OpenInfoCommand}">
-            <Viewbox>
-                <Image Source="{DynamicResource InfoIcon}" />
-            </Viewbox>
-        </Button>
+                Command="{Binding OpenInfoCommand}" />
     </StackPanel>
 </UserControl>

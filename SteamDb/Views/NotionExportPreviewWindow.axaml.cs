@@ -1,17 +1,12 @@
-using Avalonia.Controls;
-using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
 
 namespace SteamDb.Views;
 
 /// <summary>Notion dry-run dialog. <c>ShowDialog&lt;bool&gt;</c> returns true only on confirm.</summary>
-public partial class NotionExportPreviewWindow : Window
+public partial class NotionExportPreviewWindow : DialogWindow
 {
     public NotionExportPreviewWindow()
     {
-        InitializeComponent();
+        AvaloniaXamlLoader.Load(this);
     }
-
-    private void OnConfirm(object? sender, RoutedEventArgs e) => Close(true);
-
-    private void OnCancel(object? sender, RoutedEventArgs e) => Close(false);
 }

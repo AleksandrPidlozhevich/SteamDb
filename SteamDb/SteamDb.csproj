@@ -9,6 +9,10 @@
         <ApplicationIcon>gamedate.ico</ApplicationIcon>
         <EnableNETAnalyzers>true</EnableNETAnalyzers>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!-- No generated InitializeComponent / named-control fields: views load their XAML with
+             AvaloniaXamlLoader.Load(this) and look named controls up themselves, so the code reads
+             the same in an IDE that doesn't run Avalonia's source generator. -->
+        <AvaloniaNameGeneratorIsEnabled>false</AvaloniaNameGeneratorIsEnabled>
     </PropertyGroup>
 
     <ItemGroup>

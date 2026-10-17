@@ -16,15 +16,25 @@ public sealed record LibraryGameItem(
     DateTimeOffset? LastPlayed,
     bool IsHidden = false,
     CsvGameExportRow? Row = null,
-    bool IsCompleted = false)
+    bool IsCompleted = false,
+    DateOnly? AddedOn = null)
 {
-    public static LibraryGameItem From(CsvGameExportRow row, bool hidden = false, bool completed = false)
+    public static LibraryGameItem From(
+        CsvGameExportRow row, bool hidden = false, bool completed = false, DateOnly? addedOn = null)
     {
         var platforms = PlatformCatalog.All.Where(d => d.Has(row)).Select(d => d.Label).ToList();
         if (row.IsGamePass) platforms.Add(Services.Platforms.GamePass);
         return new LibraryGameItem(row.Name, platforms, row.IdText, row.PlaytimeMinutes, row.LastPlayed, hidden, row,
-            completed);
+            completed, addedOn);
     }
+
+    /// <summary>Added in the last <see cref="FirstSeenGames.RecentDays"/> days.</summary>
+    public bool IsNew => FirstSeenGames.IsRecent(AddedOn, DateOnly.FromDateTime(DateTime.Today));
+
+    /// <summary>"Added 12 Oct" (first seen by SteamDb).</summary>
+    public string AddedText => AddedOn is { } day
+        ? $"Added {day.ToString("d MMM", System.Globalization.CultureInfo.CurrentCulture)}"
+        : "";
 
     /// <summary>Owned on two or more stores (Game Pass is a tag, not a purchase).</summary>
     public bool IsMultiStore => Platforms.Count(p => p != Services.Platforms.GamePass) > 1;
@@ -62,7 +72,7 @@ public sealed record LibraryGameItem(
 /// </summary>
 public sealed record LibraryStats(
     int Games, int Tracked, int Played, int NeverPlayed, int MultiStore, int TotalMinutes, LibraryGameItem? MostPlayed,
-    int Completed = 0, string? CompletedSource = null)
+    int Completed = 0, string? CompletedSource = null, int RecentlyAdded = 0)
 {
     /// <param name="backlog">The tracker snapshot the completed marks came from (null: none known).</param>
     public static LibraryStats Compute(IEnumerable<LibraryGameItem> games, BacklogSnapshot? backlog = null)
@@ -78,8 +88,14 @@ public sealed record LibraryStats(
             list.Sum(g => g.PlaytimeMinutes ?? 0),
             list.Where(g => g.PlaytimeMinutes > 0).MaxBy(g => g.PlaytimeMinutes),
             list.Count(g => g.IsCompleted),
-            backlog?.Target);
+            backlog?.Target,
+            list.Count(g => g.IsNew));
     }
+
+    public bool HasRecentlyAdded => RecentlyAdded > 0;
+
+    /// <summary>"3 added in the last 30 days".</summary>
+    public string RecentlyAddedText => $"{RecentlyAdded} added in the last {FirstSeenGames.RecentDays} days";
 
     public bool HasCompletion => CompletedSource != null;
 
@@ -123,7 +139,8 @@ public enum LibrarySort
 {
     Name,
     MostPlayed,
-    RecentlyPlayed
+    RecentlyPlayed,
+    RecentlyAdded
 }
 
 /// <summary>A platform filter choice with its game count, e.g. "GOG (42)".</summary>
@@ -145,6 +162,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
     public const string HiddenKey = "hidden";
     public const string CompletedKey = "completed";
     public const string NotCompletedKey = "not-completed";
+    public const string RecentKey = "recent";
 
     private readonly List<LibraryGameItem> _all;
     private readonly IgnoredGames? _ignored;
@@ -196,7 +214,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="backlog">Completed marks from the last tracker export (Notion / Sheets), if any.</param>
     public LibraryViewModel(
         IEnumerable<CsvGameExportRow> rows, IEnumerable<CsvGameExportRow>? hidden = null, IgnoredGames? ignored = null,
-        BacklogSnapshot? backlog = null, Action<string>? openLink = null, Random? random = null)
+        BacklogSnapshot? backlog = null, Action<string>? openLink = null, Random? random = null,
+        Func<CsvGameExportRow, DateOnly?>? addedOn = null)
     {
         _openLink = openLink;
         _random = random ?? Random.Shared;
@@ -205,8 +224,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var completed = new HashSet<string>(backlog?.CompletedKeys ?? [], StringComparer.OrdinalIgnoreCase);
         bool IsCompleted(CsvGameExportRow r) => completed.Count > 0 && IgnoredGames.KeysOf(r).Any(completed.Contains);
 
-        _all = rows.Where(r => r.HasContent).Select(r => LibraryGameItem.From(r, completed: IsCompleted(r)))
-            .Concat((hidden ?? []).Where(r => r.HasContent).Select(r => LibraryGameItem.From(r, true, IsCompleted(r))))
+        _all = rows.Where(r => r.HasContent)
+            .Select(r => LibraryGameItem.From(r, completed: IsCompleted(r), addedOn: addedOn?.Invoke(r)))
+            .Concat((hidden ?? []).Where(r => r.HasContent)
+                .Select(r => LibraryGameItem.From(r, true, IsCompleted(r), addedOn?.Invoke(r))))
             .OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
@@ -214,7 +235,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
         [
             new LibrarySortOption("Sort: name", LibrarySort.Name),
             new LibrarySortOption("Sort: most played", LibrarySort.MostPlayed),
-            new LibrarySortOption("Sort: recently played", LibrarySort.RecentlyPlayed)
+            new LibrarySortOption("Sort: recently played", LibrarySort.RecentlyPlayed),
+            new LibrarySortOption("Sort: recently added", LibrarySort.RecentlyAdded)
         ];
         selectedSort = Sorts[0];
         filters = BuildFilters();
@@ -343,6 +365,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
             options.Add(new LibraryFilterOption("Not completed", NotCompletedKey, exported.Count(g => !g.IsCompleted)));
         }
 
+        var recent = exported.Count(g => g.IsNew);
+        if (recent > 0) options.Add(new LibraryFilterOption($"Added in the last {FirstSeenGames.RecentDays} days", RecentKey, recent));
+
         var never = exported.Count(g => g.IsNeverPlayed);
         if (never > 0) options.Add(new LibraryFilterOption("Never played", NeverPlayedKey, never));
 
@@ -366,6 +391,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
                 NeverPlayedKey => g.IsNeverPlayed,
                 CompletedKey => g.IsCompleted,
                 NotCompletedKey => !g.IsCompleted,
+                RecentKey => g.IsNew,
                 _ => g.Platforms.Contains(key)
             })
             .Where(g => string.IsNullOrEmpty(query) ||
@@ -376,6 +402,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         {
             LibrarySort.MostPlayed => filtered.OrderByDescending(g => g.PlaytimeMinutes ?? -1),
             LibrarySort.RecentlyPlayed => filtered.OrderByDescending(g => g.LastPlayed ?? DateTimeOffset.MinValue),
+            LibrarySort.RecentlyAdded => filtered.OrderByDescending(g => g.AddedOn ?? DateOnly.MinValue),
             _ => filtered
         }).ToList();
         OnPropertyChanged(nameof(Summary));

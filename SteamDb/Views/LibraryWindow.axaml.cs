@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
 using SteamDb.ViewModels;
 
@@ -10,7 +11,7 @@ public partial class LibraryWindow : Window
 {
     public LibraryWindow()
     {
-        InitializeComponent();
+        AvaloniaXamlLoader.Load(this);
     }
 
     // Double-clicking a game opens its store page (not when the double-click hit the Hide button).

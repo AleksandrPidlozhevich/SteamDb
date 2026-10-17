@@ -73,6 +73,7 @@ the file for your system:
 | 🎮 **Four stores, one list** | Fetches owned games from Steam, Epic, GOG and Xbox and merges duplicates across stores. Untick a store to leave it out of exports. |
 | 📤 **Three export targets** | A Notion database, Google Sheets, or a local CSV file. |
 | 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. A footer sums it up: share of games played, total hours, most played. Double-click a game to open its store page. |
+| 🆕 **Recently added** | SteamDb remembers when it first saw each game, so the library viewer marks new games **NEW** and can filter / sort by *recently added* (stores don't report purchase dates; games you owned before SteamDb tracked a store don't count). |
 | 🎲 **Pick for me** | Can't decide? The library viewer suggests a game from the list shown, skipping completed and hidden ones and preferring games you've barely touched. |
 | ✅ **Backlog progress** | After an export to Notion or Google Sheets, the card shows *Completed 120 of 640 (19%)*, and the library viewer marks completed games ✓ with **Completed / Not completed** filters. |
 | 🖼️ **Covers & store links** | New Notion pages get the game's cover image and a `Store link`; existing pages without one are filled in. |

@@ -40,5 +40,7 @@
 
     <Application.Styles>
         <FluentTheme />
+        <!-- The app's shared look: icons, ⓘ buttons, cards, banners, dialogs (all windows). -->
+        <StyleInclude Source="/Styles/Common.axaml" />
     </Application.Styles>
 </Application>

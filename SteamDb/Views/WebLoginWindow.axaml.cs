@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 using System;
 using System.Threading.Tasks;
 
@@ -27,9 +28,12 @@ public partial class WebLoginWindow : Window
     private Uri? _pendingLoginUri;
     private bool _captured;
 
+    private readonly NativeWebView _webView;
+
     public WebLoginWindow()
     {
-        InitializeComponent();
+        AvaloniaXamlLoader.Load(this);
+        _webView = this.Named<NativeWebView>("WebView");
     }
 
     /// <summary>Shows the login window and resolves with the captured redirect URL (or null if closed).</summary>
@@ -38,12 +42,12 @@ public partial class WebLoginWindow : Window
         _redirectPrefix = redirectUri.GetLeftPart(UriPartial.Path);
         _pendingLoginUri = requestUri;
 
-        WebView.NavigationStarted += OnNavigationStarted;
-        WebView.NavigationCompleted += OnNavigationCompleted;
+        _webView.NavigationStarted += OnNavigationStarted;
+        _webView.NavigationCompleted += OnNavigationCompleted;
         Closed += (_, _) => _result.TrySetResult(null);
 
         // Show the spinner page once the WebView is realized; navigating to the login follows.
-        Opened += (_, _) => WebView.NavigateToString(SpinnerHtml, new Uri("about:blank"));
+        Opened += (_, _) => _webView.NavigateToString(SpinnerHtml, new Uri("about:blank"));
 
         Show(owner);
         return _result.Task;
@@ -69,7 +73,7 @@ public partial class WebLoginWindow : Window
         if (_pendingLoginUri is { } login)
         {
             _pendingLoginUri = null;
-            WebView.Source = login;
+            _webView.Source = login;
         }
     }
 

@@ -1,0 +1,195 @@
+<!-- Styles shared by every window (included in App.axaml). Window-specific layout stays in the
+     window; anything used in two places, or that defines the app's look, lives here. -->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:SteamDb.Views">
+
+    <!-- ===== Icons ===== -->
+
+    <!-- Uniform sizing for every provider icon (Svg- or Image-based). -->
+    <Style Selector="Svg.icon, Image.icon">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="44" />
+    </Style>
+
+    <!-- A transparent 44×44 icon button (info / Ko-fi / theme toggle). -->
+    <Style Selector="Button.icon-button, Button.info">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- A single gentle scale-up on hover (no looping animation). -->
+    <Style Selector="Button.animated-button, Button.info">
+        <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15"
+                                               Easing="CubicEaseOut" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.animated-button:pointerover, Button.info:pointerover">
+        <Setter Property="RenderTransform" Value="scale(1.12)" />
+    </Style>
+
+    <!-- ⓘ button (sized and animated like the icon buttons above): opens the matching README section.
+         Set ToolTip.Tip, AutomationProperties.Name and Command. -->
+    <Style Selector="Button.info">
+        <Setter Property="Content">
+            <Template>
+                <Viewbox>
+                    <Image Source="{DynamicResource InfoIcon}" />
+                </Viewbox>
+            </Template>
+        </Setter>
+    </Style>
+
+    <!-- ===== Inputs ===== -->
+
+    <!-- Uniform sizing for every credential field. -->
+    <Style Selector="TextBox.field">
+        <Setter Property="Width" Value="220" />
+        <Setter Property="FontSize" Value="10" />
+    </Style>
+
+    <!-- Compact ticks (Fluent's CheckBox has a 120px MinWidth). -->
+    <Style Selector="CheckBox.include">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Padding" Value="4,0,0,0" />
+    </Style>
+
+    <!-- ===== Cards (main window) ===== -->
+
+    <!-- Card frame: a "fieldset" whose left border is broken by its icon (see ActionCard). -->
+    <Style Selector="Border.card">
+        <Setter Property="Width" Value="240" />
+        <Setter Property="BorderBrush" Value="#80808080" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="40,14,20,14" />
+        <Setter Property="Margin" Value="24,0,0,0" />
+    </Style>
+    <!-- Buttons inside a card fill the card width. (ActionCard's frame is in its template, which
+         isn't a logical ancestor of the content, so it needs its own selector.) -->
+    <Style Selector="Border.card Button, views|ActionCard Button">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+
+    <!-- The card's icon sits on the frame; the window-coloured background hides the line behind it. -->
+    <Style Selector="views|ActionCard">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Panel>
+                    <Border Classes="card">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}" />
+                    </Border>
+                    <Border HorizontalAlignment="Left" VerticalAlignment="Center" Padding="4,6"
+                            Background="{Binding $parent[Window].Background}">
+                        <Image Classes="icon" Source="{TemplateBinding Icon}" />
+                    </Border>
+                </Panel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!-- "Last sync: today 14:20" / "Completed 120 of 640" under a card's buttons. -->
+    <Style Selector="TextBlock.last-sync">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="Opacity" Value="0.6" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
+    <!-- ===== Banners ===== -->
+
+    <!-- A one-line message strip with optional buttons: info (blue), success (green), warning (amber). -->
+    <Style Selector="Border.banner">
+        <Setter Property="Padding" Value="12,4" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.banner.info">
+        <Setter Property="Background" Value="#1F3B82F6" />
+        <Setter Property="BorderBrush" Value="#803B82F6" />
+    </Style>
+    <Style Selector="Border.banner.success">
+        <Setter Property="Background" Value="#1F22C55E" />
+        <Setter Property="BorderBrush" Value="#8022C55E" />
+    </Style>
+    <Style Selector="Border.banner.warning">
+        <Setter Property="Background" Value="#1FF59E0B" />
+        <Setter Property="BorderBrush" Value="#80F59E0B" />
+    </Style>
+    <Style Selector="Border.banner Button">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Padding" Value="10,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- ✕ that closes a banner. -->
+    <Style Selector="Border.banner Button.dismiss">
+        <Setter Property="Content" Value="✕" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="ToolTip.Tip" Value="Dismiss" />
+        <Setter Property="AutomationProperties.Name" Value="Dismiss" />
+    </Style>
+
+    <!-- ===== Lists & dialogs ===== -->
+
+    <!-- The rounded frame around a window's main list. -->
+    <Style Selector="Border.list-frame">
+        <Setter Property="BorderBrush" Value="#40808080" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+
+    <Style Selector="TextBlock.column-header">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Opacity" Value="0.7" />
+    </Style>
+
+    <!-- Platform tag chip. -->
+    <Style Selector="Border.chip">
+        <Setter Property="Background" Value="#26808080" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="6,1" />
+        <Setter Property="Margin" Value="0,0,4,0" />
+    </Style>
+
+    <!-- "NEW" badge: a game added recently. -->
+    <Style Selector="Border.chip.new">
+        <Setter Property="Background" Value="#332E9E5B" />
+        <Setter Property="Padding" Value="5,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Bottom-right Cancel / OK row of a dialog (see DialogWindow for the confirm / cancel classes). -->
+    <Style Selector="StackPanel.dialog-buttons">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="Spacing" Value="8" />
+        <Setter Property="Margin" Value="0,12,0,0" />
+    </Style>
+    <Style Selector="StackPanel.dialog-buttons > Button">
+        <Setter Property="MinWidth" Value="80" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+
+    <!-- Dialog heading ("Nothing has been written yet"). -->
+    <Style Selector="TextBlock.dialog-title">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+</Styles>

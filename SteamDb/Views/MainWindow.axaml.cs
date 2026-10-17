@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -20,14 +21,20 @@ public partial class MainWindow : Window
     private readonly ILogService? _log;
     private readonly ISecretStore? _secrets;
 
+    // Named controls from MainWindow.axaml.
+    private readonly Border _dropOverlay;
+    private readonly NativeWebView _prewarmWebView;
+
     // Parameterless ctor for the XAML loader / previewer (no pre-warm without DI dependencies).
     public MainWindow()
     {
-        InitializeComponent();
+        AvaloniaXamlLoader.Load(this);
+        _dropOverlay = this.Named<Border>("DropOverlay");
+        _prewarmWebView = this.Named<NativeWebView>("PrewarmWebView");
 
         // Drop a game list / settings file anywhere on the window.
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
-        AddHandler(DragDrop.DragLeaveEvent, (_, _) => DropOverlay.IsVisible = false);
+        AddHandler(DragDrop.DragLeaveEvent, (_, _) => _dropOverlay.IsVisible = false);
         AddHandler(DragDrop.DropEvent, OnDrop);
     }
 
@@ -108,12 +115,12 @@ public partial class MainWindow : Window
         var acceptsFile = e.DataTransfer.Contains(DataFormat.File) &&
                           DataContext is MainWindowViewModel { Progress.IsBusy: false };
         e.DragEffects = acceptsFile ? DragDropEffects.Copy : DragDropEffects.None;
-        DropOverlay.IsVisible = acceptsFile;
+        _dropOverlay.IsVisible = acceptsFile;
     }
 
     private async void OnDrop(object? sender, DragEventArgs e)
     {
-        DropOverlay.IsVisible = false;
+        _dropOverlay.IsVisible = false;
         if (DataContext is not MainWindowViewModel viewModel) return;
 
         // One file at a time: the first file of the drop (folders are ignored).
@@ -139,8 +146,8 @@ public partial class MainWindow : Window
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(3));
-            await Dispatcher.UIThread.InvokeAsync(() =>
-                PrewarmWebView.Source = _clients!.CreateGog().LoginRequestUri);
+            await Dispatcher.UIThread.InvokeAsync(
+                () => { _prewarmWebView.Source = _clients!.CreateGog().LoginRequestUri; });
         }
         catch (Exception ex)
         {

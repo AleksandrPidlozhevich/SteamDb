@@ -15,21 +15,6 @@
         <vm:LibraryViewModel />
     </Design.DataContext>
 
-    <Window.Styles>
-        <!-- Platform tag chip. -->
-        <Style Selector="Border.chip">
-            <Setter Property="Background" Value="#26808080" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="6,1" />
-            <Setter Property="Margin" Value="0,0,4,0" />
-        </Style>
-        <Style Selector="TextBlock.column-header">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Opacity" Value="0.7" />
-        </Style>
-    </Window.Styles>
-
     <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,*,Auto">
 
         <!-- Search + platform filter + count. -->
@@ -59,8 +44,7 @@
         </Grid>
 
         <!-- Pick for me: the suggestion, its store page, another pick. -->
-        <Border Grid.Row="1" Margin="0,0,0,10" Padding="12,4" CornerRadius="6"
-                Background="#1F3B82F6" BorderBrush="#803B82F6" BorderThickness="1">
+        <Border Grid.Row="1" Classes="banner info" Margin="0,0,0,10">
             <Border.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="HasPicked" />
@@ -73,7 +57,7 @@
                            IsVisible="{Binding HasPicked}" />
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
                            Text="{Binding PickMessage}" IsVisible="{Binding !HasPicked}" />
-                <Button Grid.Column="1" Content="Store page" FontSize="11" Padding="10,2"
+                <Button Grid.Column="1" Content="Store page"
                         Command="{Binding OpenStorePageCommand}" CommandParameter="{Binding Picked}">
                     <Button.IsVisible>
                         <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -82,11 +66,9 @@
                         </MultiBinding>
                     </Button.IsVisible>
                 </Button>
-                <Button Grid.Column="2" Content="Another" FontSize="11" Padding="10,2" Margin="6,0,0,0"
+                <Button Grid.Column="2" Content="Another" Margin="6,0,0,0"
                         Command="{Binding PickForMeCommand}" IsVisible="{Binding HasPicked}" />
-                <Button Grid.Column="3" Content="✕" FontSize="11" Padding="8,2" Margin="6,0,0,0"
-                        Background="Transparent" ToolTip.Tip="Dismiss"
-                        Command="{Binding DismissPickCommand}" />
+                <Button Grid.Column="3" Classes="dismiss" Command="{Binding DismissPickCommand}" />
             </Grid>
         </Border>
 
@@ -99,7 +81,7 @@
             <TextBlock Grid.Column="4" Classes="column-header" Text="ID" />
         </Grid>
 
-        <Border Grid.Row="3" BorderBrush="#40808080" BorderThickness="1" CornerRadius="6">
+        <Border Grid.Row="3" Classes="list-frame">
             <Panel>
                 <ListBox ItemsSource="{Binding VisibleGames}" Background="Transparent"
                          SelectedItem="{Binding SelectedGame, Mode=TwoWay}" AutoScrollToSelectedItem="True"
@@ -111,6 +93,10 @@
                                             VerticalAlignment="Center" Margin="0,0,8,0">
                                     <TextBlock Text="✓" FontWeight="Bold" Foreground="#2E9E5B"
                                                IsVisible="{Binding IsCompleted}" ToolTip.Tip="Completed" />
+                                    <Border Classes="chip new" IsVisible="{Binding IsNew}"
+                                            ToolTip.Tip="{Binding AddedText}">
+                                        <TextBlock Text="NEW" FontSize="9" FontWeight="Bold" />
+                                    </Border>
                                     <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}"
                                                ToolTip.Tip="Double-click to open the store page" />
                                 </StackPanel>
@@ -174,6 +160,9 @@
                        IsVisible="{Binding Stats.HasPlaytimeData}" Text="{Binding Stats.NeverPlayedText}" />
             <TextBlock FontSize="12" Opacity="0.75" Margin="0,0,20,4" VerticalAlignment="Center"
                        Text="{Binding Stats.MultiStoreText}" />
+            <TextBlock FontSize="12" Opacity="0.75" Margin="0,0,20,4" VerticalAlignment="Center"
+                       IsVisible="{Binding Stats.HasRecentlyAdded}" Text="{Binding Stats.RecentlyAddedText}"
+                       ToolTip.Tip="Games SteamDb saw for the first time recently (stores don't report purchase dates, so this counts from when SteamDb started tracking each store)" />
             <TextBlock FontSize="12" Opacity="0.75" Margin="0,0,0,4" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" MaxWidth="360"
                        Text="{Binding Stats.MostPlayedText}" ToolTip.Tip="{Binding Stats.MostPlayedText}" />

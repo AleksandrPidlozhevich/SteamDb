@@ -1,6 +1,7 @@
 using SteamDb.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -59,9 +60,14 @@ public sealed class GameLibraryService : IGameLibraryService
     private readonly IStoreClientFactory _clients;
     private readonly StoreSelection _selection;
     private readonly IgnoredGames _ignored;
+    private readonly FirstSeenGames? _firstSeen;
 
-    public GameLibraryService(IStoreClientFactory clients, StoreSelection? selection = null, IgnoredGames? ignored = null)
+    /// <param name="firstSeen">Remembers when each fetched game was first seen ("recently added").</param>
+    public GameLibraryService(
+        IStoreClientFactory clients, StoreSelection? selection = null, IgnoredGames? ignored = null,
+        FirstSeenGames? firstSeen = null)
     {
+        _firstSeen = firstSeen;
         _clients = clients;
         _selection = selection ?? new StoreSelection();
         _ignored = ignored ?? new IgnoredGames();
@@ -147,7 +153,7 @@ public sealed class GameLibraryService : IGameLibraryService
         var (rows, ignoredRows) = _ignored.Split(
             CsvGameExportService.BuildFromLibraries(steamGames, epicGames, gogGames, xboxGames));
 
-        return new GameLibraryResult(
+        var result = new GameLibraryResult(
             rows,
             isEpicAuthenticated,
             epicStatus == StoreAuthFromCacheStatus.SessionExpired,
@@ -158,5 +164,7 @@ public sealed class GameLibraryService : IGameLibraryService
             steamGames != null,
             skipped,
             ignoredRows);
+        _firstSeen?.Record(rows.Concat(ignoredRows), result.FetchedStores, DateOnly.FromDateTime(DateTime.Now));
+        return result;
     }
 }

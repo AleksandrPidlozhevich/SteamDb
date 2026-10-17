@@ -54,30 +54,19 @@ public sealed class WindowDialogService : IDialogService
         return files.FirstOrDefault();
     }
 
-    public async Task ShowErrorAsync(string title, Exception exception)
-    {
-        var window = MainWindow;
-        if (window == null) return;
-
-        var errorWindow = new Error(title, BuildErrorMessage(exception));
-        await errorWindow.ShowDialog(window);
-    }
+    public Task ShowErrorAsync(string title, Exception exception) =>
+        ShowDialogAsync(new ErrorWindow(title, BuildErrorMessage(exception)));
 
     public void ShowLibrary(LibraryViewModel library)
     {
-        var window = MainWindow;
-        if (window == null) return;
-
-        new LibraryWindow { DataContext = library }.Show(window);
+        if (MainWindow is { } owner) new LibraryWindow { DataContext = library }.Show(owner);
     }
 
-    public async Task<bool> ConfirmNotionExportAsync(NotionExportPreviewViewModel preview)
-    {
-        var window = MainWindow;
-        if (window == null) return false;
+    public Task<bool> ConfirmNotionExportAsync(NotionExportPreviewViewModel preview) =>
+        ShowDialogAsync(new NotionExportPreviewWindow { DataContext = preview });
 
-        return await new NotionExportPreviewWindow { DataContext = preview }.ShowDialog<bool>(window);
-    }
+    public Task<bool> ConfirmNotionDuplicatesAsync(NotionDuplicatesViewModel duplicates) =>
+        ShowDialogAsync(new NotionDuplicatesWindow { DataContext = duplicates });
 
     private SyncLogWindow? _syncLogWindow;
 
@@ -101,17 +90,16 @@ public sealed class WindowDialogService : IDialogService
         else window.Show();
     }
 
-    public async Task<bool> ConfirmNotionDuplicatesAsync(NotionDuplicatesViewModel duplicates)
-    {
-        var window = MainWindow;
-        if (window == null) return false;
-
-        return await new NotionDuplicatesWindow { DataContext = duplicates }.ShowDialog<bool>(window);
-    }
-
     public void OpenLink(string url)
     {
         SystemBrowser.Open(url);
+    }
+
+    // Modal over the main window; false (nothing confirmed) when there's no window to own it.
+    private static async Task<bool> ShowDialogAsync(DialogWindow dialog)
+    {
+        if (MainWindow is not { } owner) return false;
+        return await dialog.ShowDialog<bool>(owner);
     }
 
     private static string BuildErrorMessage(Exception exception)
