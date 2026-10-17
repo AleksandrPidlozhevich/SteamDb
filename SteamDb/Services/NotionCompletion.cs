@@ -1,0 +1,49 @@
+using Newtonsoft.Json.Linq;
+using System;
+using System.Linq;
+
+namespace SteamDb.Services;
+
+/// <summary>
+/// Reads whether a Notion page is marked as completed. SteamDb never writes this — it's the user's
+/// own column, so a few common shapes are recognised: a checkbox named Completed / Done / Finished /
+/// Beaten, or a Status / select property (named Status or one of those) set to a "done" option.
+/// </summary>
+public static class NotionCompletion
+{
+    public static readonly string[] PropertyNames = ["Completed", "Complete", "Done", "Finished", "Beaten"];
+
+    public static readonly string[] DoneValues =
+        ["Completed", "Complete", "Done", "Finished", "Beaten", "Played", "100%"];
+
+    /// <summary>True / false when the page has a completion property; null when the database has none.</summary>
+    public static bool? Read(JToken? properties)
+    {
+        if (properties is not JObject all) return null;
+
+        // A checkbox wins: it's the clearest signal.
+        foreach (var property in all.Properties())
+            if (IsCompletionName(property.Name) && Type(property) == "checkbox")
+                return property.Value["checkbox"]?.Value<bool?>() ?? false;
+
+        foreach (var property in all.Properties())
+        {
+            var type = Type(property);
+            if (type is not ("status" or "select")) continue;
+            if (!IsCompletionName(property.Name) && !property.Name.Equals("Status", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // An empty select / status comes back as JSON null.
+            var value = (property.Value[type] as JObject)?["name"]?.Value<string>()?.Trim();
+            return value != null && DoneValues.Contains(value, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return null;
+    }
+
+    private static bool IsCompletionName(string name) =>
+        PropertyNames.Contains(name.Trim(), StringComparer.OrdinalIgnoreCase);
+
+    private static string? Type(JProperty property) =>
+        property.Value is JObject value ? value["type"]?.Value<string>() : null;
+}
