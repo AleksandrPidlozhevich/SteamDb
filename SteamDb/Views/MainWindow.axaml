@@ -5,14 +5,16 @@
         xmlns:wv="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="620"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="660"
         x:Class="SteamDb.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/gamedate.ico"
         Title="SteamDb"
-        Height="620"
+        Height="660"
         Width="780"
-        CanResize="False"
+        MinWidth="780"
+        MinHeight="420"
+        DragDrop.AllowDrop="True"
         WindowStartupLocation="CenterScreen">
 
     <Design.DataContext>
@@ -64,6 +66,13 @@
             <Setter Property="HorizontalContentAlignment" Value="Center" />
         </Style>
 
+        <!-- "Last sync: today 14:20" under a card's buttons. -->
+        <Style Selector="TextBlock.last-sync">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+
         <!-- Theme toggle: a calm scale-up + slight tilt on hover (smooth, no looping). -->
         <Style Selector="Button.theme-toggle">
             <Setter Property="RenderTransformOrigin" Value="50%,50%" />
@@ -78,60 +87,28 @@
             <Setter Property="RenderTransform" Value="scale(1.18) rotate(12deg)" />
         </Style>
 
-        <Style Selector="Button.animated-button">
+        <!-- Info / Ko-fi icon buttons: a single gentle scale-up on hover (no looping animation). -->
+        <Style Selector="Button.animated-button, Button.ko-fi-button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="RenderTransformOrigin" Value="50%,50%" />
             <Setter Property="Transitions">
                 <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.2" />
-                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15"
+                                                   Easing="CubicEaseOut" />
                 </Transitions>
             </Setter>
         </Style>
-
-        <Style Selector="Button.animated-button:pointerover">
-            <Style.Animations>
-                <Animation Duration="0:0:1" Easing="SineEaseInOut" IterationCount="Infinite">
-                    <KeyFrame Cue="0%">
-                        <Setter Property="RotateTransform.Angle" Value="6" />
-                    </KeyFrame>
-                    <KeyFrame Cue="25%">
-                        <Setter Property="RotateTransform.Angle" Value="-6" />
-                    </KeyFrame>
-                    <KeyFrame Cue="50%">
-                        <Setter Property="RotateTransform.Angle" Value="6" />
-                    </KeyFrame>
-                    <KeyFrame Cue="75%">
-                        <Setter Property="RotateTransform.Angle" Value="-6" />
-                    </KeyFrame>
-                    <KeyFrame Cue="100%">
-                        <Setter Property="RotateTransform.Angle" Value="6" />
-                    </KeyFrame>
-                </Animation>
-            </Style.Animations>
+        <Style Selector="Button.animated-button:pointerover, Button.ko-fi-button:pointerover">
+            <Setter Property="RenderTransform" Value="scale(1.12)" />
         </Style>
 
-        <Style Selector="Button.ko-fi-button:pointerover">
-            <Setter Property="RenderTransform">
-                <ScaleTransform ScaleX="1" ScaleY="1" />
-            </Setter>
-            <Style.Animations>
-                <Animation Duration="0:0:0.8" Easing="SineEaseInOut" IterationCount="Infinite">
-                    <KeyFrame Cue="0%">
-                        <Setter Property="ScaleTransform.ScaleX" Value="1" />
-                        <Setter Property="ScaleTransform.ScaleY" Value="1" />
-                    </KeyFrame>
-                    <KeyFrame Cue="50%">
-                        <Setter Property="ScaleTransform.ScaleX" Value="1.2" />
-                        <Setter Property="ScaleTransform.ScaleY" Value="1.2" />
-                    </KeyFrame>
-                    <KeyFrame Cue="100%">
-                        <Setter Property="ScaleTransform.ScaleX" Value="1" />
-                        <Setter Property="ScaleTransform.ScaleY" Value="1" />
-                    </KeyFrame>
-                </Animation>
-            </Style.Animations>
+        <!-- Store "include in export" ticks: compact (Fluent's CheckBox has a 120px MinWidth). -->
+        <Style Selector="CheckBox.include">
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="4,0,0,0" />
         </Style>
     </Window.Styles>
 
@@ -142,7 +119,7 @@
         <Button Grid.Row="1" Classes="theme-toggle icon-button"
                 Width="36" Height="36"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
-                ToolTip.Tip="Switch light / dark theme"
+                ToolTip.Tip="Switch light / dark theme" AutomationProperties.Name="Switch light / dark theme"
                 Click="OnToggleTheme">
             <Viewbox>
                 <Image Source="{DynamicResource ThemeToggleIcon}" />
@@ -180,13 +157,15 @@
         </Grid>
 
         <!-- Update banner: a newer release was found on GitHub at startup (Velopack). Hidden while
-             busy, so the progress bar above takes its place during the download. -->
+             busy, so the progress bar above takes its place during the download, and while an export
+             result is shown (same slot; it comes back once the result is dismissed). -->
         <Border Grid.Row="0" Margin="0,0,0,14" Padding="12,4" CornerRadius="6"
                 Background="#1F3B82F6" BorderBrush="#803B82F6" BorderThickness="1">
             <Border.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="IsUpdateAvailable" />
                     <Binding Path="!Progress.IsBusy" />
+                    <Binding Path="!HasResult" />
                 </MultiBinding>
             </Border.IsVisible>
             <Grid ColumnDefinitions="*,Auto">
@@ -197,13 +176,45 @@
             </Grid>
         </Border>
 
-        <!-- Running version (bottom-left). -->
-        <TextBlock Grid.Row="1" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                   FontSize="10" Opacity="0.6" Text="{Binding AppVersion}" />
+        <!-- Result banner: outcome of the last export + an optional follow-up action. -->
+        <Border Grid.Row="0" Margin="0,0,0,14" Padding="12,4" CornerRadius="6"
+                Background="#1F22C55E" BorderBrush="#8022C55E" BorderThickness="1">
+            <Border.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="HasResult" />
+                    <Binding Path="!Progress.IsBusy" />
+                </MultiBinding>
+            </Border.IsVisible>
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
+                           TextTrimming="CharacterEllipsis" Text="{Binding ResultMessage}"
+                           ToolTip.Tip="{Binding ResultMessage}" />
+                <Button Grid.Column="1" Content="{Binding ResultActionLabel}" FontSize="11" Padding="10,2"
+                        IsVisible="{Binding HasResultAction}" Command="{Binding RunResultActionCommand}" />
+                <Button Grid.Column="2" Content="✕" FontSize="11" Padding="8,2" Margin="6,0,0,0"
+                        Background="Transparent" ToolTip.Tip="Dismiss" AutomationProperties.Name="Dismiss"
+                        Command="{Binding DismissResultCommand}" />
+            </Grid>
+        </Border>
 
-        <!-- Two columns: credential inputs (left) and action cards (right).
+        <!-- Running version (bottom-left). -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Left" VerticalAlignment="Bottom">
+            <TextBlock FontSize="10" Opacity="0.6" VerticalAlignment="Center" Text="{Binding AppVersion}" />
+            <Button Content="Logs" FontSize="10" Padding="4,0" Opacity="0.7" Background="Transparent"
+                    ToolTip.Tip="Open the folder with the log files (useful for bug reports)"
+                    Command="{Binding OpenLogsFolderCommand}" />
+        </StackPanel>
+
+        <!-- Two columns: credential inputs (left) and action cards (right), centred in a resizable
+             window and scrollable when it's made shorter than the content.
              Disabled while an export/connect is running (Cancel stays active in the row above). -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,56,Auto" VerticalAlignment="Top"
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                      Margin="0,0,-24,22">
+        <!-- Right margin: room for the Sheets info button that overflows its card, so centring
+             accounts for it; the negative margin above keeps the scrollbar clear of the theme toggle. -->
+        <Grid ColumnDefinitions="Auto,56,Auto" VerticalAlignment="Top" HorizontalAlignment="Center"
+              Margin="0,0,74,0"
               IsEnabled="{Binding !Progress.IsBusy}">
 
             <!-- ===== Left: credential inputs ===== -->
@@ -215,7 +226,8 @@
                              PlaceholderText="Steam API key" UseFloatingPlaceholder="True" PasswordChar="*"
                              Text="{Binding SteamApiKey, Mode=TwoWay}" />
                     <Button Classes="animated-button icon-button"
-                            Command="{Binding OpenSteamApiKeyInfoCommand}">
+                           
+                            ToolTip.Tip="How to get a Steam Web API key" AutomationProperties.Name="How to get a Steam Web API key" Command="{Binding OpenSteamApiKeyInfoCommand}">
                         <Viewbox>
                             <Image Source="{DynamicResource InfoIcon}" />
                         </Viewbox>
@@ -224,11 +236,13 @@
 
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <Svg Classes="icon" Path="/Assets/steam.svg" />
-                    <TextBox Classes="field revealPasswordButton" VerticalAlignment="Center"
-                             PlaceholderText="Steam ID" UseFloatingPlaceholder="True" PasswordChar="*"
+                    <!-- Not a secret, so not masked. Accepts the id, a profile link or a custom-URL name. -->
+                    <TextBox Classes="field" VerticalAlignment="Center"
+                             PlaceholderText="Steam ID or profile link" UseFloatingPlaceholder="True"
                              Text="{Binding SteamId, Mode=TwoWay}" />
                     <Button Classes="animated-button icon-button"
-                            Command="{Binding OpenInfoLinkSteamIdCommand}">
+                           
+                            ToolTip.Tip="How to find your Steam ID" AutomationProperties.Name="How to find your Steam ID" Command="{Binding OpenInfoLinkSteamIdCommand}">
                         <Viewbox>
                             <Image Source="{DynamicResource InfoIcon}" />
                         </Viewbox>
@@ -242,7 +256,8 @@
                              PasswordChar="*"
                              Text="{Binding NotionToken, Mode=TwoWay}" />
                     <Button Classes="animated-button icon-button"
-                            Command="{Binding OpenInfoLinkNotionTokenCommand}">
+                           
+                            ToolTip.Tip="How to create a Notion integration token" AutomationProperties.Name="How to create a Notion integration token" Command="{Binding OpenInfoLinkNotionTokenCommand}">
                         <Viewbox>
                             <Image Source="{DynamicResource InfoIcon}" />
                         </Viewbox>
@@ -255,7 +270,8 @@
                              PlaceholderText="Database ID" UseFloatingPlaceholder="True" PasswordChar="*"
                              Text="{Binding DbId, Mode=TwoWay}" />
                     <Button Classes="animated-button icon-button"
-                            Command="{Binding OpenInfoLinkNotionDbIdCommand}">
+                           
+                            ToolTip.Tip="How to find your Notion database ID" AutomationProperties.Name="How to find your Notion database ID" Command="{Binding OpenInfoLinkNotionDbIdCommand}">
                         <Viewbox>
                             <Image Source="{DynamicResource InfoIcon}" />
                         </Viewbox>
@@ -271,8 +287,18 @@
                      Indented past the icon column so it lines up with the fields. -->
                 <Button Content="View library…" Height="36" Width="220" Margin="52,0,0,0"
                         HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                        ToolTip.Tip="Fetch your games from all stores and browse them before exporting"
+                        ToolTip.Tip="{Binding LibraryHint, FallbackValue='Fetch your games and browse them before exporting', TargetNullValue='Fetch your games and browse them before exporting'}"
+                        ToolTip.ShowOnDisabled="True"
                         Command="{Binding ViewLibraryCommand}" />
+
+                <!-- Which stores go into exports, the library view and the command-line sync (saved). -->
+                <StackPanel Orientation="Horizontal" Spacing="12" Margin="52,-4,0,0"
+                            ToolTip.Tip="Stores included in exports and the library view">
+                    <CheckBox Classes="include" Content="Steam" IsChecked="{Binding IncludeSteam}" />
+                    <CheckBox Classes="include" Content="Epic" IsChecked="{Binding IncludeEpic}" />
+                    <CheckBox Classes="include" Content="GOG" IsChecked="{Binding IncludeGog}" />
+                    <CheckBox Classes="include" Content="Xbox" IsChecked="{Binding IncludeXbox}" />
+                </StackPanel>
             </StackPanel>
 
             <!-- ===== Right: action cards (uniform width, evenly spaced) =====
@@ -283,8 +309,12 @@
                 <Panel HorizontalAlignment="Center">
                     <Border Classes="card">
                         <StackPanel Orientation="Vertical" Spacing="8">
-                            <Button Content="Export to .csv" Command="{Binding ExportToCsvCommand}" />
-                            <Button Content="Update .csv" Command="{Binding UpdateCsvCommand}" />
+                            <Button Content="Export to .csv" Command="{Binding ExportToCsvCommand}"
+                                    ToolTip.Tip="{Binding LibraryHint}" ToolTip.ShowOnDisabled="True" />
+                            <Button Content="Update .csv" Command="{Binding UpdateCsvCommand}"
+                                    ToolTip.Tip="{Binding LibraryHint}" ToolTip.ShowOnDisabled="True" />
+                            <TextBlock Classes="last-sync" Text="{Binding CsvLastSync}"
+                                       IsVisible="{Binding CsvLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
                         </StackPanel>
                     </Border>
                     <Border HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -295,7 +325,12 @@
 
                 <Panel HorizontalAlignment="Center">
                     <Border Classes="card">
-                        <Button Content="Export to Notion" Command="{Binding ExportToNotionCommand}" />
+                        <StackPanel Orientation="Vertical" Spacing="8">
+                            <Button Content="Export to Notion" Command="{Binding ExportToNotionCommand}"
+                                    ToolTip.Tip="{Binding NotionHint}" ToolTip.ShowOnDisabled="True" />
+                            <TextBlock Classes="last-sync" Text="{Binding NotionLastSync}"
+                                       IsVisible="{Binding NotionLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </StackPanel>
                     </Border>
                     <Border HorizontalAlignment="Left" VerticalAlignment="Center"
                             Background="{Binding $parent[Window].Background}" Padding="4,6">
@@ -323,11 +358,14 @@
                             <StackPanel Orientation="Vertical" Spacing="8">
                                 <Button Content="Export to Google Sheets" Height="40"
                                         VerticalContentAlignment="Center"
-                                        Command="{Binding ExportToGoogleSheetsCommand}" />
+                                        Command="{Binding ExportToGoogleSheetsCommand}"
+                                        ToolTip.Tip="{Binding SheetsHint}" ToolTip.ShowOnDisabled="True" />
                                 <TextBox FontSize="10" HorizontalAlignment="Stretch"
                                          PlaceholderText="Google Sheets Table Name"
                                          UseFloatingPlaceholder="True"
                                          Text="{Binding GoogleSheetsTableName, Mode=TwoWay}" />
+                                <TextBlock Classes="last-sync" Text="{Binding SheetsLastSync}"
+                                           IsVisible="{Binding SheetsLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             </StackPanel>
                         </Border>
                         <Border HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -338,6 +376,7 @@
                     <Button Classes="animated-button icon-button"
                             HorizontalAlignment="Right" VerticalAlignment="Center"
                             Margin="0,0,-50,0"
+                            ToolTip.Tip="About the Google Sheets export" AutomationProperties.Name="About the Google Sheets export"
                             Command="{Binding OpenInfoGoogleSheetsCommand}">
                         <Viewbox>
                             <Image Source="{DynamicResource InfoIcon}" />
@@ -349,6 +388,7 @@
                 <Panel HorizontalAlignment="Center">
                     <Border Classes="card" Margin="24,9,0,0" Padding="20,16,20,12">
                         <Button Classes="ko-fi-button icon-button" HorizontalAlignment="Center"
+                                ToolTip.Tip="Support the project on Ko-fi" AutomationProperties.Name="Support the project on Ko-fi"
                                 Command="{Binding OpenLinkKofi}">
                             <Viewbox>
                                 <Image Source="{SvgImage /Assets/ko-fi.svg}" />
@@ -362,6 +402,21 @@
                 </Panel>
             </StackPanel>
         </Grid>
+        </ScrollViewer>
+
+        <!-- Shown while a file is dragged over the window (see MainWindow.axaml.cs). -->
+        <Border x:Name="DropOverlay" Grid.Row="0" Grid.RowSpan="2" Margin="-16,-8"
+                IsVisible="False" IsHitTestVisible="False" CornerRadius="10"
+                Background="#E6202020" BorderBrush="#803B82F6" BorderThickness="2">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">
+                <TextBlock Text="Drop the file here" FontSize="20" FontWeight="SemiBold"
+                           Foreground="White" HorizontalAlignment="Center" />
+                <TextBlock Text="A SteamDb game list (.csv) is updated with your current library;"
+                           Foreground="#DDFFFFFF" HorizontalAlignment="Center" />
+                <TextBlock Text="a saved settings file is imported."
+                           Foreground="#DDFFFFFF" HorizontalAlignment="Center" />
+            </StackPanel>
+        </Border>
     </Grid>
 
 </Window>

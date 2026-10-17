@@ -1,6 +1,7 @@
 using SteamDb.Models;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -31,6 +32,19 @@ public sealed class CsvGameExportRow
 
     /// <summary>Xbox title played via Game Pass (played, not owned). Surfaced as a "Game Pass" tag.</summary>
     public bool IsGamePass { get; set; }
+
+    /// <summary>Total playtime in minutes when a store reports it (Steam), else null = unknown.
+    /// Not part of the CSV format; used by the library viewer and the opt-in Notion/Sheets columns.</summary>
+    public int? PlaytimeMinutes { get; set; }
+
+    /// <summary>Last session (Steam / Xbox), null when unknown or never played.</summary>
+    public DateTimeOffset? LastPlayed { get; set; }
+
+    /// <summary>Playtime in hours, rounded to 0.1 (the value written to Notion / Sheets).</summary>
+    public double? PlaytimeHours => PlaytimeMinutes is { } m ? Math.Round(m / 60.0, 1) : null;
+
+    /// <summary>Last-played date as ISO <c>yyyy-MM-dd</c> (UTC), the value written to Notion / Sheets.</summary>
+    public string? LastPlayedDate => LastPlayed?.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     /// <summary>True when the row carries something worth keeping (a name or any identifier).</summary>
     public bool HasContent =>
@@ -84,6 +98,12 @@ public sealed class CsvGameExportRow
         }
 
         IsGamePass |= other.IsGamePass;
+
+        // Only Steam reports playtime and Steam/Xbox last-played; keep the most recent / largest.
+        if (other.PlaytimeMinutes is { } minutes && minutes > (PlaytimeMinutes ?? -1))
+            PlaytimeMinutes = minutes;
+        if (other.LastPlayed is { } lastPlayed && (LastPlayed == null || lastPlayed > LastPlayed))
+            LastPlayed = lastPlayed;
 
         if (!string.IsNullOrEmpty(other.Name))
             Name = other.Name;
@@ -154,7 +174,9 @@ public static class CsvGameExportService
                 {
                     Name = game.Name,
                     HasSteam = true,
-                    SteamGameId = game.GameID
+                    SteamGameId = game.GameID,
+                    PlaytimeMinutes = game.PlaytimeMinutes,
+                    LastPlayed = game.LastPlayedUnix > 0 ? DateTimeOffset.FromUnixTimeSeconds(game.LastPlayedUnix) : null
                 };
 
                 AddOrMerge(rows, indexes, incoming);
@@ -195,7 +217,8 @@ public static class CsvGameExportService
                     Name = game.Name,
                     HasXbox = true,
                     XboxTitleId = game.TitleId,
-                    IsGamePass = game.IsGamePass
+                    IsGamePass = game.IsGamePass,
+                    LastPlayed = game.LastPlayed
                 };
 
                 AddOrMerge(rows, indexes, incoming);
@@ -212,6 +235,18 @@ public static class CsvGameExportService
         ApplyIdField(row, idField ?? string.Empty);
         ApplyPlatformFlags(row, platform ?? string.Empty);
         return row;
+    }
+
+    /// <summary>
+    /// Whether a row already in an export target is still owned: true when the fetch matched it,
+    /// false when it's missing and <b>every</b> store it's tagged with was fetched, null (unknown)
+    /// otherwise — e.g. its GOG session expired, so its absence proves nothing.
+    /// </summary>
+    public static bool? Ownership(CsvGameExportRow row, bool matched, IReadOnlySet<string> fetchedStores)
+    {
+        if (matched) return true;
+        var stores = PlatformCatalog.All.Where(d => d.Has(row)).Select(d => d.Label).ToList();
+        return stores.Count > 0 && stores.All(fetchedStores.Contains) ? false : null;
     }
 
     /// <summary>
@@ -482,7 +517,9 @@ public static class CsvGameExportService
             CatalogItemId = row.CatalogItemId,
             Namespace = row.Namespace,
             GogId = row.GogId,
-            XboxTitleId = row.XboxTitleId
+            XboxTitleId = row.XboxTitleId,
+            PlaytimeMinutes = row.PlaytimeMinutes,
+            LastPlayed = row.LastPlayed
         };
     }
 

@@ -123,6 +123,129 @@ public class NotionGameExporterTests
         Assert.Equal(1, plan.Unchanged);
     }
 
+    [Fact]
+    public async Task Plan_MissingGameIdProperty_IsPlanned_AndAddedOnlyOnApply()
+    {
+        var client = new FakeNotionApiClient();
+        client.PropertyTypes.Remove("GameID");
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(Library(CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400"))),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher([])),
+            new NullLogService());
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        Assert.Equal("GameID", Assert.Single(plan.PropertiesToCreate).Name);
+        Assert.Empty(client.AddedProperties); // dry run
+
+        await exporter.ApplyAsync("token", "db", plan);
+
+        Assert.Equal("rich_text", Assert.Single(client.AddedProperties)["GameID"]);
+        Assert.Single(client.Created);
+    }
+
+    [Fact]
+    public async Task Plan_WrongTitleName_FailsBeforeFetchingAnything()
+    {
+        var client = new FakeNotionApiClient();
+        client.PropertyTypes.Remove("Name");
+        client.PropertyTypes["Title"] = "title";
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(Library()),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher([])),
+            new NullLogService());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => exporter.PlanAsync("key", "id", "token", "db"));
+
+        Assert.Contains("Rename the title column \"Title\" to \"Name\"", ex.Message);
+    }
+
+    [Fact]
+    public async Task Plan_PlaytimeColumn_UpdatesChangedHours_LeavesOthers()
+    {
+        var client = new FakeNotionApiClient();
+        client.PropertyTypes["Playtime"] = "number";
+        var stale = Existing("p1", CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400"),
+            gameId: "Steam:400", platforms: "Steam") with { PlaytimeHours = 2.0 };
+        var current = Existing("p2", CsvGameExportService.CreateRow("Steam", "Doom", "Steam:379720"),
+            gameId: "Steam:379720", platforms: "Steam") with { PlaytimeHours = 1.0 };
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(Library(
+                new CsvGameExportRow { Name = "Portal", HasSteam = true, SteamGameId = 400, PlaytimeMinutes = 750 },
+                new CsvGameExportRow { Name = "Doom", HasSteam = true, SteamGameId = 379720, PlaytimeMinutes = 60 },
+                new CsvGameExportRow { Name = "New", HasSteam = true, SteamGameId = 1, PlaytimeMinutes = 6 })),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher([stale, current])),
+            new NullLogService());
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        var update = Assert.Single(plan.ToUpdate);
+        Assert.Equal("p1", update.PageId);
+        Assert.Equal("Steam · Steam:400 · 2 h", update.Before);
+        Assert.Equal("Steam · Steam:400 · 12.5 h", update.After);
+        var created = (Dictionary<string, object>)Assert.Single(plan.ToCreate).Properties;
+        Assert.True(created.ContainsKey("Playtime"));
+    }
+
+    [Fact]
+    public async Task Plan_WithoutPlaytimeColumn_NeverWritesPlaytime()
+    {
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(Library(
+                new CsvGameExportRow { Name = "New", HasSteam = true, SteamGameId = 1, PlaytimeMinutes = 6 })),
+            new FakeNotionGateway(new FakeNotionApiClient(), new FakeNotionDataFetcher([])),
+            new NullLogService());
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        var created = (Dictionary<string, object>)Assert.Single(plan.ToCreate).Properties;
+        Assert.False(created.ContainsKey("Playtime"));
+    }
+
+    [Fact]
+    public async Task Plan_GoneGame_ListedAndUnticked_OnlyWhenItsStoresWereFetched()
+    {
+        var client = new FakeNotionApiClient();
+        client.PropertyTypes["Owned"] = "checkbox";
+        var refunded = Existing("p1", CsvGameExportService.CreateRow("Steam", "Refunded", "Steam:9"),
+            gameId: "Steam:9", platforms: "Steam") with { Owned = true };
+        var epicOnly = Existing("p2", CsvGameExportService.CreateRow("Epic", "Alan Wake", "Epic:ns/cat"),
+            gameId: "Epic:ns/cat", platforms: "Epic") with { Owned = true };
+        var library = Library(CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400"))
+            with { SteamFetched = true }; // Epic not connected
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(library),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher([refunded, epicOnly])),
+            new NullLogService());
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        Assert.Equal("Refunded", Assert.Single(plan.NoLongerOwned).Name);
+        var update = Assert.Single(plan.ToUpdate);
+        Assert.Equal("p1", update.PageId);
+        Assert.EndsWith("not owned", update.After);
+        var created = (Dictionary<string, object>)Assert.Single(plan.ToCreate).Properties;
+        Assert.True(created.ContainsKey("Owned"));
+    }
+
+    [Fact]
+    public async Task Plan_WithoutOwnedColumn_ReportsGoneButDoesNotUpdate()
+    {
+        var refunded = Existing("p1", CsvGameExportService.CreateRow("Steam", "Refunded", "Steam:9"),
+            gameId: "Steam:9", platforms: "Steam");
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(Library() with { SteamFetched = true }),
+            new FakeNotionGateway(new FakeNotionApiClient(), new FakeNotionDataFetcher([refunded])),
+            new NullLogService());
+
+        var plan = await exporter.PlanAsync("key", "id", "token", "db");
+
+        Assert.Single(plan.NoLongerOwned);
+        Assert.Empty(plan.ToUpdate);
+        Assert.False(plan.HasOwnedColumn);
+    }
+
     // ---- helpers ---------------------------------------------------------------------
 
     // Returns the fake client's recorded writes (the fake itself is file-local).
@@ -188,6 +311,23 @@ file sealed class FakeNotionApiClient : INotionApiClient
 
     public Task<List<JObject>> QueryAllPagesAsync(CancellationToken ct = default) =>
         Task.FromResult(new List<JObject>());
+
+    // A correctly set-up database by default; tests replace it to simulate a broken schema.
+    public Dictionary<string, string> PropertyTypes { get; set; } = new()
+    {
+        ["Name"] = "title", ["Platform's"] = "multi_select", ["GameID"] = "rich_text"
+    };
+
+    public List<IReadOnlyDictionary<string, string>> AddedProperties { get; } = [];
+
+    public Task<IReadOnlyDictionary<string, string>> GetPropertyTypesAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyDictionary<string, string>>(PropertyTypes);
+
+    public Task AddPropertiesAsync(IReadOnlyDictionary<string, string> properties, CancellationToken ct = default)
+    {
+        AddedProperties.Add(properties);
+        return Task.CompletedTask;
+    }
 
     public Task AddPagesToDatabaseParallel(
         IEnumerable<object> pages, Action? onPageDone = null, CancellationToken ct = default)

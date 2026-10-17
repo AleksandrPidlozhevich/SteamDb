@@ -8,7 +8,7 @@
         x:DataType="vm:LibraryViewModel"
         Icon="/Assets/gamedate.ico"
         Title="Game library"
-        Width="760" Height="560" MinWidth="520" MinHeight="320"
+        Width="920" Height="580" MinWidth="620" MinHeight="320"
         WindowStartupLocation="CenterOwner">
 
     <Design.DataContext>
@@ -33,7 +33,7 @@
     <Grid Margin="16" RowDefinitions="Auto,Auto,*">
 
         <!-- Search + platform filter + count. -->
-        <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,12">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,12">
             <TextBox Grid.Column="0" PlaceholderText="Search by name…"
                      Text="{Binding SearchText, Mode=TwoWay}" />
             <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="190"
@@ -48,15 +48,20 @@
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
-            <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Opacity="0.7"
+            <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="170"
+                      ItemsSource="{Binding Sorts}"
+                      SelectedItem="{Binding SelectedSort, Mode=TwoWay}" />
+            <TextBlock Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center" Opacity="0.7"
                        Text="{Binding Summary}" />
         </Grid>
 
         <!-- Column headers (same widths as the item template below). -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,180,240" Margin="12,0,12,4">
+        <Grid Grid.Row="1" ColumnDefinitions="*,170,80,100,220" Margin="12,0,12,4">
             <TextBlock Grid.Column="0" Classes="column-header" Text="Name" />
             <TextBlock Grid.Column="1" Classes="column-header" Text="Platform" />
-            <TextBlock Grid.Column="2" Classes="column-header" Text="ID" />
+            <TextBlock Grid.Column="2" Classes="column-header" Text="Playtime" />
+            <TextBlock Grid.Column="3" Classes="column-header" Text="Last played" />
+            <TextBlock Grid.Column="4" Classes="column-header" Text="ID" />
         </Grid>
 
         <Border Grid.Row="2" BorderBrush="#40808080" BorderThickness="1" CornerRadius="6">
@@ -64,7 +69,7 @@
                 <ListBox ItemsSource="{Binding VisibleGames}" Background="Transparent">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:LibraryGameItem">
-                            <Grid ColumnDefinitions="*,180,240">
+                            <Grid ColumnDefinitions="*,170,80,100,220">
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0"
                                            TextTrimming="CharacterEllipsis" Text="{Binding Name}"
                                            ToolTip.Tip="{Binding Name}" />
@@ -83,7 +88,11 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11"
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="12"
+                                           Text="{Binding PlaytimeText}" />
+                                <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="12"
+                                           Text="{Binding LastPlayedText}" />
+                                <TextBlock Grid.Column="4" VerticalAlignment="Center" FontSize="11"
                                            Opacity="0.7" TextTrimming="CharacterEllipsis"
                                            Text="{Binding Id}" ToolTip.Tip="{Binding Id}" />
                             </Grid>

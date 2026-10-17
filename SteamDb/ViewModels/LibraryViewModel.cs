@@ -7,17 +7,50 @@ using System.Linq;
 namespace SteamDb.ViewModels;
 
 /// <summary>One game in the library viewer: the merged row flattened for display.</summary>
-public sealed record LibraryGameItem(string Name, IReadOnlyList<string> Platforms, string Id)
+public sealed record LibraryGameItem(
+    string Name,
+    IReadOnlyList<string> Platforms,
+    string Id,
+    int? PlaytimeMinutes,
+    DateTimeOffset? LastPlayed)
 {
     public static LibraryGameItem From(CsvGameExportRow row)
     {
         var platforms = PlatformCatalog.All.Where(d => d.Has(row)).Select(d => d.Label).ToList();
         if (row.IsGamePass) platforms.Add(Services.Platforms.GamePass);
-        return new LibraryGameItem(row.Name, platforms, row.IdText);
+        return new LibraryGameItem(row.Name, platforms, row.IdText, row.PlaytimeMinutes, row.LastPlayed);
     }
 
     /// <summary>Owned on two or more stores (Game Pass is a tag, not a purchase).</summary>
     public bool IsMultiStore => Platforms.Count(p => p != Services.Platforms.GamePass) > 1;
+
+    /// <summary>Known to be untouched: a store reported 0 minutes and no store reports a session.</summary>
+    public bool IsNeverPlayed => PlaytimeMinutes == 0 && LastPlayed == null;
+
+    /// <summary>"12.5 h", "&lt; 0.1 h", "—" when no store reports playtime.</summary>
+    public string PlaytimeText => PlaytimeMinutes switch
+    {
+        null => "—",
+        0 => "0 h",
+        < 6 => "< 0.1 h",
+        var m => $"{m / 60.0:0.#} h"
+    };
+
+    /// <summary>Local date of the last session, or "—".</summary>
+    public string LastPlayedText => LastPlayed?.ToLocalTime().ToString("d") ?? "—";
+}
+
+/// <summary>A sort choice for the library list.</summary>
+public sealed record LibrarySortOption(string Label, LibrarySort Sort)
+{
+    public override string ToString() => Label;
+}
+
+public enum LibrarySort
+{
+    Name,
+    MostPlayed,
+    RecentlyPlayed
 }
 
 /// <summary>A platform filter choice with its game count, e.g. "GOG (42)".</summary>
@@ -34,12 +67,15 @@ public sealed partial class LibraryViewModel : ViewModelBase
 {
     public const string AllKey = "*";
     public const string MultiStoreKey = "multi";
+    public const string NeverPlayedKey = "never";
 
     private readonly IReadOnlyList<LibraryGameItem> _all;
 
     [ObservableProperty] private string? searchText;
 
     [ObservableProperty] private LibraryFilterOption selectedFilter;
+
+    [ObservableProperty] private LibrarySortOption selectedSort;
 
     [ObservableProperty] private IReadOnlyList<LibraryGameItem> visibleGames = [];
 
@@ -61,8 +97,18 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var multi = _all.Count(g => g.IsMultiStore);
         if (multi > 0) options.Add(new LibraryFilterOption("Owned on 2+ stores", MultiStoreKey, multi));
 
+        var never = _all.Count(g => g.IsNeverPlayed);
+        if (never > 0) options.Add(new LibraryFilterOption("Never played", NeverPlayedKey, never));
+
         Filters = options;
         selectedFilter = options[0];
+        Sorts =
+        [
+            new LibrarySortOption("Sort: name", LibrarySort.Name),
+            new LibrarySortOption("Sort: most played", LibrarySort.MostPlayed),
+            new LibrarySortOption("Sort: recently played", LibrarySort.RecentlyPlayed)
+        ];
+        selectedSort = Sorts[0];
         ApplyFilter();
     }
 
@@ -78,6 +124,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     public IReadOnlyList<LibraryFilterOption> Filters { get; }
 
+    public IReadOnlyList<LibrarySortOption> Sorts { get; }
+
     public bool HasVisibleGames => VisibleGames.Count > 0;
 
     /// <summary>"Showing 12 of 340 games".</summary>
@@ -89,21 +137,31 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     partial void OnSelectedFilterChanged(LibraryFilterOption value) => ApplyFilter();
 
+    partial void OnSelectedSortChanged(LibrarySortOption value) => ApplyFilter();
+
     private void ApplyFilter()
     {
         var query = SearchText?.Trim();
         var key = SelectedFilter?.Key ?? AllKey;
 
-        VisibleGames = _all
+        var filtered = _all
             .Where(g => key switch
             {
                 AllKey => true,
                 MultiStoreKey => g.IsMultiStore,
+                NeverPlayedKey => g.IsNeverPlayed,
                 _ => g.Platforms.Contains(key)
             })
             .Where(g => string.IsNullOrEmpty(query) ||
-                        g.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase))
-            .ToList();
+                        g.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+
+        // _all is already name-ordered and OrderBy is stable, so ties stay alphabetical.
+        VisibleGames = (SelectedSort?.Sort switch
+        {
+            LibrarySort.MostPlayed => filtered.OrderByDescending(g => g.PlaytimeMinutes ?? -1),
+            LibrarySort.RecentlyPlayed => filtered.OrderByDescending(g => g.LastPlayed ?? DateTimeOffset.MinValue),
+            _ => filtered
+        }).ToList();
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(HasVisibleGames));
     }

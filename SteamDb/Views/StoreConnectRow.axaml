@@ -31,6 +31,7 @@
         </Panel>
         <!-- Per-store info: opens the relevant README section on GitHub. -->
         <Button Classes="animated-button icon-button"
+                ToolTip.Tip="{Binding InfoTip}" AutomationProperties.Name="{Binding InfoTip}"
                 IsVisible="{Binding HasInfo}"
                 Command="{Binding OpenInfoCommand}">
             <Viewbox>

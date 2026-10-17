@@ -40,6 +40,9 @@ public sealed partial class StoreConnectionViewModel : ObservableObject
     /// <summary>Label for the connect button, e.g. "Connect Epic".</summary>
     public string ConnectLabel => $"Connect {Name}";
 
+    /// <summary>Tooltip / accessible name of the info button.</summary>
+    public string InfoTip => $"How to connect {Name}";
+
     /// <summary>Placeholder for the authorization-code field (paste-flow stores only).</summary>
     public string? CodePlaceholder { get; }
 

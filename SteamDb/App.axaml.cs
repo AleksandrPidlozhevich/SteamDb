@@ -20,8 +20,10 @@ public partial class App : Application
         {
             var services = AppServices.Build();
             var window = services.GetRequiredService<MainWindow>();
-            window.DataContext = services.GetRequiredService<MainWindowViewModel>();
+            var viewModel = services.GetRequiredService<MainWindowViewModel>();
+            window.DataContext = viewModel;
             desktop.MainWindow = window;
+            window.Closing += (_, _) => viewModel.SaveOnExit();
         }
 
         base.OnFrameworkInitializationCompleted();

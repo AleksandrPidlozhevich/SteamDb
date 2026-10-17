@@ -32,8 +32,9 @@ public sealed class CsvFileService
         await writer.WriteAsync(content);
     }
 
-    /// <summary>Merges incoming games into the existing CSV content and writes the result.</summary>
-    public async Task WriteMergedAsync(
+    /// <summary>Merges incoming games into the existing CSV content and writes the result.
+    /// Returns how many rows were added and the file's total row count.</summary>
+    public async Task<(int Added, int Total)> WriteMergedAsync(
         IStorageFile file,
         string? existingContent,
         List<CsvGameExportRow> incomingRows)
@@ -43,5 +44,6 @@ public sealed class CsvFileService
         await WriteAsync(file, CsvGameExportService.Serialize(mergedRows));
 
         _log.WriteInfo($"CSV updated: {added} new, {updated} changed, {mergedRows.Count} total rows.");
+        return (added, mergedRows.Count);
     }
 }

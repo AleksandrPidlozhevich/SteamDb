@@ -16,7 +16,9 @@ public sealed record GoogleSheetsExportResult(
     GameLibraryResult Library,
     int Added,
     int Updated,
-    string? SpreadsheetUrl);
+    string? SpreadsheetUrl,
+    int NoLongerOwned = 0,
+    bool DryRun = false);
 
 /// <summary>
 /// Syncs the merged Steam/Epic/GOG/Xbox library into a Google Sheet (found by name in Drive, created
@@ -36,10 +38,12 @@ public sealed class GoogleSheetsGameExporter
         _log = log;
     }
 
+    /// <param name="dryRun">Plan only: nothing is written and a missing spreadsheet isn't created
+    /// (it's planned as empty). The counts in the result are what a real run would do.</param>
     public async Task<GoogleSheetsExportResult> ExportAsync(
         string? tableName, string? steamApiKey, string? steamId,
         IProgress<StoreFetchProgress>? progress = null, Action<string>? onStatus = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default, bool dryRun = false)
     {
         if (string.IsNullOrWhiteSpace(tableName))
             throw new InvalidOperationException("Enter the Google Sheets table name first.");
@@ -59,7 +63,14 @@ public sealed class GoogleSheetsGameExporter
         var sheets = client.SheetsService;
         onStatus?.Invoke("Exporting to Google Sheets…");
 
-        var spreadsheetId = await FindOrCreateSpreadsheetAsync(client.DriveService, spreadsheetName, ct);
+        var spreadsheetId = await FindSpreadsheetAsync(client.DriveService, spreadsheetName, ct);
+        if (dryRun && spreadsheetId == null)
+        {
+            var fresh = GoogleSheetsSyncPlanner.Plan(null, library.Rows, library.FetchedStores);
+            return new GoogleSheetsExportResult(library, fresh.NewRows.Count, 0, null, 0, DryRun: true);
+        }
+
+        spreadsheetId ??= await CreateSpreadsheetAsync(client.DriveService, spreadsheetName, ct);
 
         // The first tab, by id and title: never assume "Sheet1" (it's localised, e.g. "Лист1").
         var getRequest = sheets.Spreadsheets.Get(spreadsheetId);
@@ -69,8 +80,15 @@ public sealed class GoogleSheetsGameExporter
         var sheetId = sheet.SheetId ?? 0;
         var sheetRef = QuoteSheetTitle(sheet.Title);
 
-        var existing = await sheets.Spreadsheets.Values.Get(spreadsheetId, sheetRef).ExecuteAsync(ct);
-        var plan = GoogleSheetsSyncPlanner.Plan(existing.Values, library.Rows);
+        // Unformatted, so numbers (Playtime) come back as numbers rather than locale-formatted text.
+        var getValues = sheets.Spreadsheets.Values.Get(spreadsheetId, sheetRef);
+        getValues.ValueRenderOption =
+            SpreadsheetsResource.ValuesResource.GetRequest.ValueRenderOptionEnum.UNFORMATTEDVALUE;
+        var existing = await getValues.ExecuteAsync(ct);
+        var plan = GoogleSheetsSyncPlanner.Plan(existing.Values, library.Rows, library.FetchedStores);
+        if (dryRun)
+            return new GoogleSheetsExportResult(library, plan.NewRows.Count, plan.Updates.Count,
+                spreadsheet.SpreadsheetUrl, plan.NoLongerOwned.Count, DryRun: true);
 
         await ApplyStructureAsync(sheets, spreadsheetId, sheetId, sheet.GridProperties, plan, ct);
         await WriteValuesAsync(sheets, spreadsheetId, sheetRef, plan, ct);
@@ -79,11 +97,11 @@ public sealed class GoogleSheetsGameExporter
         _log.WriteInfo(
             $"Google Sheets: added {plan.NewRows.Count}, updated {plan.Updates.Count} games in \"{spreadsheetName}\".");
         return new GoogleSheetsExportResult(
-            library, plan.NewRows.Count, plan.Updates.Count, spreadsheet.SpreadsheetUrl);
+            library, plan.NewRows.Count, plan.Updates.Count, spreadsheet.SpreadsheetUrl, plan.NoLongerOwned.Count);
     }
 
-    private static async Task<string> FindOrCreateSpreadsheetAsync(
-        DriveService drive, string name, CancellationToken ct)
+    // The spreadsheet with this name in the user's Drive, or null.
+    private static async Task<string?> FindSpreadsheetAsync(DriveService drive, string name, CancellationToken ct)
     {
         var listRequest = drive.Files.List();
         // Drive query string literal: backslash and single quote must be escaped.
@@ -94,9 +112,11 @@ public sealed class GoogleSheetsGameExporter
         listRequest.Fields = "files(id, name)";
         var fileList = await listRequest.ExecuteAsync(ct);
 
-        if (fileList.Files is { Count: > 0 })
-            return fileList.Files[0].Id;
+        return fileList.Files is { Count: > 0 } ? fileList.Files[0].Id : null;
+    }
 
+    private static async Task<string> CreateSpreadsheetAsync(DriveService drive, string name, CancellationToken ct)
+    {
         var fileMetadata = new Google.Apis.Drive.v3.Data.File
         {
             Name = name,
@@ -159,6 +179,12 @@ public sealed class GoogleSheetsGameExporter
         {
             data.Add(CellValue(sheetRef, plan.Columns.Platform, update.RowIndex, update.Platform));
             data.Add(CellValue(sheetRef, plan.Columns.Id, update.RowIndex, update.Id));
+            if (update.PlaytimeHours is { } hours)
+                data.Add(CellValue(sheetRef, plan.Columns.Playtime, update.RowIndex, hours));
+            if (update.LastPlayed is { } lastPlayed)
+                data.Add(CellValue(sheetRef, plan.Columns.LastPlayed, update.RowIndex, lastPlayed));
+            if (update.Owned is { } owned)
+                data.Add(CellValue(sheetRef, plan.Columns.Owned, update.RowIndex, owned));
         }
 
         if (plan.NewRows.Count > 0)
@@ -185,16 +211,21 @@ public sealed class GoogleSheetsGameExporter
         cells[columns.Name] = row.Name;
         cells[columns.Id] = row.IdText;
         cells[columns.Completed] = false;
+        if (columns.Playtime >= 0 && row.PlaytimeHours is { } hours) cells[columns.Playtime] = hours;
+        if (columns.LastPlayed >= 0 && row.LastPlayedDate is { } lastPlayed) cells[columns.LastPlayed] = lastPlayed;
+        if (columns.Owned >= 0) cells[columns.Owned] = true;
         return cells;
     }
 
-    // Completed as checkboxes for every data row (idempotent; also covers a just-added column).
+    // Completed (and the opt-in Owned column) as checkboxes for every data row — idempotent, and
+    // also covers a just-added column.
     private static async Task ApplyCheckboxesAsync(
         SheetsService sheets, string spreadsheetId, int sheetId, GoogleSheetsSyncPlan plan, CancellationToken ct)
     {
         if (plan.TotalRows <= 1) return;
 
-        var request = new Request
+        var columns = new[] { plan.Columns.Completed, plan.Columns.Owned }.Where(c => c >= 0);
+        var requests = columns.Select(column => new Request
         {
             SetDataValidation = new SetDataValidationRequest
             {
@@ -203,8 +234,8 @@ public sealed class GoogleSheetsGameExporter
                     SheetId = sheetId,
                     StartRowIndex = 1,
                     EndRowIndex = plan.TotalRows,
-                    StartColumnIndex = plan.Columns.Completed,
-                    EndColumnIndex = plan.Columns.Completed + 1
+                    StartColumnIndex = column,
+                    EndColumnIndex = column + 1
                 },
                 Rule = new DataValidationRule
                 {
@@ -213,17 +244,17 @@ public sealed class GoogleSheetsGameExporter
                     ShowCustomUi = true
                 }
             }
-        };
+        }).ToList();
 
         await sheets.Spreadsheets
-            .BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = [request] }, spreadsheetId)
+            .BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = requests }, spreadsheetId)
             .ExecuteAsync(ct);
     }
 
-    private static ValueRange CellValue(string sheetRef, int column, int row, string text) => new()
+    private static ValueRange CellValue(string sheetRef, int column, int row, object value) => new()
     {
         Range = $"{sheetRef}!{ColumnLetter(column)}{row + 1}",
-        Values = [new List<object> { text }]
+        Values = [new List<object> { value }]
     };
 
     // A1 column letters for a 0-based index: 0 → A, 25 → Z, 26 → AA.

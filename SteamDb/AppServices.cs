@@ -28,6 +28,7 @@ public static class AppServices
         services.AddSingleton<CsvFileService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();
 
+        services.AddSingleton<StoreSelection>();
         services.AddSingleton<IGameLibraryService, GameLibraryService>();
         services.AddSingleton<INotionGateway, NotionGateway>();
         services.AddSingleton<NotionGameExporter>();

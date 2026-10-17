@@ -12,6 +12,12 @@ public interface INotionApiClient : IDisposable
 {
     Task<List<JObject>> QueryAllPagesAsync(CancellationToken ct = default);
 
+    /// <summary>The data source's properties as name → Notion type (e.g. "Name" → "title").</summary>
+    Task<IReadOnlyDictionary<string, string>> GetPropertyTypesAsync(CancellationToken ct = default);
+
+    /// <summary>Adds empty properties (name → Notion type) to the data source's schema.</summary>
+    Task AddPropertiesAsync(IReadOnlyDictionary<string, string> properties, CancellationToken ct = default);
+
     // Each item is the page's `properties` object; the client wraps it with the data-source parent.
     Task AddPagesToDatabaseParallel(
         IEnumerable<object> pageProperties, Action? onPageDone = null, CancellationToken ct = default);

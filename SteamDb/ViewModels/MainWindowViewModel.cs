@@ -1,11 +1,13 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SteamDb.Models;
 using SteamDb.Services;
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -44,7 +46,41 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool IsUpdateAvailable => AvailableUpdateVersion is not null;
 
-    private const string SettingsSecretKey = "app-settings";
+    /// <summary>Outcome of the last export ("✓ Notion: 12 added, 3 updated"), shown as a banner.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasResult))]
+    private string? resultMessage;
+
+    /// <summary>Label of the banner's follow-up action ("Open file", "Open database"), or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasResultAction))]
+    private string? resultActionLabel;
+
+    private Action? _resultAction;
+
+    public bool HasResult => ResultMessage is not null;
+
+    /// <summary>"Last sync: today 14:20" under each export button; null when never synced.</summary>
+    [ObservableProperty] private string? csvLastSync;
+
+    [ObservableProperty] private string? notionLastSync;
+
+    [ObservableProperty] private string? sheetsLastSync;
+
+    private readonly SyncHistory _syncHistory;
+    private readonly StoreSelection _selection;
+
+    /// <summary>"Include in export" ticks per store (saved; also honoured by <c>--sync</c>).</summary>
+    [ObservableProperty] private bool includeSteam = true;
+
+    [ObservableProperty] private bool includeEpic = true;
+
+    [ObservableProperty] private bool includeGog = true;
+
+    [ObservableProperty] private bool includeXbox = true;
+
+    public bool HasResultAction => ResultActionLabel is not null;
+
 
     private readonly ISecretStore _secrets;
     private readonly IWebAuthenticator _webAuth;
@@ -67,8 +103,10 @@ public partial class MainWindowViewModel : ViewModelBase
         IDialogService dialogs,
         CsvFileService csv,
         ILogService log,
-        IUpdateService updates)
+        IUpdateService updates,
+        StoreSelection selection)
     {
+        _selection = selection;
         _secrets = secrets;
         _webAuth = webAuth;
         _clients = clients;
@@ -79,8 +117,10 @@ public partial class MainWindowViewModel : ViewModelBase
         _csv = csv;
         _log = log;
         _updates = updates;
+        _syncHistory = new SyncHistory(secrets);
 
         LoadPersistedSettings();
+        RefreshLastSync();
 
         // Epic stays on the system-browser paste flow — its login blocks embedded webviews (CAPTCHA);
         // GOG/Xbox log in through the embedded WebView.
@@ -121,6 +161,14 @@ public partial class MainWindowViewModel : ViewModelBase
             endBusy: Progress.End,
             onConnected: OnXboxConnectedAsync,
             openInfo: () => _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#xbox"));
+
+        // A store (dis)connecting changes whether there's anything to export.
+        foreach (var store in new[] { Epic, Gog, Xbox })
+            store.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(StoreConnectionViewModel.IsConnected)) RefreshCanExport();
+            };
+        RefreshCanExport();
 
         _ = Epic.InitializeFromCacheAsync();
         _ = Gog.InitializeFromCacheAsync();
@@ -189,7 +237,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var log = new FileLogService();
         var secrets = new MsalSecretStore(log);
         var clients = new StoreClientFactory(secrets, log);
-        var library = new GameLibraryService(clients);
+        var selection = new StoreSelection();
+        var library = new GameLibraryService(clients, selection);
         return new Dependencies(
             secrets,
             new EmbeddedWebViewAuthenticator(DefaultTopLevel),
@@ -200,12 +249,13 @@ public partial class MainWindowViewModel : ViewModelBase
             new WindowDialogService(),
             new CsvFileService(log),
             log,
-            new VelopackUpdateService(log));
+            new VelopackUpdateService(log),
+            selection);
     }
 
     private MainWindowViewModel(Dependencies d)
         : this(d.Secrets, d.WebAuth, d.Clients, d.Library, d.NotionExporter, d.SheetsExporter, d.Dialogs,
-            d.Csv, d.Log, d.Updates)
+            d.Csv, d.Log, d.Updates, d.Selection)
     {
     }
 
@@ -219,7 +269,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IDialogService Dialogs,
         CsvFileService Csv,
         ILogService Log,
-        IUpdateService Updates);
+        IUpdateService Updates,
+        StoreSelection Selection);
 
     private static TopLevel? DefaultTopLevel() =>
         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
@@ -227,10 +278,10 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveSettings()
     {
-        var file = await _dialogs.PickSaveCsvAsync("seting_games.csv");
+        var file = await _dialogs.PickSaveCsvAsync("steamdb-settings.csv");
         if (file == null) return;
 
-        var content = AppSettingsService.Serialize(new AppSettings(SteamApiKey, SteamId, NotionToken, DbId));
+        var content = AppSettingsService.Serialize(CurrentSettings());
         await _csv.WriteAsync(file, content);
         PersistSettings();
     }
@@ -244,19 +295,26 @@ public partial class MainWindowViewModel : ViewModelBase
         var content = await _csv.ReadAsync(file);
         if (content == null) return;
 
-        // Only overwrite the fields actually present in the file.
+        ApplyImportedSettings(content);
+    }
+
+    // Only overwrites the fields actually present in the settings file, then remembers them.
+    private void ApplyImportedSettings(string content)
+    {
         var settings = AppSettingsService.Parse(content);
         SteamApiKey = settings.SteamApiKey ?? SteamApiKey;
         SteamId = settings.SteamId ?? SteamId;
         NotionToken = settings.NotionToken ?? NotionToken;
         DbId = settings.DbId ?? DbId;
+        GoogleSheetsTableName = settings.GoogleSheetsTableName ?? GoogleSheetsTableName;
+        if (settings.ExcludedStores != null) ApplyExcludedStores(settings.ExcludedStores);
         PersistSettings();
     }
 
     /// <summary>Loads credentials remembered (encrypted) from a previous session.</summary>
     private void LoadPersistedSettings()
     {
-        var content = _secrets.Load(SettingsSecretKey);
+        var content = _secrets.Load(AppSettingsService.SecretKey);
         if (string.IsNullOrEmpty(content)) return;
 
         var settings = AppSettingsService.Parse(content);
@@ -264,20 +322,120 @@ public partial class MainWindowViewModel : ViewModelBase
         SteamId = settings.SteamId ?? SteamId;
         NotionToken = settings.NotionToken ?? NotionToken;
         DbId = settings.DbId ?? DbId;
+        GoogleSheetsTableName = settings.GoogleSheetsTableName ?? GoogleSheetsTableName;
+        ApplyExcludedStores(settings.ExcludedStores);
     }
 
-    /// <summary>Persists the current credentials to the encrypted secret store.</summary>
-    private void PersistSettings()
+    private AppSettings CurrentSettings() =>
+        new(SteamApiKey, SteamId, NotionToken, DbId, GoogleSheetsTableName, _selection.Serialize());
+
+    private void ApplyExcludedStores(string? excluded)
     {
-        _secrets.Save(SettingsSecretKey,
-            AppSettingsService.Serialize(new AppSettings(SteamApiKey, SteamId, NotionToken, DbId)));
+        _selection.Load(excluded);
+        IncludeSteam = _selection.Includes(Platforms.Steam);
+        IncludeEpic = _selection.Includes(Platforms.Epic);
+        IncludeGog = _selection.Includes(Platforms.Gog);
+        IncludeXbox = _selection.Includes(Platforms.Xbox);
+    }
+
+    partial void OnIncludeSteamChanged(bool value) => OnIncludeChanged(Platforms.Steam, value);
+
+    partial void OnIncludeEpicChanged(bool value) => OnIncludeChanged(Platforms.Epic, value);
+
+    partial void OnIncludeGogChanged(bool value) => OnIncludeChanged(Platforms.Gog, value);
+
+    partial void OnIncludeXboxChanged(bool value) => OnIncludeChanged(Platforms.Xbox, value);
+
+    private void OnIncludeChanged(string store, bool included)
+    {
+        _selection.SetIncluded(store, included);
+        RefreshCanExport();
+    }
+
+    // ---- what's needed before an export can run (drives CanExecute + the disabled-button tooltips) ----
+
+    private bool HasSteamCredentials => !string.IsNullOrWhiteSpace(SteamApiKey) && !string.IsNullOrWhiteSpace(SteamId);
+
+    // Epic/Gog/Xbox are still null while the constructor loads the settings.
+    private bool HasSource =>
+        (IncludeSteam && HasSteamCredentials) ||
+        (IncludeEpic && Epic?.IsConnected == true) ||
+        (IncludeGog && Gog?.IsConnected == true) ||
+        (IncludeXbox && Xbox?.IsConnected == true);
+
+    private const string NoSourceHint =
+        "Enter your Steam API key and Steam ID, or connect Epic / GOG / Xbox (and keep the store ticked).";
+
+    public bool CanFetchLibrary => HasSource;
+
+    public bool CanExportNotion =>
+        HasSource && !string.IsNullOrWhiteSpace(NotionToken) && !string.IsNullOrWhiteSpace(DbId);
+
+    public bool CanExportSheets => HasSource && !string.IsNullOrWhiteSpace(GoogleSheetsTableName);
+
+    /// <summary>Why the CSV / library buttons are disabled, or null.</summary>
+    public string? LibraryHint => HasSource ? null : NoSourceHint;
+
+    public string? NotionHint =>
+        !HasSource ? NoSourceHint
+        : CanExportNotion ? null
+        : "Enter the Notion integration token and database ID.";
+
+    public string? SheetsHint =>
+        !HasSource ? NoSourceHint
+        : CanExportSheets ? null
+        : "Enter the Google Sheets table name.";
+
+    partial void OnSteamApiKeyChanged(string? value) => RefreshCanExport();
+
+    partial void OnSteamIdChanged(string? value) => RefreshCanExport();
+
+    partial void OnNotionTokenChanged(string? value) => RefreshCanExport();
+
+    partial void OnDbIdChanged(string? value) => RefreshCanExport();
+
+    partial void OnGoogleSheetsTableNameChanged(string? value) => RefreshCanExport();
+
+    private void RefreshCanExport()
+    {
+        OnPropertyChanged(nameof(CanFetchLibrary));
+        OnPropertyChanged(nameof(CanExportNotion));
+        OnPropertyChanged(nameof(CanExportSheets));
+        OnPropertyChanged(nameof(LibraryHint));
+        OnPropertyChanged(nameof(NotionHint));
+        OnPropertyChanged(nameof(SheetsHint));
+        ExportToCsvCommand.NotifyCanExecuteChanged();
+        UpdateCsvCommand.NotifyCanExecuteChanged();
+        ViewLibraryCommand.NotifyCanExecuteChanged();
+        ExportToNotionCommand.NotifyCanExecuteChanged();
+        ExportToGoogleSheetsCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
+    private void OpenLogsFolder()
+    {
+        Directory.CreateDirectory(FileLogService.LogDirectory);
+        _dialogs.OpenLink(FileLogService.LogDirectory);
+    }
+
+    /// <summary>Called on shutdown, so values typed into the fields survive a restart.</summary>
+    public void SaveOnExit() => PersistSettings();
+
+    /// <summary>Persists the current credentials to the encrypted secret store (also read by the
+    /// command-line <c>--sync</c>). Runs on Save/Import, when an export starts, and on exit.</summary>
+    private void PersistSettings()
+    {
+        _secrets.Save(AppSettingsService.SecretKey,
+            AppSettingsService.Serialize(CurrentSettings()));
+    }
+
+    [RelayCommand(CanExecute = nameof(CanFetchLibrary))]
     private async Task ExportToCsv()
     {
         if (Progress.IsBusy) return;
         Progress.Begin("Fetching games…");
+        DismissResult();
+        PersistSettings();
         try
         {
             var result = await _library.FetchAsync(
@@ -290,6 +448,8 @@ public partial class MainWindowViewModel : ViewModelBase
             // Export just writes a fresh file with the fetched games — no merging.
             await _csv.WriteAsync(file, CsvGameExportService.Serialize(result.Rows));
             _log.WriteInfo($"CSV created with {result.Rows.Count} rows.");
+            ShowResult($"✓ Saved {result.Rows.Count} games to {file.Name}", "Open file", OpenFileAction(file));
+            RecordSync(SyncHistory.Csv);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -311,16 +471,73 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanFetchLibrary))]
     private async Task UpdateCsv()
     {
         if (Progress.IsBusy) return;
-        Progress.Begin("Fetching games…");
+        var file = await _dialogs.PickOpenCsvAsync("Select CSV File to Update");
+        if (file == null) return;
+        await UpdateCsvFileAsync(file);
+    }
+
+    /// <summary>
+    /// Handles a file dropped onto the window: a SteamDb game list is updated like
+    /// <c>Update .csv</c>, a settings file is imported, anything else is explained.
+    /// </summary>
+    public async Task OpenDroppedFileAsync(IStorageFile file)
+    {
+        if (Progress.IsBusy) return;
+        DismissResult();
         try
         {
-            var file = await _dialogs.PickOpenCsvAsync("Select CSV File to Update");
-            if (file == null) return;
+            if (!DroppedFile.HasSupportedExtension(file.Name))
+            {
+                await _dialogs.ShowErrorAsync("Unsupported file", new Exception(
+                    $"\"{file.Name}\" isn't a .csv file. Drop a SteamDb game list to update it, " +
+                    "or a saved settings file to import it."));
+                return;
+            }
 
+            var size = (await file.GetBasicPropertiesAsync()).Size;
+            var content = size > DroppedFile.MaxBytes ? null : await _csv.ReadAsync(file);
+            switch (DroppedFile.Classify(content))
+            {
+                case DroppedFileKind.GameCsv:
+                    if (!CanFetchLibrary)
+                    {
+                        await _dialogs.ShowErrorAsync("Update CSV", new Exception(LibraryHint ?? NoSourceHint));
+                        return;
+                    }
+
+                    _log.WriteInfo($"Dropped game list {file.Name}: updating it.");
+                    await UpdateCsvFileAsync(file);
+                    break;
+                case DroppedFileKind.Settings:
+                    _log.WriteInfo($"Dropped settings file {file.Name}: importing it.");
+                    ApplyImportedSettings(content!);
+                    ShowResult($"✓ Imported settings from {file.Name}");
+                    break;
+                default:
+                    await _dialogs.ShowErrorAsync("Unsupported file", new Exception(
+                        $"\"{file.Name}\" is neither a SteamDb game list (expected header: " +
+                        $"{CsvGameExportService.Header}) nor a saved settings file."));
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.WriteException(ex, $"Error opening dropped file {file.Name}");
+            await _dialogs.ShowErrorAsync("Couldn't open the file", ex);
+        }
+    }
+
+    private async Task UpdateCsvFileAsync(IStorageFile file)
+    {
+        Progress.Begin("Fetching games…");
+        DismissResult();
+        PersistSettings();
+        try
+        {
             // Validate the chosen file is a SteamDb CSV before touching it.
             var existingContent = await _csv.ReadAsync(file);
             var missingColumns = CsvGameExportService.GetMissingColumns(existingContent);
@@ -339,7 +556,13 @@ public partial class MainWindowViewModel : ViewModelBase
                 SteamApiKey, SteamId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
             if (!await HandleFetchedLibraryAsync(result, "Update CSV")) return;
 
-            await _csv.WriteMergedAsync(file, existingContent, result.Rows);
+            var (added, total) = await _csv.WriteMergedAsync(file, existingContent, result.Rows);
+            ShowResult(
+                added == 0
+                    ? $"✓ {file.Name} is already up to date ({total} games)"
+                    : $"✓ Added {added} new games to {file.Name} ({total} total)",
+                "Open file", OpenFileAction(file));
+            RecordSync(SyncHistory.Csv);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -361,14 +584,59 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private static string GoneSuffix(int count) => count > 0 ? $" · {count} no longer owned" : string.Empty;
+
+    private void RecordSync(string target)
+    {
+        _syncHistory.Record(target, DateTimeOffset.Now);
+        RefreshLastSync();
+    }
+
+    private void RefreshLastSync()
+    {
+        var now = DateTimeOffset.Now;
+        CsvLastSync = SyncHistory.Describe(_syncHistory.Get(SyncHistory.Csv), now);
+        NotionLastSync = SyncHistory.Describe(_syncHistory.Get(SyncHistory.Notion), now);
+        SheetsLastSync = SyncHistory.Describe(_syncHistory.Get(SyncHistory.GoogleSheets), now);
+    }
+
+    private void ShowResult(string message, string? actionLabel = null, Action? action = null)
+    {
+        ResultMessage = message;
+        ResultActionLabel = action != null ? actionLabel : null;
+        _resultAction = action;
+    }
+
+    [RelayCommand]
+    private void RunResultAction() => _resultAction?.Invoke();
+
+    [RelayCommand]
+    private void DismissResult()
+    {
+        ResultMessage = null;
+        ResultActionLabel = null;
+        _resultAction = null;
+    }
+
+    // Opens a just-written file in its default app (Excel etc.); null when it has no local path.
+    private Action? OpenFileAction(IStorageFile file)
+    {
+        var path = file.TryGetLocalPath();
+        return path != null ? () => _dialogs.OpenLink(path) : null;
+    }
+
+    private Action? NotionDatabaseAction()
+    {
+        var id = DbId?.Trim().Replace("-", "");
+        return string.IsNullOrEmpty(id) ? null : () => _dialogs.OpenLink($"https://www.notion.so/{id}");
+    }
+
     // Shared post-fetch handling: syncs the connect rows, warns about expired sessions and, when
     // nothing was fetched, explains why. Returns false when there is nothing to export.
     private async Task<bool> HandleFetchedLibraryAsync(GameLibraryResult result, string title)
     {
         ApplyStoreStatuses(result);
-        await NotifyStoreSessionExpiredAsync("Epic", result.EpicSessionExpired);
-        await NotifyStoreSessionExpiredAsync("GOG", result.GogSessionExpired);
-        await NotifyStoreSessionExpiredAsync("Xbox", result.XboxSessionExpired);
+        await NotifyExpiredSessionsAsync(result);
 
         if (result.Rows.Count > 0) return true;
 
@@ -411,21 +679,34 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // Surfaces a clear message when a previously connected store session has expired,
     // so the export isn't silently missing that store's games.
-    private Task NotifyStoreSessionExpiredAsync(string store, bool expired)
+    private Task NotifyExpiredSessionsAsync(GameLibraryResult result)
     {
-        if (!expired) return Task.CompletedTask;
+        var expired = new[]
+        {
+            (Store: "Epic", Expired: result.EpicSessionExpired),
+            (Store: "GOG", Expired: result.GogSessionExpired),
+            (Store: "Xbox", Expired: result.XboxSessionExpired)
+        }.Where(s => s.Expired).Select(s => s.Store).ToList();
+        if (expired.Count == 0) return Task.CompletedTask;
 
-        _log.WriteWarning($"{store}: session expired — {store} games were skipped.");
-        return _dialogs.ShowErrorAsync($"{store} session expired",
-            new Exception($"Your {store} session has expired, so {store} games were skipped. " +
-                          $"Click \"Connect {store}\" to log in again."));
+        foreach (var store in expired)
+            _log.WriteWarning($"{store}: session expired — {store} games were skipped.");
+
+        // One dialog for all of them, rather than one per store.
+        var stores = expired.Count == 1 ? expired[0] : string.Join(", ", expired[..^1]) + " and " + expired[^1];
+        var connect = string.Join(" / ", expired.Select(s => $"\"Connect {s}\""));
+        return _dialogs.ShowErrorAsync(expired.Count == 1 ? $"{stores} session expired" : "Store sessions expired",
+            new Exception($"Your {stores} {(expired.Count == 1 ? "session has" : "sessions have")} expired, " +
+                          $"so those games were skipped. Click {connect} to log in again."));
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanFetchLibrary))]
     private async Task ViewLibrary()
     {
         if (Progress.IsBusy) return;
         Progress.Begin("Fetching games…");
+        DismissResult();
+        PersistSettings();
         try
         {
             var result = await _library.FetchAsync(
@@ -454,17 +735,27 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExportNotion))]
     private async Task ExportToNotion()
     {
         if (Progress.IsBusy) return;
         Progress.Begin("Fetching games…");
+        DismissResult();
+        PersistSettings();
         try
         {
             // Dry run first: nothing is written until the user confirms the preview.
             var plan = await _notionExporter.PlanAsync(
                 SteamApiKey, SteamId, NotionToken, DbId, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
             if (!await HandleFetchedLibraryAsync(plan.Library, "Export to Notion")) return;
+
+            if (plan.IsEmpty)
+            {
+                ShowResult($"✓ Notion is already up to date ({plan.Unchanged} games)" + GoneSuffix(plan.NoLongerOwned.Count),
+                    "Open database", NotionDatabaseAction());
+                RecordSync(SyncHistory.Notion);
+                return;
+            }
 
             Progress.SetIndeterminate("Waiting for confirmation…");
             if (!await _dialogs.ConfirmNotionExportAsync(new NotionExportPreviewViewModel(plan)))
@@ -475,6 +766,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
             await _notionExporter.ApplyAsync(
                 NotionToken, DbId, plan, Progress.CreateReporter(), Progress.SetIndeterminate, Progress.Token);
+            ShowResult(
+                plan.ToCreate.Count + plan.ToUpdate.Count == 0
+                    ? "✓ Notion is up to date"
+                    : $"✓ Notion: {plan.ToCreate.Count} added, {plan.ToUpdate.Count} updated" +
+                      GoneSuffix(plan.NoLongerOwned.Count),
+                "Open database", NotionDatabaseAction());
+            RecordSync(SyncHistory.Notion);
         }
         catch (OperationCanceledException)
         {
@@ -491,11 +789,13 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExportSheets))]
     private async Task ExportToGoogleSheets()
     {
         if (Progress.IsBusy) return;
         Progress.Begin("Fetching games…");
+        DismissResult();
+        PersistSettings();
         try
         {
             var result = await _sheetsExporter.ExportAsync(
@@ -503,9 +803,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 Progress.Token);
             if (!await HandleFetchedLibraryAsync(result.Library, "Export to Google Sheets")) return;
 
-            // Show the result: open the synced spreadsheet in the browser.
-            if (result.SpreadsheetUrl != null)
-                _dialogs.OpenLink(result.SpreadsheetUrl);
+            var url = result.SpreadsheetUrl;
+            ShowResult(
+                result.Added + result.Updated == 0
+                    ? "✓ Google Sheets is already up to date"
+                    : $"✓ Google Sheets: {result.Added} added, {result.Updated} updated" +
+                      GoneSuffix(result.NoLongerOwned),
+                url != null ? "Open sheet" : null, url != null ? () => _dialogs.OpenLink(url) : null);
+            RecordSync(SyncHistory.GoogleSheets);
         }
         catch (OperationCanceledException)
         {
@@ -531,7 +836,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void OpenInfoLinkSteamId()
     {
-        _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#");
+        _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#steam");
     }
 
     [RelayCommand]
@@ -549,7 +854,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void OpenInfoGoogleSheets()
     {
-        _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#");
+        _dialogs.OpenLink("https://github.com/AleksandrPidlozhevich/SteamDb#google-sheets-beta");
     }
 
     [RelayCommand]

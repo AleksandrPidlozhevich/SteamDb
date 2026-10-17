@@ -14,12 +14,15 @@ public sealed class FileLogService : ILogService
     private const string ShortDateFormat = "yyyy-MM-dd";
     private const string TimeFormat = "yyyy-MM-dd HH:mm:ss";
 
+    /// <summary>Folder holding the daily log files (opened by the "Logs" link).</summary>
+    public static string LogDirectory => Path.Combine(AppPaths.DataDirectory, LogFolderName);
+
     private readonly object _lock = new();
     private readonly string _logFilePath;
 
     public FileLogService()
     {
-        var logDirectory = Path.Combine(AppPaths.DataDirectory, LogFolderName);
+        var logDirectory = LogDirectory;
         if (!Directory.Exists(logDirectory))
             Directory.CreateDirectory(logDirectory);
 

@@ -88,6 +88,39 @@ public class NotionApiClient : INotionApiClient
         throw new HttpRequestException($"Notion API {(int)response.StatusCode} {response.StatusCode}: {detail}");
     }
 
+    public async Task<IReadOnlyDictionary<string, string>> GetPropertyTypesAsync(CancellationToken ct = default)
+    {
+        var dataSourceId = await ResolveDataSourceIdAsync(ct);
+        var response = await _httpClient.GetAsync($"https://api.notion.com/v1/data_sources/{dataSourceId}", ct);
+        await EnsureNotionSuccessAsync(response, ct);
+
+        var dataSource = JObject.Parse(await response.Content.ReadAsStringAsync(ct));
+        var types = new Dictionary<string, string>();
+        if (dataSource["properties"] is JObject properties)
+            foreach (var property in properties.Properties())
+                types[property.Name] = property.Value["type"]?.Value<string>() ?? string.Empty;
+        return types;
+    }
+
+    public async Task AddPropertiesAsync(IReadOnlyDictionary<string, string> properties, CancellationToken ct = default)
+    {
+        var dataSourceId = await ResolveDataSourceIdAsync(ct);
+
+        // Schema shape: { "properties": { "<name>": { "<type>": {} } } } — an empty config object.
+        var schema = new JObject();
+        foreach (var (name, type) in properties)
+            schema[name] = new JObject { [type] = new JObject() };
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch,
+            $"https://api.notion.com/v1/data_sources/{dataSourceId}")
+        {
+            Content = new StringContent(
+                new JObject { ["properties"] = schema }.ToString(Formatting.None), Encoding.UTF8, "application/json")
+        };
+        var response = await _httpClient.SendAsync(request, ct);
+        await EnsureNotionSuccessAsync(response, ct);
+    }
+
     public async Task<List<JObject>> QueryAllPagesAsync(CancellationToken ct = default)
     {
         var dataSourceId = await ResolveDataSourceIdAsync(ct);

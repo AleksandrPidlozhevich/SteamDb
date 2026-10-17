@@ -123,6 +123,61 @@ public class GameLibraryServiceTests
         Assert.Equal("Halo", result.Rows[0].Name);
     }
 
+    [Fact]
+    public async Task FetchAsync_UntickedStore_IsSkipped_ButSessionStillChecked()
+    {
+        var factory = new FakeFactory
+        {
+            Steam = SteamWith(("Steam Game", 1)),
+            Gog = new FakeGogClient(StoreAuthFromCacheStatus.Authenticated)
+            {
+                Games = { new GogGame { Title = "Gog Game", Id = 5 } }
+            }
+        };
+        var selection = new StoreSelection();
+        selection.SetIncluded(Platforms.Gog, false);
+        var service = new GameLibraryService(factory, selection);
+
+        var result = await service.FetchAsync(Key, Id);
+
+        Assert.Equal(["Steam Game"], result.Rows.Select(r => r.Name));
+        Assert.True(result.GogAuthenticated);                          // still shown as connected
+        Assert.DoesNotContain(Platforms.Gog, result.FetchedStores);     // but its games weren't loaded
+        Assert.Contains(Platforms.Steam, result.FetchedStores);
+    }
+
+    [Fact]
+    public async Task FetchAsync_EveryAvailableStoreUnticked_Throws()
+    {
+        var selection = new StoreSelection();
+        selection.SetIncluded(Platforms.Steam, false);
+        var service = new GameLibraryService(new FakeFactory { Steam = SteamWith(("Portal", 400)) }, selection);
+
+        var ex = await Assert.ThrowsAsync<Exception>(() => service.FetchAsync(Key, Id));
+        Assert.Contains("unticked", ex.Message);
+    }
+
+    [Fact]
+    public void StoreSelection_RoundTripsThroughSettings()
+    {
+        var selection = new StoreSelection();
+        selection.SetIncluded(Platforms.Xbox, false);
+        selection.SetIncluded(Platforms.Gog, false);
+        Assert.Equal("GOG, Xbox", selection.Serialize());
+
+        var settings = AppSettingsService.Parse(AppSettingsService.Serialize(
+            new AppSettings("k", "i", "t", "d", ExcludedStores: selection.Serialize())));
+        var reloaded = new StoreSelection();
+        reloaded.Load(settings.ExcludedStores);
+
+        Assert.False(reloaded.Includes(Platforms.Gog));
+        Assert.True(reloaded.Includes(Platforms.Steam));
+
+        reloaded.SetIncluded(Platforms.Gog, true);
+        reloaded.SetIncluded(Platforms.Xbox, true);
+        Assert.Null(reloaded.Serialize());
+    }
+
     private static ISteamClient SteamWith(params (string Name, int Id)[] games)
     {
         return new FakeSteamClient(new SteamGamesResponse

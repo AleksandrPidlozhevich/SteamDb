@@ -34,6 +34,8 @@ public class SteamApiClient : ISteamClient
         if (string.IsNullOrWhiteSpace(steamId))
             throw new ArgumentException("Steam ID cannot be empty", nameof(steamId));
 
+        steamId = await ResolveSteamIdAsync(steamId, apiKey, ct);
+
         var retryCount = 0;
         while (true)
             try
@@ -101,5 +103,47 @@ public class SteamApiClient : ISteamClient
                 _log.WriteException(ex, "Unexpected error in GetOwnedGames");
                 throw;
             }
+    }
+
+    /// <summary>
+    /// Turns whatever the user entered (SteamID64, profile link, vanity name, SteamID3…) into a
+    /// SteamID64, resolving custom-URL names through <c>ISteamUser/ResolveVanityURL</c>.
+    /// </summary>
+    private async Task<string> ResolveSteamIdAsync(string input, string apiKey, CancellationToken ct)
+    {
+        var parsed = SteamIdParser.Parse(input);
+        if (parsed.SteamId64 != null) return parsed.SteamId64;
+        if (parsed.VanityName == null)
+            throw new ArgumentException(
+                "Steam ID not recognised. Enter your 17-digit Steam ID or paste your Steam profile link.");
+
+        var url = "https://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/" +
+                  $"?key={apiKey}&vanityurl={Uri.EscapeDataString(parsed.VanityName)}";
+        var response = await _httpClient.GetAsync(url, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new UnauthorizedAccessException("Invalid Steam API key. Check the correctness of the key.");
+        response.EnsureSuccessStatusCode();
+
+        var json = JsonConvert.DeserializeObject<VanityResponse>(await response.Content.ReadAsStringAsync(ct));
+        // success: 1 = resolved, 42 = no profile with that custom URL.
+        if (json?.Response?.Success != 1 || string.IsNullOrEmpty(json.Response.SteamId))
+            throw new ArgumentException(
+                $"No Steam profile found for \"{parsed.VanityName}\". " +
+                "Check the name, or paste your profile link / 17-digit Steam ID instead.");
+
+        _log.WriteInfo($"Steam: resolved custom URL \"{parsed.VanityName}\" to a SteamID64.");
+        return json.Response.SteamId;
+    }
+
+    private sealed class VanityResponse
+    {
+        [JsonProperty("response")] public VanityResult? Response { get; set; }
+    }
+
+    private sealed class VanityResult
+    {
+        [JsonProperty("success")] public int Success { get; set; }
+
+        [JsonProperty("steamid")] public string? SteamId { get; set; }
     }
 }

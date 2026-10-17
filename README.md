@@ -70,11 +70,15 @@ the file for your system:
 
 | | |
 | --- | --- |
-| 🎮 **Four stores, one list** | Fetches owned games from Steam, Epic, GOG and Xbox and merges duplicates across stores. |
+| 🎮 **Four stores, one list** | Fetches owned games from Steam, Epic, GOG and Xbox and merges duplicates across stores. Untick a store to leave it out of exports. |
 | 📤 **Three export targets** | A Notion database, Google Sheets, or a local CSV file. |
-| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, and spot games you own on two stores. |
+| 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. |
+| 🗑️ **No longer owned** | Spots games in your tracker that left your library (refunds, delistings). They're never deleted. An optional `Owned` checkbox column gets unticked for them. |
+| ⏰ **Scheduled sync** | `SteamDb --sync notion,sheets` syncs without opening the window, ready for Task Scheduler or cron. |
+| ⏱️ **Playtime** | Optional `Playtime` and `Last played` columns in Notion and Google Sheets are filled from Steam (last played from Xbox too). |
 | 🔁 **Incremental sync** | Re-running an export reconciles with what's already there. It adds new games and updates platform tags without creating duplicates. |
 | 👀 **Preview before Notion** | See exactly which games will be added or updated, and confirm before anything is written. |
+| 🖱️ **Drag & drop** | Drop a SteamDb `.csv` onto the window to update it with your current library, or a saved settings file to import it. |
 | ⏹️ **Cancellable** | Every export shows a progress bar with a **Cancel** button. |
 | 🔒 **Secure by default** | Store tokens and remembered credentials are cached **encrypted** (DPAPI on Windows, Keychain on macOS, libsecret on Linux) and refreshed automatically. |
 | 🌗 **Light & dark themes** | Switch with one click. |
@@ -115,6 +119,12 @@ Steam needs your **Steam ID** and a **Steam Web API key**. You don't log in thro
 <summary><b>1. Find your Steam ID</b></summary>
 
 <br>
+
+The quickest way: **paste your Steam profile link** into the Steam ID field, e.g.
+`https://steamcommunity.com/id/yourname` or `https://steamcommunity.com/profiles/7656119…`.
+Just the custom name (`yourname`) works too, and so do `[U:1:…]` / `STEAM_0:…` ids.
+
+Or look up the number:
 
 In the Steam desktop app:
 
@@ -263,12 +273,25 @@ The target database **must** have these properties (names are case-sensitive):
 | `Platform's` | Multi-select | The store(s) the game is owned on (Steam, Epic, GOG, Xbox) |
 | `GameID` | Text | Platform-prefixed id(s), e.g. `Steam:236870; GOG:123` |
 
+Optional: add any of these and SteamDb keeps them up to date too:
+
+| Property | Type | Holds |
+| :--- | :--- | :--- |
+| `Playtime` | Number | Hours played (Steam), e.g. `12.5` |
+| `Last played` | Date | Date of the last session (Steam / Xbox) |
+| `Owned` | Checkbox | Ticked while the game is in your library, unticked once it's gone |
+
+A game only counts as "no longer owned" when every store it's tagged with was loaded in that run,
+so an expired Epic or GOG session never marks those games as gone.
+
 ![Required Notion properties](docs/images/notion-properties.png)
 
 </details>
 
-When you click **Export to Notion**, SteamDb first shows a **preview**: the games it will add and
-the rows it will update (before → after). Nothing is written until you click **Export**.
+When you click **Export to Notion**, SteamDb first checks the database. A missing `Platform's` or
+`GameID` property is added for you (the preview says so). A misnamed title column or a wrong
+property type is reported with what to change. Then it shows a **preview**: the games it will add
+and the rows it will update (before → after). Nothing is written until you click **Export**.
 
 ### Google Sheets (beta)
 
@@ -285,6 +308,10 @@ The first tab gets the same columns as the CSV, plus a checkbox to mark games as
 | :--- | :--- | :--- | :---: |
 | Steam/GOG | The Witcher 3 | Steam:292030; GOG:1207664643 | ☑ |
 
+Want playtime too? Add a `Playtime`, `Last played` and/or `Owned` header to the first row (any free
+column). SteamDb fills them with hours played (Steam), the date of the last session
+(Steam / Xbox) and an ownership checkbox (unticked for games that left your library).
+
 Re-running the export adds new games and updates platform tags in place. Your ticks, row order
 and any extra columns you added are kept. Sheets created by older versions (Steam-only
 `Name | Game ID | Completed`) are upgraded automatically.
@@ -292,6 +319,33 @@ and any extra columns you added are kept. Sheets created by older versions (Stea
 > [!CAUTION]
 > This integration is in **beta**. The authentication flow may sometimes fail, and some
 > features may be unstable or unavailable. We're working on it. Thank you for your patience!
+
+---
+
+## Sync from the command line
+
+Once the app is set up (credentials filled in, stores connected), SteamDb can sync without opening
+its window, e.g. on a schedule:
+
+```
+SteamDb --sync notion
+SteamDb --sync notion,sheets --sheet "My games"
+SteamDb --sync csv --file "D:\Games\backlog.csv"
+SteamDb --sync notion,sheets --dry-run   # show what would change, write nothing
+SteamDb --help
+```
+
+- Credentials, the Google Sheets table name, the ticked stores and store logins are the ones saved
+  by the app.
+  Settings are saved when you start an export and when you close the window.
+- Notion changes are applied **without** the preview window. Run with `--dry-run` first to check.
+- Output goes to the console and to the log. Exit code: `0` success, `1` a sync failed, `2` bad arguments.
+- On Windows the app installs to `%LocalAppData%\SteamDb\current\SteamDb.exe`. It's a GUI app, so
+  from a terminal start it with `Start-Process … -Wait -NoNewWindow` (PowerShell) or
+  `start /wait …` (cmd) to see its output. Task Scheduler waits for it on its own.
+
+**Windows Task Scheduler**: *Create Basic Task* → trigger *Daily* → action *Start a program* →
+program `%LocalAppData%\SteamDb\current\SteamDb.exe`, arguments `--sync notion`.
 
 ---
 
@@ -314,6 +368,7 @@ If SteamDb saved your backlog, you can buy me a coffee:
 ## Feedback and issues
 
 Found a bug or have an idea? [Open an issue](https://github.com/AleksandrPidlozhevich/SteamDb/issues)
+(the **Logs** link in the bottom-left corner of the app opens the log files to attach)
 or write to **aleksandr.pidlozhevich@gmail.com**.
 
 ---

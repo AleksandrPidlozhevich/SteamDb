@@ -14,7 +14,10 @@ public sealed record NotionGameRow(
     CsvGameExportRow Row,
     string PageId,
     IReadOnlySet<string> Platforms,
-    string GameId);
+    string GameId,
+    double? PlaytimeHours = null,
+    string? LastPlayed = null,
+    bool? Owned = null);
 
 public class NotionDataFetcher : INotionDataFetcher
 {
@@ -22,6 +25,11 @@ public class NotionDataFetcher : INotionDataFetcher
     public const string NameProperty = "Name";
     public const string PlatformProperty = "Platform's";
     public const string GameIdProperty = "GameID";
+
+    // Optional, opt-in columns: filled only when the user has added them to the database.
+    public const string PlaytimeProperty = "Playtime";
+    public const string LastPlayedProperty = "Last played";
+    public const string OwnedProperty = "Owned";
 
     private readonly INotionApiClient _notionApiClient;
     private readonly ILogService _log;
@@ -69,7 +77,10 @@ public class NotionDataFetcher : INotionDataFetcher
             CsvGameExportService.ApplyLegacyBareId(row, idField);
 
             return row.HasContent
-                ? new NotionGameRow(row, pageId, platforms, idField ?? string.Empty)
+                ? new NotionGameRow(row, pageId, platforms, idField ?? string.Empty,
+                    properties?[PlaytimeProperty]?["number"]?.Value<double?>(),
+                    ReadDate(properties?[LastPlayedProperty]),
+                    properties?[OwnedProperty]?["checkbox"]?.Value<bool?>())
                 : null;
         }
         catch (Exception ex)
@@ -77,6 +88,13 @@ public class NotionDataFetcher : INotionDataFetcher
             _log.WriteError($"Page processing error {ex.Message}");
             return null;
         }
+    }
+
+    // A date property's start as yyyy-MM-dd (Notion may append a time part).
+    private static string? ReadDate(JToken? property)
+    {
+        var start = property?["date"]?["start"]?.Value<string>();
+        return start is { Length: >= 10 } ? start[..10] : null;
     }
 
     private static string? ReadTitle(JToken? property)

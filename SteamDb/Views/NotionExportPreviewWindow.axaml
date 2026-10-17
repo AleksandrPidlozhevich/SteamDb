@@ -20,9 +20,21 @@
         <StackPanel Spacing="4" Margin="0,0,0,12">
             <TextBlock FontSize="16" FontWeight="SemiBold" Text="Nothing has been written yet" />
             <TextBlock Opacity="0.8" TextWrapping="Wrap" Text="{Binding Summary}" />
+            <Border Margin="0,6,0,0" Padding="10,6" CornerRadius="6"
+                    Background="#1FF59E0B" BorderBrush="#80F59E0B" BorderThickness="1"
+                    IsVisible="{Binding HasNewProperties}">
+                <TextBlock TextWrapping="Wrap" Text="{Binding NewPropertiesText}" />
+            </Border>
         </StackPanel>
 
-        <TabControl Grid.Row="1" IsVisible="{Binding HasChanges}" Padding="0,8,0,0">
+        <TabControl Grid.Row="1" Padding="0,8,0,0">
+            <TabControl.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="HasCreates" />
+                    <Binding Path="HasUpdates" />
+                    <Binding Path="HasGone" />
+                </MultiBinding>
+            </TabControl.IsVisible>
             <TabItem Header="{Binding CreateHeader}" IsVisible="{Binding HasCreates}">
                 <ListBox ItemsSource="{Binding ToCreate}">
                     <ListBox.ItemTemplate>
@@ -51,6 +63,22 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+            </TabItem>
+            <TabItem Header="{Binding GoneHeader}" IsVisible="{Binding HasGone}">
+                <Grid RowDefinitions="Auto,*">
+                    <TextBlock Margin="0,0,0,8" Opacity="0.8" TextWrapping="Wrap" Text="{Binding GoneNote}" />
+                    <ListBox Grid.Row="1" ItemsSource="{Binding NoLongerOwned}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="services:NotionGoneGame">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                                    <TextBlock Grid.Column="1" Margin="12,0,0,0" FontSize="11" Opacity="0.7"
+                                               VerticalAlignment="Center" Text="{Binding Platforms}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
             </TabItem>
         </TabControl>
 
