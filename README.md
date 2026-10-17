@@ -75,7 +75,9 @@ the file for your system:
 | 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. A footer sums it up: share of games played, total hours, most played. Double-click a game to open its store page. |
 | 🆕 **Recently added** | SteamDb remembers when it first saw each game, so the library viewer marks new games **NEW** and can filter / sort by *recently added* (stores don't report purchase dates; games you owned before SteamDb tracked a store don't count). |
 | 🎲 **Pick for me** | Can't decide? The library viewer suggests a game from the list shown, skipping completed and hidden ones and preferring games you've barely touched. |
-| ✅ **Backlog progress** | After an export to Notion or Google Sheets, the card shows *Completed 120 of 640 (19%)*, and the library viewer marks completed games ✓ with **Completed / Not completed** filters. |
+| ✅ **Backlog progress** | After an export to Notion or Google Sheets, the card shows *Completed 120 of 640 (19%)*, and the library viewer marks completed games ✓ with **Completed / Not completed** filters. **Refresh** in the library re-reads the ✓ from Notion right away (read-only). |
+| 📋 **Copy list** | Copies the games shown in the library (search and filter apply) — pastes into a spreadsheet as columns. |
+| ⬇️ **Updates** | A new version shows up in the sidebar and under *Settings → Updates* (**Check for updates**, **Download & restart**); a long-running app re-checks every 12 hours. |
 | 🖼️ **Covers & store links** | New Notion pages get the game's cover image and a `Store link`; existing pages without one are filled in. |
 | 🧹 **Duplicate finder** | **Find duplicates…** spots Notion pages of the same game and merges them (you confirm first; extras go to Notion's trash). |
 | 🗑️ **No longer owned** | Spots games in your tracker that left your library (refunds, delistings). They're never deleted. An optional `Owned` checkbox column gets unticked for them. |

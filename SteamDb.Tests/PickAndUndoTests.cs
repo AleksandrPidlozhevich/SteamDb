@@ -64,7 +64,7 @@ public class PickForMeTests
     public void ViewModel_OpenStorePage_UsesTheLinkOpener()
     {
         string? opened = null;
-        var vm = new LibraryViewModel([CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")], openLink: url => opened = url);
+        var vm = new LibraryViewModel([CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400")], actions: new LibraryActions(OpenLink: url => opened = url));
 
         vm.OpenStorePageCommand.Execute(vm.VisibleGames[0]);
 

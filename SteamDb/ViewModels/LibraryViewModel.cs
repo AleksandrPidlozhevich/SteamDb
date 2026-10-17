@@ -4,6 +4,8 @@ using SteamDb.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SteamDb.ViewModels;
 
@@ -143,6 +145,20 @@ public sealed record LibraryStats(
         $"Only Steam and Xbox report playtime: {Tracked} of {Games} games have it, and the share is out of those.";
 }
 
+/// <summary>
+/// What the library viewer can do outside itself; each one is optional (tests and the previewer
+/// pass none, which hides the matching buttons).
+/// </summary>
+/// <param name="OpenLink">Opens a store page.</param>
+/// <param name="CopyText">Puts text on the clipboard ("Copy list").</param>
+/// <param name="RefreshBacklog">Re-reads the completed marks from the tracker (read-only).</param>
+/// <param name="BacklogSource">The tracker <paramref name="RefreshBacklog"/> reads ("Notion").</param>
+public sealed record LibraryActions(
+    Action<string>? OpenLink = null,
+    Func<string, Task>? CopyText = null,
+    Func<CancellationToken, Task<BacklogSnapshot?>>? RefreshBacklog = null,
+    string? BacklogSource = null);
+
 /// <summary>A sort choice for the library list.</summary>
 public sealed record LibrarySortOption(string Label, LibrarySort Sort)
 {
@@ -180,7 +196,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     private readonly List<LibraryGameItem> _all;
     private readonly IgnoredGames? _ignored;
-    private readonly BacklogSnapshot? _backlog;
+    private readonly LibraryActions _actions;
+    private BacklogSnapshot? _backlog;
 
     [ObservableProperty] private string? searchText;
 
@@ -203,7 +220,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(HasPicked), nameof(PickedText))]
     private LibraryGameItem? picked;
 
-    [ObservableProperty] private string? pickMessage;
+    /// <summary>A one-line message in the banner when no game is picked ("Copied 12 games…").</summary>
+    [ObservableProperty] private string? notice;
+
+    /// <summary>True while the ✓ marks are being re-read from the tracker.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RefreshLabel))]
+    private bool isRefreshing;
 
     public bool HasPicked => Picked != null;
 
@@ -219,29 +242,27 @@ public sealed partial class LibraryViewModel : ViewModelBase
         return $"{stores} · {played}";
     }
 
-    private readonly Action<string>? _openLink;
     private readonly Random _random;
 
     /// <param name="rows">The games that will be exported.</param>
     /// <param name="hidden">Fetched games the user hid (shown under the "Hidden" filter).</param>
     /// <param name="ignored">Where Hide / Unhide is saved; null makes the viewer read-only.</param>
     /// <param name="backlog">Completed marks from the last tracker export (Notion / Sheets), if any.</param>
+    /// <param name="actions">Store pages, clipboard and ✓ refresh (see <see cref="LibraryActions"/>).</param>
     public LibraryViewModel(
         IEnumerable<CsvGameExportRow> rows, IEnumerable<CsvGameExportRow>? hidden = null, IgnoredGames? ignored = null,
-        BacklogSnapshot? backlog = null, Action<string>? openLink = null, Random? random = null,
+        BacklogSnapshot? backlog = null, LibraryActions? actions = null, Random? random = null,
         Func<CsvGameExportRow, DateOnly?>? addedOn = null)
     {
-        _openLink = openLink;
+        _actions = actions ?? new LibraryActions();
         _random = random ?? Random.Shared;
         _ignored = ignored;
         _backlog = backlog;
-        var completed = new HashSet<string>(backlog?.CompletedKeys ?? [], StringComparer.OrdinalIgnoreCase);
-        bool IsCompleted(CsvGameExportRow r) => completed.Count > 0 && IgnoredGames.KeysOf(r).Any(completed.Contains);
 
         _all = rows.Where(r => r.HasContent)
-            .Select(r => LibraryGameItem.From(r, completed: IsCompleted(r), addedOn: addedOn?.Invoke(r)))
+            .Select(r => LibraryGameItem.From(r, addedOn: addedOn?.Invoke(r)))
             .Concat((hidden ?? []).Where(r => r.HasContent)
-                .Select(r => LibraryGameItem.From(r, true, IsCompleted(r), addedOn?.Invoke(r))))
+                .Select(r => LibraryGameItem.From(r, true, addedOn: addedOn?.Invoke(r))))
             .OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
@@ -255,8 +276,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
         selectedSort = Sorts[0];
         filters = BuildFilters();
         selectedFilter = filters[0];
-        stats = LibraryStats.Compute(_all.Where(g => !g.IsHidden), backlog);
-        ApplyFilter();
+        stats = LibraryStats.Compute([]);
+        MarkCompleted(); // ✓ marks, then stats and the list
     }
 
     /// <summary>Design-time only (Avalonia previewer).</summary>
@@ -298,13 +319,91 @@ public sealed partial class LibraryViewModel : ViewModelBase
     partial void OnSelectedSortChanged(LibrarySortOption value) => ApplyFilter();
 
     /// <summary>Store pages can be opened (not in tests / the previewer).</summary>
-    public bool CanOpenStorePage => _openLink != null;
+    public bool CanOpenStorePage => _actions.OpenLink != null;
 
     [RelayCommand]
     private void OpenStorePage(LibraryGameItem? item)
     {
-        if (item?.StoreUrl is { } url) _openLink?.Invoke(url);
+        if (item?.StoreUrl is { } url) _actions.OpenLink?.Invoke(url);
     }
+
+    // ---- ✓ marks: where they come from, and re-reading them ----------------------------------
+
+    public bool CanRefreshBacklog => _actions.RefreshBacklog != null;
+
+    public string RefreshLabel => IsRefreshing ? "Refreshing…" : "Refresh";
+
+    /// <summary>"✓ from Notion · 17 Oct 16:23", or a hint when there are no marks yet.</summary>
+    public string? BacklogText => _backlog is { } b
+        ? $"✓ marks from {b.Target}, as of {b.When.ToLocalTime().ToString("d MMM HH:mm", System.Globalization.CultureInfo.CurrentCulture)}"
+        : CanRefreshBacklog ? $"No ✓ marks yet: read them from {_actions.BacklogSource}" : null;
+
+    public bool HasBacklogText => BacklogText != null;
+
+    /// <summary>Re-reads the completed marks from the tracker (read-only) and re-marks the list.</summary>
+    [RelayCommand]
+    private async Task RefreshBacklog()
+    {
+        if (_actions.RefreshBacklog is not { } refresh || IsRefreshing) return;
+        IsRefreshing = true;
+        Picked = null;
+        try
+        {
+            var snapshot = await refresh(CancellationToken.None);
+            if (snapshot == null)
+            {
+                Notice = $"No completion column found in {_actions.BacklogSource} (a Completed / Done checkbox or a Status).";
+                return;
+            }
+
+            _backlog = snapshot;
+            MarkCompleted();
+            Notice = $"✓ marks updated from {snapshot.Target}: {snapshot.Text}.";
+        }
+        catch (Exception ex)
+        {
+            Notice = $"⚠ Couldn't read {_actions.BacklogSource}: {ex.Message}";
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
+
+    // Applies the current snapshot's ✓ to every game, then rebuilds counts, stats and the list.
+    private void MarkCompleted()
+    {
+        var completed = new HashSet<string>(_backlog?.CompletedKeys ?? [], StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < _all.Count; i++)
+        {
+            var isCompleted = completed.Count > 0 && _all[i].Row is { } row &&
+                              IgnoredGames.KeysOf(row).Any(completed.Contains);
+            if (_all[i].IsCompleted != isCompleted) _all[i] = _all[i] with { IsCompleted = isCompleted };
+        }
+
+        Rebuild();
+        OnPropertyChanged(nameof(BacklogText));
+        OnPropertyChanged(nameof(HasBacklogText));
+    }
+
+    // ---- copy --------------------------------------------------------------------------------
+
+    public bool CanCopy => _actions.CopyText != null;
+
+    /// <summary>Copies the games shown (search and filter apply) as tab-separated lines, which paste
+    /// into a spreadsheet as columns: name, stores, playtime, last played.</summary>
+    [RelayCommand]
+    private async Task CopyList()
+    {
+        if (_actions.CopyText is not { } copy) return;
+        await copy(ListText(VisibleGames));
+        Picked = null;
+        Notice = $"Copied {VisibleGames.Count} games to the clipboard.";
+    }
+
+    public static string ListText(IEnumerable<LibraryGameItem> games) =>
+        string.Join(Environment.NewLine, games.Select(g =>
+            string.Join('\t', g.Name, string.Join("/", g.Platforms), g.PlaytimeText, g.LastPlayedText)));
 
     /// <summary>
     /// Suggests a game to play from the games currently shown (search / filter apply): never hidden
@@ -316,7 +415,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
     {
         var pick = Pick(VisibleGames, _random, Picked);
         Picked = pick;
-        PickMessage = pick == null ? "Nothing to pick: every game shown is completed or hidden." : null;
+        Notice = pick == null ? "Nothing to pick: every game shown is completed or hidden." : null;
         if (pick != null) SelectedGame = pick;
     }
 
@@ -324,7 +423,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
     private void DismissPick()
     {
         Picked = null;
-        PickMessage = null;
+        Notice = null;
     }
 
     /// <summary>The pick rule (pure): not hidden or completed; never played, under 2 h or without
@@ -352,11 +451,16 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var index = _all.IndexOf(item);
         if (index >= 0) _all[index] = item with { IsHidden = !item.IsHidden };
 
-        // Rebuild the counts but stay on the same filter.
+        Rebuild();
+    }
+
+    // Rebuilds the filter counts and stats (staying on the same filter) and the visible list.
+    private void Rebuild()
+    {
         var key = SelectedFilter?.Key ?? AllKey;
         Filters = BuildFilters();
-        Stats = LibraryStats.Compute(_all.Where(g => !g.IsHidden), _backlog);
         SelectedFilter = Filters.FirstOrDefault(f => f.Key == key) ?? Filters[0];
+        Stats = LibraryStats.Compute(_all.Where(g => !g.IsHidden), _backlog);
         ApplyFilter();
     }
 

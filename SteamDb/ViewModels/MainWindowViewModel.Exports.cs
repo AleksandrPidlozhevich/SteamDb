@@ -1,3 +1,4 @@
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using SteamDb.Services;
@@ -214,9 +215,26 @@ public partial class MainWindowViewModel
             if (!await HandleFetchedLibraryAsync(result, "Game library")) return;
 
             _dialogs.ShowLibrary(new LibraryViewModel(
-                result.Rows, result.Ignored, _ignored, _backlog.Latest(), _dialogs.OpenLink,
+                result.Rows, result.Ignored, _ignored, _backlog.Latest(), LibraryActions(),
                 addedOn: _firstSeen.AddedOn));
         }, catchSteamAuth: true);
+
+    // Store pages, clipboard, and re-reading the ✓ marks from Notion when it's set up.
+    private LibraryActions LibraryActions() => new(
+        _dialogs.OpenLink,
+        async text =>
+        {
+            if (_dialogs.Clipboard is { } clipboard) await clipboard.SetTextAsync(text);
+        },
+        CanFindNotionDuplicates
+            ? async ct =>
+            {
+                var snapshot = await _notionExporter.ReadBacklogAsync(NotionToken, DbId, _ignored.IsIgnored, ct);
+                RefreshLastSync(); // the Notion card's "Completed …" line
+                return snapshot;
+            }
+            : null,
+        "Notion");
 
     // ---- Notion --------------------------------------------------------------------------------
 

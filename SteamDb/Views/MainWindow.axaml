@@ -53,7 +53,7 @@
     </Window.Styles>
 
     <!-- Root fades in briefly when the theme changes (MainWindow.axaml.cs), so the switch is soft. -->
-    <Grid x:Name="Root" ColumnDefinitions="210,*">
+    <Grid x:Name="Root" ColumnDefinitions="Auto,*">
         <Grid.Transitions>
             <Transitions>
                 <DoubleTransition Property="Opacity" Duration="0:0:0.35" Easing="CubicEaseOut" />
@@ -71,54 +71,89 @@
                           HorizontalAlignment="Left" VerticalAlignment="Top"
                           Source="about:blank" />
 
-        <!-- ===== Sidebar: pages, support, theme, version ===== -->
-        <Border Grid.Column="0" Background="#14808080" BorderBrush="#26808080" BorderThickness="0,0,1,0">
-            <DockPanel Margin="12,18,12,12">
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="10,0,0,22">
-                    <Image Source="/Assets/gamedate.ico" Width="28" Height="28" />
-                    <TextBlock Text="SteamDb" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <!-- ===== Sidebar: pages, update, support, theme, version. Collapses to icons (the menu button). ===== -->
+        <Border Grid.Column="0" Width="{Binding SidebarWidth}" ClipToBounds="True"
+                Background="#14808080" BorderBrush="#26808080" BorderThickness="0,0,1,0">
+            <Border.Transitions>
+                <Transitions>
+                    <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+            </Border.Transitions>
+            <DockPanel Margin="10,14,10,12">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,18">
+                    <Button Classes="icon-button" Width="44" Height="40"
+                            ToolTip.Tip="{Binding SidebarToggleTip}" AutomationProperties.Name="{Binding SidebarToggleTip}"
+                            Command="{Binding ToggleSidebarCommand}">
+                        <PathIcon Width="18" Height="18" Data="{DynamicResource MenuIcon}" />
+                    </Button>
+                    <Image Source="/Assets/gamedate.ico" Width="26" Height="26" IsVisible="{Binding IsSidebarExpanded}" />
+                    <TextBlock Text="SteamDb" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"
+                               IsVisible="{Binding IsSidebarExpanded}" />
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Bottom" Spacing="6">
-                    <Button HorizontalAlignment="Stretch" Background="Transparent" Padding="10,6"
+                    <!-- A newer version is out: download it and restart (same as the banner / Settings). -->
+                    <Button Classes="accent" HorizontalAlignment="Stretch" Padding="10,7"
+                            IsVisible="{Binding IsUpdateAvailable}"
+                            ToolTip.Tip="{Binding UpdateButtonText}"
+                            Command="{Binding InstallUpdateCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Width="18" Height="18" Data="{DynamicResource DownloadIcon}" />
+                            <TextBlock Text="{Binding UpdateButtonText}" VerticalAlignment="Center"
+                                       IsVisible="{Binding IsSidebarExpanded}" />
+                        </StackPanel>
+                    </Button>
+                    <Button HorizontalAlignment="Stretch" Background="Transparent" Padding="11,6"
                             ToolTip.Tip="Support the project on Ko-fi"
                             Command="{Binding OpenLinkKofiCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Image Source="{SvgImage /Assets/ko-fi.svg}" Width="22" Height="22" />
-                            <TextBlock Text="Support on Ko-fi" VerticalAlignment="Center" />
+                            <TextBlock Text="Support on Ko-fi" VerticalAlignment="Center"
+                                       IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </Button>
-                    <Grid ColumnDefinitions="Auto,*" Margin="8,4,0,0">
+                    <!-- Expanded: the three-way theme switch + version. Collapsed: one button cycling them. -->
+                    <Grid ColumnDefinitions="Auto,*" Margin="2,4,0,0" IsVisible="{Binding IsSidebarExpanded}">
                         <views:ThemeSwitch />
                         <TextBlock Grid.Column="1" FontSize="11" Opacity="0.55" Margin="0,0,4,0"
                                    HorizontalAlignment="Right" VerticalAlignment="Center"
                                    Text="{Binding AppVersion}" />
                     </Grid>
+                    <Button Classes="icon-button" Width="44" Height="36" IsVisible="{Binding IsSidebarCollapsed}"
+                            ToolTip.Tip="{Binding ThemeTip}" AutomationProperties.Name="{Binding ThemeTip}"
+                            Command="{Binding CycleThemeCommand}">
+                        <Panel>
+                            <PathIcon Width="16" Height="16" Data="{DynamicResource ThemeSystemIcon}" IsVisible="{Binding IsSystemTheme}" />
+                            <PathIcon Width="16" Height="16" Data="{DynamicResource ThemeLightIcon}" IsVisible="{Binding IsLightTheme}" />
+                            <PathIcon Width="16" Height="16" Data="{DynamicResource ThemeDarkIcon}" IsVisible="{Binding IsDarkTheme}" />
+                        </Panel>
+                    </Button>
                 </StackPanel>
 
+                <!-- Collapsed: icons only, with the page name as a tooltip. -->
                 <ListBox Classes="nav" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
-                    <ListBoxItem>
+                    <ListBoxItem ToolTip.Tip="Sources" ToolTip.ServiceEnabled="{Binding IsSidebarCollapsed}">
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <PathIcon Data="{DynamicResource NavSourcesIcon}" />
-                            <TextBlock Text="Sources" VerticalAlignment="Center" />
+                            <TextBlock Text="Sources" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem>
+                    <ListBoxItem ToolTip.Tip="Export" ToolTip.ServiceEnabled="{Binding IsSidebarCollapsed}">
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <PathIcon Data="{DynamicResource NavExportIcon}" />
-                            <TextBlock Text="Export" VerticalAlignment="Center" />
+                            <TextBlock Text="Export" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem>
+                    <ListBoxItem ToolTip.Tip="Automation" ToolTip.ServiceEnabled="{Binding IsSidebarCollapsed}">
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <PathIcon Data="{DynamicResource NavAutomationIcon}" />
-                            <TextBlock Text="Automation" VerticalAlignment="Center" />
+                            <TextBlock Text="Automation" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem>
+                    <ListBoxItem ToolTip.Tip="Settings" ToolTip.ServiceEnabled="{Binding IsSidebarCollapsed}">
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <PathIcon Data="{DynamicResource NavSettingsIcon}" />
-                            <TextBlock Text="Settings" VerticalAlignment="Center" />
+                            <TextBlock Text="Settings" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                         </StackPanel>
                     </ListBoxItem>
                 </ListBox>
@@ -508,10 +543,27 @@
                         </Border>
 
                         <Border Classes="panel">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="panel-title" Text="Updates" />
+                                    <TextBlock Classes="hint" Text="{Binding UpdateStatus}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                            Margin="16,0,0,0">
+                                    <Button Content="{Binding CheckUpdatesLabel}" IsVisible="{Binding CanCheckForUpdates}"
+                                            IsEnabled="{Binding !IsCheckingForUpdate}"
+                                            Command="{Binding CheckForUpdatesCommand}" />
+                                    <Button Classes="accent" Content="Download &amp; restart" IsVisible="{Binding IsUpdateAvailable}"
+                                            Command="{Binding InstallUpdateCommand}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Classes="panel">
                             <StackPanel Spacing="4">
                                 <TextBlock Classes="panel-title" Text="Help" />
                                 <TextBlock Classes="hint"
-                                           Text="{Binding AppVersion, StringFormat='SteamDb {0}. The log files help with bug reports.'}" />
+                                           Text="The documentation covers setup for every store and tracker; the log files help with bug reports." />
                                 <StackPanel Classes="actions">
                                     <Button Content="Documentation" Command="{Binding OpenReadmeCommand}" />
                                     <Button Content="Open log folder" Command="{Binding OpenLogsFolderCommand}" />

@@ -6,7 +6,7 @@ namespace SteamDb.Services;
 public sealed record AppSettings(
     string? SteamApiKey, string? SteamId, string? NotionToken, string? DbId, string? GoogleSheetsTableName = null,
     string? ExcludedStores = null, string? AutoSync = null, bool? CloseToTray = null, string? CsvFile = null,
-    string? Theme = null);
+    string? Theme = null, bool? SidebarCollapsed = null);
 
 public static class AppSettingsService
 {
@@ -33,7 +33,8 @@ public static class AppSettingsService
                (string.IsNullOrEmpty(settings.CsvFile)
                    ? string.Empty
                    : $"CSV File: {settings.CsvFile}" + Environment.NewLine) +
-               (string.IsNullOrEmpty(settings.Theme) ? string.Empty : $"Theme: {settings.Theme}" + Environment.NewLine);
+               (string.IsNullOrEmpty(settings.Theme) ? string.Empty : $"Theme: {settings.Theme}" + Environment.NewLine) +
+               (settings.SidebarCollapsed == true ? "Sidebar: collapsed" + Environment.NewLine : string.Empty);
     }
 
     /// <summary>
@@ -44,7 +45,7 @@ public static class AppSettingsService
     {
         string? steamApiKey = null, steamId = null, notionToken = null, dbId = null, sheetsTable = null,
             excludedStores = null, autoSync = null, csvFile = null, theme = null;
-        bool? closeToTray = null;
+        bool? closeToTray = null, sidebarCollapsed = null;
 
         foreach (var line in content.Split(["\r\n", "\r", "\n"], StringSplitOptions.RemoveEmptyEntries))
         {
@@ -62,6 +63,7 @@ public static class AppSettingsService
                 case "Auto Sync": autoSync = keyValue[1]; break;
                 case "CSV File": csvFile = keyValue[1].Trim(); break;
                 case "Theme": theme = keyValue[1].Trim(); break;
+                case "Sidebar": sidebarCollapsed = keyValue[1].Trim() == "collapsed"; break;
                 case "Close To Tray":
                     closeToTray = keyValue[1].Trim() is "yes" or "true";
                     break;
@@ -69,6 +71,6 @@ public static class AppSettingsService
         }
 
         return new AppSettings(steamApiKey, steamId, notionToken, dbId, sheetsTable, excludedStores, autoSync,
-            closeToTray, csvFile, theme);
+            closeToTray, csvFile, theme, sidebarCollapsed);
     }
 }

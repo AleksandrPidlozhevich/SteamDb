@@ -100,10 +100,14 @@ public partial class MainWindowViewModel
     // ---- auto-sync -----------------------------------------------------------------------------
 
     // Checked once a minute, so the first auto-sync starts a minute after launch (after the cached
-    // store sessions have been restored).
+    // store sessions have been restored). The same tick re-checks for app updates every 12 hours.
     private void StartAutoSyncTimer()
     {
-        _autoSyncTimer.Tick += async (_, _) => await RunDueAutoSyncAsync();
+        _autoSyncTimer.Tick += async (_, _) =>
+        {
+            await RunDueAutoSyncAsync();
+            await CheckForUpdatesIfStaleAsync();
+        };
         _autoSyncTimer.Start();
     }
 

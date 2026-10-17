@@ -114,12 +114,64 @@ public partial class MainWindowViewModel
 
     /// <summary>A newer version found on GitHub Releases at startup, or null.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsUpdateAvailable))]
+    [NotifyPropertyChangedFor(nameof(IsUpdateAvailable), nameof(UpdateStatus), nameof(UpdateButtonText))]
     private string? availableUpdateVersion;
 
     public bool IsUpdateAvailable => AvailableUpdateVersion is not null;
 
-    private async Task CheckForUpdateAsync() => AvailableUpdateVersion = await _updates.CheckForUpdateAsync();
+    /// <summary>"Update to v2.1.0" on the sidebar button.</summary>
+    public string UpdateButtonText => $"Update to v{AvailableUpdateVersion}";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateStatus), nameof(CheckUpdatesLabel))]
+    private bool isCheckingForUpdate;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateStatus))]
+    private DateTimeOffset? lastUpdateCheck;
+
+    /// <summary>Only the installed app can update itself (not a development build).</summary>
+    public bool CanCheckForUpdates => _updates.IsInstalled;
+
+    public string CheckUpdatesLabel => IsCheckingForUpdate ? "Checking…" : "Check for updates";
+
+    /// <summary>The Updates panel's line: up to date / a version is available / why it can't tell.</summary>
+    public string UpdateStatus =>
+        !_updates.IsInstalled ? $"SteamDb {AppVersion}. Updates work in the installed app (from the GitHub release), not in a development build."
+        : IsCheckingForUpdate ? "Checking GitHub for a newer version…"
+        : AvailableUpdateVersion is { } version ? $"Version {version} is available (you have {AppVersion})."
+        : _updates.LastCheckError is { } error ? $"Couldn't check for updates: {error}"
+        : LastUpdateCheck is { } checkedAt ? $"You're up to date ({AppVersion}), checked at {checkedAt:HH:mm}."
+        : $"You have {AppVersion}.";
+
+    /// <summary>How often a long-running app (in the tray) looks for a new version.</summary>
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(12);
+
+    private async Task CheckForUpdateAsync()
+    {
+        IsCheckingForUpdate = true;
+        try
+        {
+            AvailableUpdateVersion = await _updates.CheckForUpdateAsync();
+            LastUpdateCheck = DateTimeOffset.Now;
+        }
+        finally
+        {
+            IsCheckingForUpdate = false;
+        }
+    }
+
+    /// <summary>Settings → Updates → Check for updates.</summary>
+    [RelayCommand]
+    private Task CheckForUpdates() => IsCheckingForUpdate ? Task.CompletedTask : CheckForUpdateAsync();
+
+    // Called from the minute timer: re-check when the last check is older than UpdateCheckInterval.
+    private async Task CheckForUpdatesIfStaleAsync()
+    {
+        if (!_updates.IsInstalled || IsCheckingForUpdate || IsUpdateAvailable) return;
+        if (LastUpdateCheck is { } last && DateTimeOffset.Now - last < UpdateCheckInterval) return;
+        await CheckForUpdateAsync();
+    }
 
     // Once after an update: "Updated to v1.2.0" with a link to its release notes.
     private void ShowWhatsNew()

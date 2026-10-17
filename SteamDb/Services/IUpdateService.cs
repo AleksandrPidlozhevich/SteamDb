@@ -10,6 +10,13 @@ public interface IUpdateService
     /// <summary>The running app's version, e.g. <c>1.1.0</c>.</summary>
     string CurrentVersion { get; }
 
+    /// <summary>Installed through Velopack (the GitHub release installer), so it can update itself;
+    /// false for <c>dotnet run</c> / development builds.</summary>
+    bool IsInstalled { get; }
+
+    /// <summary>Why the last check failed (offline, GitHub rate limit…), or null when it worked.</summary>
+    string? LastCheckError { get; }
+
     /// <summary>
     /// Returns the newer version available for this platform, or null when up to date, when the app
     /// wasn't installed through Velopack (e.g. <c>dotnet run</c>), or when the check fails.

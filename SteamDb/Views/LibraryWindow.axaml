@@ -15,7 +15,7 @@
         <vm:LibraryViewModel />
     </Design.DataContext>
 
-    <Grid Margin="24,20,24,20" RowDefinitions="Auto,Auto,Auto,Auto,*">
+    <Grid Margin="24,20,24,20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
 
         <!-- Title + count, and the pick button. -->
         <Grid ColumnDefinitions="*,Auto">
@@ -77,8 +77,18 @@
             </Border>
         </WrapPanel>
 
-        <!-- Search, filter, sort. -->
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,2,0,12">
+        <!-- Where the ✓ marks come from, and re-reading them (read-only). -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10" Margin="2,0,0,10"
+                    IsVisible="{Binding HasBacklogText}">
+            <TextBlock Classes="hint" VerticalAlignment="Center" Text="{Binding BacklogText}" />
+            <Button Content="{Binding RefreshLabel}" FontSize="12" Padding="10,3"
+                    IsVisible="{Binding CanRefreshBacklog}" IsEnabled="{Binding !IsRefreshing}"
+                    ToolTip.Tip="Read the Completed / Done ticks from Notion now (nothing is written)"
+                    Command="{Binding RefreshBacklogCommand}" />
+        </StackPanel>
+
+        <!-- Search, filter, sort, copy. -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,2,0,12">
             <TextBox Grid.Column="0" PlaceholderText="Search by name…"
                      Text="{Binding SearchText, Mode=TwoWay}">
                 <TextBox.InnerLeftContent>
@@ -103,14 +113,17 @@
                       AutomationProperties.Name="Sort"
                       ItemsSource="{Binding Sorts}"
                       SelectedItem="{Binding SelectedSort, Mode=TwoWay}" />
+            <Button Grid.Column="3" Margin="8,0,0,0" Content="Copy list" IsVisible="{Binding CanCopy}"
+                    ToolTip.Tip="Copy the games shown (search and filter apply): name, stores, playtime, last played — pastes into a spreadsheet as columns"
+                    Command="{Binding CopyListCommand}" />
         </Grid>
 
         <!-- Pick for me: the suggestion, its store page, another pick. -->
-        <Border Grid.Row="3" Classes="banner info" Margin="0,0,0,12" Padding="12,6">
+        <Border Grid.Row="4" Classes="banner info" Margin="0,0,0,12" Padding="12,6">
             <Border.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="HasPicked" />
-                    <Binding Path="PickMessage" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                    <Binding Path="Notice" Converter="{x:Static ObjectConverters.IsNotNull}" />
                 </MultiBinding>
             </Border.IsVisible>
             <Grid ColumnDefinitions="*,Auto,Auto,Auto">
@@ -118,7 +131,7 @@
                            TextTrimming="CharacterEllipsis" Text="{Binding PickedText}"
                            IsVisible="{Binding HasPicked}" />
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
-                           Text="{Binding PickMessage}" IsVisible="{Binding !HasPicked}" />
+                           TextWrapping="Wrap" Text="{Binding Notice}" IsVisible="{Binding !HasPicked}" />
                 <Button Grid.Column="1" Content="Store page"
                         Command="{Binding OpenStorePageCommand}" CommandParameter="{Binding Picked}">
                     <Button.IsVisible>
@@ -135,7 +148,7 @@
         </Border>
 
         <!-- The list, with its column names in the frame's header. -->
-        <Border Grid.Row="4" Classes="list-frame">
+        <Border Grid.Row="5" Classes="list-frame">
             <DockPanel>
                 <Border DockPanel.Dock="Top" Classes="list-header">
                     <!-- Same widths as the item template below (+ the item's own padding). -->

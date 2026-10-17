@@ -28,6 +28,10 @@ internal sealed class DesignTimeUpdateService : IUpdateService
 {
     public string CurrentVersion => "0.0.0";
 
+    public bool IsInstalled => false;
+
+    public string? LastCheckError => null;
+
     public Task<string?> CheckForUpdateAsync() => Task.FromResult<string?>(null);
 
     public Task DownloadAndRestartAsync(IProgress<int>? progress = null, CancellationToken ct = default) =>

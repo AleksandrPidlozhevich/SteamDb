@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
@@ -74,9 +76,13 @@ public partial class App : Application
     }
 
     // Tray icon on every platform (Linux needs a desktop with StatusNotifier / AppIndicator support):
-    // click to open; menu Open / Sync now / Quit. The tooltip shows the last result.
+    // click to open; menu Open / Sync now / Quit. The tooltip shows the last result, and a failed
+    // (background) sync adds a red dot to the icon until a later result replaces it.
     private void CreateTrayIcon(MainWindowViewModel viewModel)
     {
+        var normalIcon = new WindowIcon(AssetLoader.Open(AppIconUri));
+        WindowIcon? warningIcon = null;
+
         var open = new NativeMenuItem("Open SteamDb");
         open.Click += (_, _) => ShowMainWindow();
         var syncNow = new NativeMenuItem("Sync now");
@@ -88,7 +94,7 @@ public partial class App : Application
 
         _tray = new TrayIcon
         {
-            Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://SteamDb/Assets/gamedate.ico"))),
+            Icon = normalIcon,
             ToolTipText = "SteamDb",
             Menu = new NativeMenu { Items = { open, syncNow, history, new NativeMenuItemSeparator(), quit } }
         };
@@ -96,10 +102,14 @@ public partial class App : Application
 
         viewModel.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(MainWindowViewModel.ResultMessage) && _tray != null)
-                _tray.ToolTipText = viewModel.ResultMessage is { } message
-                    ? Truncate($"SteamDb — {message}", 120)
-                    : "SteamDb";
+            if (e.PropertyName is not nameof(MainWindowViewModel.ResultMessage) || _tray == null) return;
+
+            _tray.ToolTipText = viewModel.ResultMessage is { } message
+                ? Truncate($"SteamDb — {message}", 120)
+                : "SteamDb";
+            // Results starting with ⚠ are failures (see MainWindowViewModel.RunSyncTargetsAsync).
+            var failed = viewModel.ResultMessage?.StartsWith('⚠') == true;
+            _tray.Icon = failed ? warningIcon ??= WarningIcon() ?? normalIcon : normalIcon;
         };
 
         TrayIcon.SetIcons(this, [_tray]);
@@ -123,6 +133,36 @@ public partial class App : Application
             if (_window?.DataContext is MainWindowViewModel viewModel) viewModel.SaveOnExit();
             _desktop?.Shutdown();
         }
+    }
+
+    private static readonly Uri AppIconUri = new("avares://SteamDb/Assets/gamedate.ico");
+
+    // The app icon with a red dot in the corner, drawn once when the first failure needs it; null if
+    // drawing fails (the plain icon is used then — a tray badge isn't worth a crash).
+    private static WindowIcon? WarningIcon()
+    {
+        try
+        {
+            return new WindowIcon(DrawWarningBitmap());
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    public static Bitmap DrawWarningBitmap()
+    {
+        using var source = new Bitmap(AssetLoader.Open(AppIconUri));
+        var target = new RenderTargetBitmap(new PixelSize(32, 32));
+        using (var context = target.CreateDrawingContext())
+        {
+            context.DrawImage(source, new Rect(0, 0, 32, 32));
+            context.DrawEllipse(Brushes.White, null, new Point(24, 24), 8, 8);
+            context.DrawEllipse(new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), null, new Point(24, 24), 6.5, 6.5);
+        }
+
+        return target;
     }
 
     // Some platforms cap tray tooltips (Windows: 127 chars).

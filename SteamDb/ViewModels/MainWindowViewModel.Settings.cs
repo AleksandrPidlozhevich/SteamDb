@@ -61,6 +61,7 @@ public partial class MainWindowViewModel
         CloseToTray = settings.CloseToTray ?? false;
         CsvFilePath = settings.CsvFile;
         ThemeIndex = ThemeIndexFor(settings.Theme);
+        IsSidebarCollapsed = settings.SidebarCollapsed ?? false;
     }
 
     // Only overwrites the fields actually present in the settings file, then remembers them.
@@ -88,7 +89,7 @@ public partial class MainWindowViewModel
 
     private AppSettings CurrentSettings() =>
         new(SteamApiKey, SteamId, NotionToken, DbId, GoogleSheetsTableName, _selection.Serialize(),
-            CurrentAutoSync().Serialize(), CloseToTray, CsvFilePath, ThemeSetting);
+            CurrentAutoSync().Serialize(), CloseToTray, CsvFilePath, ThemeSetting, IsSidebarCollapsed);
 
     private void ApplyExcludedStores(string? excluded)
     {

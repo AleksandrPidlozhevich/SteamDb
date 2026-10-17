@@ -371,6 +371,30 @@ public class NotionGameExporterTests
         Assert.Equal(1, backlog.Get(SyncHistory.Notion)?.Completed);
     }
 
+    [Fact]
+    public async Task ReadBacklog_OnlyReads_RecordsTheMarks_AndLeavesHiddenGamesOut()
+    {
+        var done = Existing("p1", CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400"), "Steam:400", "Steam")
+            with { Completed = true };
+        var open = Existing("p2", CsvGameExportService.CreateRow("Steam", "Doom", "Steam:2280"), "Steam:2280", "Steam")
+            with { Completed = false };
+        var hidden = Existing("p3", CsvGameExportService.CreateRow("Steam", "Test Server", "Steam:1"), "Steam:1", "Steam")
+            with { Completed = true };
+        var client = new FakeNotionApiClient();
+        var backlog = new BacklogProgress();
+        var exporter = new NotionGameExporter(
+            new FakeGameLibraryService(Library()),
+            new FakeNotionGateway(client, new FakeNotionDataFetcher([done, open, hidden])),
+            new NullLogService(), backlog);
+
+        var snapshot = await exporter.ReadBacklogAsync("token", "db", r => r.Name == "Test Server");
+
+        Assert.Equal("Completed 1 of 2 (50%)", snapshot?.Text);
+        Assert.Equal(["Steam:400"], backlog.Get(SyncHistory.Notion)?.CompletedKeys);
+        Assert.Empty(client.Created);
+        Assert.Empty(client.Updated);
+    }
+
     // Returns the fake client's recorded writes (the fake itself is file-local).
     private static (NotionGameExporter Exporter, List<NotionPageBody> Created, List<(string PageId, NotionPageBody Body)> Updated)
         CreateExporter(

@@ -211,6 +211,14 @@ public class HeadlessSyncTests : IDisposable
     }
 
     [Fact]
+    public void Settings_SidebarCollapsed_RoundTrips_AndIsOmittedWhenExpanded()
+    {
+        var collapsed = AppSettingsService.Serialize(new AppSettings("k", "i", "t", "d", SidebarCollapsed: true));
+        Assert.True(AppSettingsService.Parse(collapsed).SidebarCollapsed);
+        Assert.DoesNotContain("Sidebar", AppSettingsService.Serialize(new AppSettings("k", "i", "t", "d", SidebarCollapsed: false)));
+    }
+
+    [Fact]
     public void CommandLine_CsvWithoutFile_IsAccepted()
     {
         var command = SyncCommandLine.Parse(["--sync", "csv"]);

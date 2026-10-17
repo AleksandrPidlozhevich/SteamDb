@@ -30,6 +30,10 @@ public sealed class VelopackUpdateService : IUpdateService
             ? installed.ToString()
             : AssemblyVersion();
 
+    public bool IsInstalled => _manager.IsInstalled;
+
+    public string? LastCheckError { get; private set; }
+
     public async Task<string?> CheckForUpdateAsync()
     {
         if (!_manager.IsInstalled) return null;
@@ -37,6 +41,7 @@ public sealed class VelopackUpdateService : IUpdateService
         try
         {
             _pending = await _manager.CheckForUpdatesAsync();
+            LastCheckError = null;
             var version = _pending?.TargetFullRelease.Version.ToString();
             if (version is not null) _log.WriteInfo($"Update available: {version} (running {CurrentVersion}).");
             return version;
@@ -45,6 +50,7 @@ public sealed class VelopackUpdateService : IUpdateService
         {
             // Offline / GitHub rate limit: not worth bothering the user about.
             _log.WriteWarning($"Update check failed: {ex.Message}");
+            LastCheckError = ex.Message;
             return null;
         }
     }

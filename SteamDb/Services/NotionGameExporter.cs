@@ -201,6 +201,22 @@ public sealed class NotionGameExporter
         _log.WriteInfo($"Notion: created {plan.ToCreate.Count}, updated {plan.ToUpdate.Count} games.");
     }
 
+    /// <summary>
+    /// Read-only: reads which pages are ticked as completed and records that as the Notion backlog
+    /// snapshot (what the library viewer's ✓ marks show), without fetching any store or writing.
+    /// </summary>
+    /// <param name="isHidden">Games hidden in the library viewer, left out of the counts.</param>
+    public async Task<BacklogSnapshot?> ReadBacklogAsync(
+        string? notionToken, string? dbId, Func<CsvGameExportRow, bool>? isHidden = null, CancellationToken ct = default)
+    {
+        using var notionApiClient = _notion.CreateClient(notionToken, dbId);
+        var pages = await _notion.CreateFetcher(notionApiClient).FetchRowsAsync(ct);
+        var snapshot = BacklogSnapshot.From(SyncHistory.Notion, DateTimeOffset.Now,
+            pages.Where(p => isHidden?.Invoke(p.Row) != true).Select(p => (p.Row, p.Completed)));
+        _backlog?.Record(snapshot);
+        return snapshot;
+    }
+
     /// <summary>Read-only: finds pages of the same game in the database (no library fetch needed).</summary>
     public async Task<IReadOnlyList<NotionDuplicateGroup>> FindDuplicatesAsync(
         string? notionToken, string? dbId, CancellationToken ct = default)

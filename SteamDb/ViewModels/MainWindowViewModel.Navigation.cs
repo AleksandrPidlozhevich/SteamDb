@@ -20,6 +20,21 @@ public partial class MainWindowViewModel
     /// <summary>The page shown (<see cref="MainTab"/> as an index, bound to the sidebar and the pages).</summary>
     [ObservableProperty] private int selectedTab = (int)MainTab.Export;
 
+    /// <summary>The sidebar shows icons only (saved as <c>Sidebar: collapsed</c>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSidebarExpanded), nameof(SidebarWidth), nameof(SidebarToggleTip))]
+    private bool isSidebarCollapsed;
+
+    public bool IsSidebarExpanded => !IsSidebarCollapsed;
+
+    /// <summary>Animated by a DoubleTransition on the sidebar's Width.</summary>
+    public double SidebarWidth => IsSidebarCollapsed ? 64 : 210;
+
+    public string SidebarToggleTip => IsSidebarCollapsed ? "Expand the menu" : "Collapse the menu to icons";
+
+    [RelayCommand]
+    private void ToggleSidebar() => IsSidebarCollapsed = !IsSidebarCollapsed;
+
     [RelayCommand]
     private void GoToSources() => SelectedTab = (int)MainTab.Sources;
 
@@ -53,7 +68,8 @@ public partial class MainWindowViewModel
 
     /// <summary>0 = follow the system, 1 = light, 2 = dark (saved as <c>Theme: Light / Dark</c>).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSystemTheme), nameof(IsLightTheme), nameof(IsDarkTheme), nameof(ThemeThumbMargin))]
+    [NotifyPropertyChangedFor(nameof(IsSystemTheme), nameof(IsLightTheme), nameof(IsDarkTheme), nameof(ThemeThumbMargin),
+        nameof(ThemeTip))]
     private int themeIndex;
 
     partial void OnThemeIndexChanged(int value)
@@ -81,6 +97,17 @@ public partial class MainWindowViewModel
 
     [RelayCommand]
     private void UseDarkTheme() => ThemeIndex = 2;
+
+    /// <summary>The collapsed sidebar's single theme button: System → Light → Dark → System.</summary>
+    [RelayCommand]
+    private void CycleTheme() => ThemeIndex = (ThemeIndex + 1) % 3;
+
+    public string ThemeTip => ThemeIndex switch
+    {
+        1 => "Theme: light (click for dark)",
+        2 => "Theme: dark (click for system)",
+        _ => "Theme: system (click for light)"
+    };
 
     private static ThemeVariant ThemeVariantFor(int index) => index switch
     {
