@@ -94,6 +94,20 @@ public sealed record LibraryStats(
 
     public bool HasRecentlyAdded => RecentlyAdded > 0;
 
+    // ---- stat tiles: a big value + a small label ---------------------------------------------
+
+    public string CompletedValue => $"{CompletedPercent:0}%";
+
+    public string CompletedLabel => $"completed · {Completed} of {Games}";
+
+    public string PlayedValue => $"{PlayedPercent:0}%";
+
+    public string PlayedLabel => $"played · {Played} of {Tracked}";
+
+    public string HoursValue => $"{TotalMinutes / 60.0:#,0}";
+
+    public string GamesValue => $"{Games:#,0}";
+
     /// <summary>"3 added in the last 30 days".</summary>
     public string RecentlyAddedText => $"{RecentlyAdded} added in the last {FirstSeenGames.RecentDays} days";
 

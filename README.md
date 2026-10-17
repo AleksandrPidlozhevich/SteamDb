@@ -11,7 +11,7 @@ Pull your owned games from **Steam, Epic, GOG and Xbox** and sync them into **No
 progress, and what you never even started.
 
 [![Latest release](https://img.shields.io/github/v/release/AleksandrPidlozhevich/SteamDb?style=for-the-badge&logo=github&label=Release)](https://github.com/AleksandrPidlozhevich/SteamDb/releases)
-[![.NET 9](https://img.shields.io/badge/.NET-9-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Avalonia 12](https://img.shields.io/badge/Avalonia-12-8B44AC?style=for-the-badge)](https://avaloniaui.net/)
 [![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-informational?style=for-the-badge&label=Platforms)](#download)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE.txt)

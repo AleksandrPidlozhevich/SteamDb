@@ -1,26 +1,38 @@
 <!-- Styles shared by every window (included in App.axaml). Window-specific layout stays in the
      window; anything used in two places, or that defines the app's look, lives here. -->
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:views="using:SteamDb.Views">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Styles.Resources>
+        <!-- Sidebar icons (24×24 paths, filled with the text colour). -->
+        <StreamGeometry x:Key="NavSourcesIcon">M4,4H10V10H4Z M14,4H20V10H14Z M4,14H10V20H4Z M14,14H20V20H14Z</StreamGeometry>
+        <StreamGeometry x:Key="NavExportIcon">M11,16V7.83L7.41,11.41L6,10L12,4L18,10L16.59,11.41L13,7.83V16Z M5,18H19V20H5Z</StreamGeometry>
+        <StreamGeometry x:Key="NavAutomationIcon">F0 M12,2A10,10 0 1,1 11.99,2Z M12,4A8,8 0 1,0 12.01,4Z M11,7H13V11.6L16.4,13.6L15.4,15.3L11,12.7Z</StreamGeometry>
+        <!-- Theme switch: shapes from Assets/system-*.svg, sun-bold.svg and moon.svg, drawn as paths so
+             they take the text colour in either theme. -->
+        <StreamGeometry x:Key="ThemeSystemIcon">M2000 1525q12 12 21 29t15 36t9 38t3 36q0 27-10 50t-27 40t-41 28t-50 10H128q-27 0-50-10t-40-27t-28-41t-10-50q0-16 3-35t9-39t15-36t21-29l208-208V384h1536v933zM384 1280h1280V512H384zm1536 384q0-11-4-28t-12-26l-203-202H347l-203 202q-8 8-12 25t-4 29z</StreamGeometry>
+        <StreamGeometry x:Key="ThemeLightIcon">F0 M18 12a6 6 0 1 1-12 0a6 6 0 0 1 12 0Z M12 1.25a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0V2a.75.75 0 0 1 .75-.75M4.399 4.399a.75.75 0 0 1 1.06 0l.393.392a.75.75 0 0 1-1.06 1.061l-.393-.393a.75.75 0 0 1 0-1.06m15.202 0a.75.75 0 0 1 0 1.06l-.393.393a.75.75 0 0 1-1.06-1.06l.393-.393a.75.75 0 0 1 1.06 0M1.25 12a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5H2a.75.75 0 0 1-.75-.75m19 0a.75.75 0 0 1 .75-.75h1a.75.75 0 0 1 0 1.5h-1a.75.75 0 0 1-.75-.75m-2.102 6.148a.75.75 0 0 1 1.06 0l.393.393a.75.75 0 1 1-1.06 1.06l-.393-.393a.75.75 0 0 1 0-1.06m-12.296 0a.75.75 0 0 1 0 1.06l-.393.393a.75.75 0 1 1-1.06-1.06l.392-.393a.75.75 0 0 1 1.061 0M12 20.25a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1a.75.75 0 0 1 .75-.75</StreamGeometry>
+        <StreamGeometry x:Key="ThemeDarkIcon">M12.2 22c4.53 0 8.45-2.91 9.76-7.24a1.002 1.002 0 0 0-1.25-1.25c-.78.23-1.58.35-2.38.35c-4.52 0-8.2-3.68-8.2-8.2c0-.8.12-1.6.35-2.38c.11-.35.01-.74-.25-1s-.64-.36-1-.25A10.17 10.17 0 0 0 2 11.8C2 17.42 6.57 22 12.2 22M8.18 4.65c-.03.34-.05.68-.05 1.02c0 5.62 4.57 10.2 10.2 10.2c.34 0 .68-.02 1.02-.05C17.93 18.38 15.23 20 12.2 20C7.68 20 4 16.32 4 11.8a8.15 8.15 0 0 1 4.18-7.15</StreamGeometry>
+
+        <StreamGeometry x:Key="NavSettingsIcon">M3,6H13V8H3Z M17,6H21V8H17Z M13,4H15V10H13Z M3,16H7V18H3Z M11,16H21V18H11Z M7,14H9V20H7Z</StreamGeometry>
+    </Styles.Resources>
 
     <!-- ===== Icons ===== -->
 
-    <!-- Uniform sizing for every provider icon (Svg- or Image-based). -->
+    <!-- Store / target icons in a panel header. -->
     <Style Selector="Svg.icon, Image.icon">
-        <Setter Property="Width" Value="44" />
-        <Setter Property="Height" Value="44" />
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
     </Style>
 
-    <!-- A transparent 44×44 icon button (info / Ko-fi / theme toggle). -->
-    <Style Selector="Button.icon-button, Button.info">
-        <Setter Property="Width" Value="44" />
-        <Setter Property="Height" Value="44" />
-        <Setter Property="Padding" Value="0" />
+    <!-- A transparent icon button (theme toggle, Ko-fi). -->
+    <Style Selector="Button.icon-button">
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="4" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="CornerRadius" Value="4" />
-        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="6" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
@@ -38,9 +50,16 @@
         <Setter Property="RenderTransform" Value="scale(1.12)" />
     </Style>
 
-    <!-- ⓘ button (sized and animated like the icon buttons above): opens the matching README section.
-         Set ToolTip.Tip, AutomationProperties.Name and Command. -->
+    <!-- ⓘ next to a field: opens the matching help page. Set ToolTip.Tip, AutomationProperties.Name
+         and Command. -->
     <Style Selector="Button.info">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="13" />
+        <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Content">
             <Template>
                 <Viewbox>
@@ -52,61 +71,93 @@
 
     <!-- ===== Inputs ===== -->
 
-    <!-- Uniform sizing for every credential field. -->
+    <!-- Credential / name fields. -->
     <Style Selector="TextBox.field">
-        <Setter Property="Width" Value="220" />
-        <Setter Property="FontSize" Value="10" />
+        <Setter Property="Width" Value="240" />
+        <Setter Property="UseFloatingPlaceholder" Value="True" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- A field with its ⓘ. -->
+    <Style Selector="StackPanel.field-row">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="6" />
     </Style>
 
     <!-- Compact ticks (Fluent's CheckBox has a 120px MinWidth). -->
     <Style Selector="CheckBox.include">
         <Setter Property="MinWidth" Value="0" />
-        <Setter Property="FontSize" Value="11" />
-        <Setter Property="Padding" Value="4,0,0,0" />
+        <Setter Property="Padding" Value="6,0,0,0" />
     </Style>
 
-    <!-- ===== Cards (main window) ===== -->
+    <!-- ===== Pages (main window) ===== -->
 
-    <!-- Card frame: a "fieldset" whose left border is broken by its icon (see ActionCard). -->
-    <Style Selector="Border.card">
-        <Setter Property="Width" Value="240" />
-        <Setter Property="BorderBrush" Value="#80808080" />
+    <Style Selector="TextBlock.page-title">
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.page-subtitle">
+        <Setter Property="Opacity" Value="0.7" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="0,2,0,16" />
+    </Style>
+
+    <!-- A section of a page: header (icon + title + status / tick) and its controls. -->
+    <Style Selector="Border.panel">
+        <Setter Property="Background" Value="#0F808080" />
+        <Setter Property="BorderBrush" Value="#26808080" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="Padding" Value="40,14,20,14" />
-        <Setter Property="Margin" Value="24,0,0,0" />
+        <Setter Property="Padding" Value="16,14" />
+        <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
-    <!-- Buttons inside a card fill the card width. (ActionCard's frame is in its template, which
-         isn't a logical ancestor of the content, so it needs its own selector.) -->
-    <Style Selector="Border.card Button, views|ActionCard Button">
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Style Selector="TextBlock.panel-title">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
-
-    <!-- The card's icon sits on the frame; the window-coloured background hides the line behind it. -->
-    <Style Selector="views|ActionCard">
-        <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="Template">
-            <ControlTemplate>
-                <Panel>
-                    <Border Classes="card">
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}" />
-                    </Border>
-                    <Border HorizontalAlignment="Left" VerticalAlignment="Center" Padding="4,6"
-                            Background="{Binding $parent[Window].Background}">
-                        <Image Classes="icon" Source="{TemplateBinding Icon}" />
-                    </Border>
-                </Panel>
-            </ControlTemplate>
-        </Setter>
+    <!-- One explanatory line under a control or a panel title. -->
+    <Style Selector="TextBlock.hint">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Opacity" Value="0.65" />
+        <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
-    <!-- "Last sync: today 14:20" / "Completed 120 of 640" under a card's buttons. -->
+    <!-- "Last sync: today 14:20" / "Completed 120 of 640". -->
     <Style Selector="TextBlock.last-sync">
-        <Setter Property="FontSize" Value="10" />
-        <Setter Property="Opacity" Value="0.6" />
-        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Opacity" Value="0.65" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Status pill on an export panel: amber "Needs …" until it can run, then green "Ready". -->
+    <Style Selector="Border.pill">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="#26F59E0B" />
+    </Style>
+    <Style Selector="Border.pill.ready">
+        <Setter Property="Background" Value="#2622C55E" />
+    </Style>
+    <Style Selector="Border.pill > TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- ===== Sidebar ===== -->
+
+    <Style Selector="ListBox.nav">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem">
+        <Setter Property="Padding" Value="12,9" />
+        <Setter Property="Margin" Value="0,2" />
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="ListBox.nav PathIcon">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
     </Style>
 
     <!-- ===== Banners ===== -->
@@ -149,9 +200,10 @@
 
     <!-- The rounded frame around a window's main list. -->
     <Style Selector="Border.list-frame">
-        <Setter Property="BorderBrush" Value="#40808080" />
+        <Setter Property="BorderBrush" Value="#26808080" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="ClipToBounds" Value="True" />
     </Style>
 
     <Style Selector="TextBlock.column-header">
@@ -187,9 +239,59 @@
         <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
-    <!-- Dialog heading ("Nothing has been written yet"). -->
+    <!-- Dialog heading ("Nothing has been written yet"): same weight as a page title. -->
     <Style Selector="TextBlock.dialog-title">
-        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontSize" Value="20" />
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- The bar at the bottom of a dialog holding its buttons. -->
+    <Style Selector="Border.dialog-footer">
+        <Setter Property="Background" Value="#0F808080" />
+        <Setter Property="BorderBrush" Value="#26808080" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="20,12" />
+    </Style>
+    <Style Selector="Border.dialog-footer StackPanel.dialog-buttons">
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <!-- The header row inside a list frame (column names). -->
+    <Style Selector="Border.list-header">
+        <Setter Property="Background" Value="#0F808080" />
+        <Setter Property="BorderBrush" Value="#26808080" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="12,7" />
+    </Style>
+
+    <!-- Compact tabs (Fluent's TabItem headers are 28px). -->
+    <Style Selector="TabControl.compact TabItem">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="10,0" />
+    </Style>
+
+    <!-- Denser rows for data lists (library, history). -->
+    <Style Selector="ListBox.rows ListBoxItem">
+        <Setter Property="Padding" Value="12,6" />
+    </Style>
+
+    <!-- Library stat tile: a big value over a small label. -->
+    <Style Selector="Border.stat">
+        <Setter Property="Background" Value="#0F808080" />
+        <Setter Property="BorderBrush" Value="#26808080" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Margin" Value="0,0,10,10" />
+        <Setter Property="MinWidth" Value="110" />
+    </Style>
+    <Style Selector="TextBlock.stat-value">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.stat-label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Opacity" Value="0.65" />
     </Style>
 </Styles>

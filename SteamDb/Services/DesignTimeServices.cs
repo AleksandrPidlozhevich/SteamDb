@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SteamDb.Services;
 
@@ -16,6 +18,20 @@ internal sealed class DesignTimeSecretStore : ISecretStore
     public void Save(string key, string value) => _values[key] = value;
 
     public void Delete(string key) => _values.Remove(key);
+}
+
+/// <summary>
+/// No update checks in the previewer: Velopack's <c>UpdateManager</c> throws unless
+/// <c>VelopackApp.Build().Run()</c> ran, which only <c>Program.Main</c> does.
+/// </summary>
+internal sealed class DesignTimeUpdateService : IUpdateService
+{
+    public string CurrentVersion => "0.0.0";
+
+    public Task<string?> CheckForUpdateAsync() => Task.FromResult<string?>(null);
+
+    public Task DownloadAndRestartAsync(IProgress<int>? progress = null, CancellationToken ct = default) =>
+        Task.CompletedTask;
 }
 
 /// <inheritdoc cref="DesignTimeSecretStore"/>

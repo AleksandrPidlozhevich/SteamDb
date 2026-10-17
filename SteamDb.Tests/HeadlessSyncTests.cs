@@ -203,6 +203,14 @@ public class HeadlessSyncTests : IDisposable
     }
 
     [Fact]
+    public void Settings_Theme_RoundTrips_AndIsOmittedForSystem()
+    {
+        var dark = AppSettingsService.Serialize(new AppSettings("k", "i", "t", "d", Theme: "Dark"));
+        Assert.Equal("Dark", AppSettingsService.Parse(dark).Theme);
+        Assert.DoesNotContain("Theme", AppSettingsService.Serialize(new AppSettings("k", "i", "t", "d")));
+    }
+
+    [Fact]
     public void CommandLine_CsvWithoutFile_IsAccepted()
     {
         var command = SyncCommandLine.Parse(["--sync", "csv"]);

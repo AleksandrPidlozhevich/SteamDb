@@ -5,12 +5,12 @@
         xmlns:wv="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="660"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="640"
         x:Class="SteamDb.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/gamedate.ico"
         Title="SteamDb"
-        Width="780" Height="660" MinWidth="780" MinHeight="420"
+        Width="900" Height="640" MinWidth="720" MinHeight="480"
         DragDrop.AllowDrop="True"
         WindowStartupLocation="CenterScreen">
 
@@ -19,328 +19,512 @@
         <vm:MainWindowViewModel />
     </Design.DataContext>
 
-    <!-- Shared styles (icons, ⓘ buttons, cards, banners…) are in Styles/Common.axaml. -->
+    <!-- Shared styles (panels, pills, ⓘ buttons, banners…) are in Styles/Common.axaml. -->
     <Window.Styles>
-        <!-- Theme toggle: a calm scale-up + slight tilt on hover (smooth, no looping). -->
-        <Style Selector="Button.theme-toggle">
-            <Setter Property="RenderTransformOrigin" Value="50%,50%" />
-            <Setter Property="Transitions">
-                <Transitions>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18"
-                                                   Easing="CubicEaseOut" />
-                </Transitions>
-            </Setter>
-        </Style>
-        <Style Selector="Button.theme-toggle:pointerover">
-            <Setter Property="RenderTransform" Value="scale(1.18) rotate(12deg)" />
+        <!-- Each page: a readable column that scrolls when the window is short. -->
+        <Style Selector="StackPanel.page">
+            <Setter Property="Margin" Value="28,20,28,24" />
+            <Setter Property="MaxWidth" Value="760" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
         </Style>
 
-        <!-- Credential row: icon + field + ⓘ. -->
-        <Style Selector="StackPanel.credential">
-            <Setter Property="Orientation" Value="Horizontal" />
-            <Setter Property="Spacing" Value="8" />
+        <!-- Panel header: icon, title (+ one-line description), and a status / tick on the right. -->
+        <Style Selector="Grid.panel-header > StackPanel">
+            <Setter Property="Margin" Value="12,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
-        <Style Selector="StackPanel.credential > TextBox">
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="UseFloatingPlaceholder" Value="True" />
+
+        <!-- Rows of buttons under a panel's fields. -->
+        <Style Selector="StackPanel.actions">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="Spacing" Value="8" />
+            <Setter Property="Margin" Value="0,12,0,0" />
+        </Style>
+        <Style Selector="StackPanel.actions > Button">
+            <Setter Property="Padding" Value="16,7" />
+        </Style>
+
+        <Style Selector="WrapPanel.fields">
+            <Setter Property="Margin" Value="0,12,0,0" />
+        </Style>
+        <Style Selector="WrapPanel.fields > StackPanel">
+            <Setter Property="Margin" Value="0,0,16,8" />
         </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="Auto,*" Margin="28,18">
-
-        <!-- Theme toggle (top-right). Sits outside the content grid so it stays clickable while an
-             export is running. The icon swaps automatically via ThemeToggleIcon's theme dictionary. -->
-        <Button Grid.Row="1" Classes="theme-toggle icon-button"
-                Width="36" Height="36"
-                HorizontalAlignment="Right" VerticalAlignment="Top"
-                ToolTip.Tip="Switch light / dark theme" AutomationProperties.Name="Switch light / dark theme"
-                Click="OnToggleTheme">
-            <Viewbox>
-                <Image Source="{DynamicResource ThemeToggleIcon}" />
-            </Viewbox>
-        </Button>
+    <!-- Root fades in briefly when the theme changes (MainWindow.axaml.cs), so the switch is soft. -->
+    <Grid x:Name="Root" ColumnDefinitions="210,*">
+        <Grid.Transitions>
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.35" Easing="CubicEaseOut" />
+            </Transitions>
+        </Grid.Transitions>
 
         <!-- Hidden pre-warm WebView2: warms up the runtime at startup, and a few seconds in also
              loads the GOG login page in the background so the real Connect GOG window opens from
              cache. Native controls ignore Avalonia's Opacity and paint on top of everything, so it
-             can't simply be made transparent — instead it's parked off-screen (negative offset,
-             outside the window's client area). It still initializes and navigates while parked. -->
+             can't simply be made transparent — instead it's parked above the client area. -->
         <wv:NativeWebView x:Name="PrewarmWebView"
-                          Grid.Row="0" Width="1" Height="1"
-                          Margin="-100,-100,0,0"
+                          Grid.Column="1" Width="1" Height="1"
+                          Margin="0,-100,0,0"
                           IsHitTestVisible="False"
                           HorizontalAlignment="Left" VerticalAlignment="Top"
                           Source="about:blank" />
 
-        <!-- ===== Top slot: progress bar, or the update banner, or the result banner ===== -->
+        <!-- ===== Sidebar: pages, support, theme, version ===== -->
+        <Border Grid.Column="0" Background="#14808080" BorderBrush="#26808080" BorderThickness="0,0,1,0">
+            <DockPanel Margin="12,18,12,12">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="10,0,0,22">
+                    <Image Source="/Assets/gamedate.ico" Width="28" Height="28" />
+                    <TextBlock Text="SteamDb" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
 
-        <!-- Progress bar (shown while fetching games) + Cancel -->
-        <Grid Grid.Row="0" Height="16" Margin="0,0,0,14" ColumnDefinitions="*,Auto"
-              IsVisible="{Binding Progress.IsBusy}">
-            <Panel Grid.Column="0">
-                <ProgressBar Height="16"
-                             IsIndeterminate="{Binding Progress.IsIndeterminate}"
-                             Minimum="0"
-                             Maximum="{Binding Progress.Maximum}"
-                             Value="{Binding Progress.Value}" />
-                <TextBlock FontSize="9"
-                           VerticalAlignment="Center" HorizontalAlignment="Center"
-                           Text="{Binding Progress.Status}" />
+                <StackPanel DockPanel.Dock="Bottom" Spacing="6">
+                    <Button HorizontalAlignment="Stretch" Background="Transparent" Padding="10,6"
+                            ToolTip.Tip="Support the project on Ko-fi"
+                            Command="{Binding OpenLinkKofiCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Image Source="{SvgImage /Assets/ko-fi.svg}" Width="22" Height="22" />
+                            <TextBlock Text="Support on Ko-fi" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Grid ColumnDefinitions="Auto,*" Margin="8,4,0,0">
+                        <views:ThemeSwitch />
+                        <TextBlock Grid.Column="1" FontSize="11" Opacity="0.55" Margin="0,0,4,0"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Text="{Binding AppVersion}" />
+                    </Grid>
+                </StackPanel>
+
+                <ListBox Classes="nav" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <PathIcon Data="{DynamicResource NavSourcesIcon}" />
+                            <TextBlock Text="Sources" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <PathIcon Data="{DynamicResource NavExportIcon}" />
+                            <TextBlock Text="Export" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <PathIcon Data="{DynamicResource NavAutomationIcon}" />
+                            <TextBlock Text="Automation" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <PathIcon Data="{DynamicResource NavSettingsIcon}" />
+                            <TextBlock Text="Settings" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ListBoxItem>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- ===== Content: banners on top, then the selected page ===== -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+
+            <!-- Top slot: progress bar, or the update banner, or the result banner. -->
+            <Panel Grid.Row="0" Margin="28,16,28,0">
+                <!-- Progress bar (while fetching / syncing) + Cancel. -->
+                <Grid Height="20" ColumnDefinitions="*,Auto" IsVisible="{Binding Progress.IsBusy}">
+                    <Panel Grid.Column="0">
+                        <ProgressBar Height="20"
+                                     IsIndeterminate="{Binding Progress.IsIndeterminate}"
+                                     Minimum="0"
+                                     Maximum="{Binding Progress.Maximum}"
+                                     Value="{Binding Progress.Value}" />
+                        <TextBlock FontSize="11"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   Text="{Binding Progress.Status}" />
+                    </Panel>
+                    <Button Grid.Column="1" Content="Cancel" FontSize="11" Padding="10,0" Margin="8,0,0,0"
+                            VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                            Command="{Binding Progress.CancelCommand}" />
+                </Grid>
+
+                <!-- Update banner: a newer release was found on GitHub at startup (Velopack). Hidden
+                     while busy and while a result is shown (same slot). -->
+                <Border Classes="banner info">
+                    <Border.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="IsUpdateAvailable" />
+                            <Binding Path="!Progress.IsBusy" />
+                            <Binding Path="!HasResult" />
+                        </MultiBinding>
+                    </Border.IsVisible>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
+                                   Text="{Binding AvailableUpdateVersion, StringFormat='A new version v{0} is available'}" />
+                        <Button Grid.Column="1" Classes="accent" Content="Update &amp; restart"
+                                Command="{Binding InstallUpdateCommand}" />
+                    </Grid>
+                </Border>
+
+                <!-- Result banner: outcome of the last export + up to two follow-up actions. -->
+                <Border Classes="banner success">
+                    <Border.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="HasResult" />
+                            <Binding Path="!Progress.IsBusy" />
+                        </MultiBinding>
+                    </Border.IsVisible>
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
+                                   TextTrimming="CharacterEllipsis" Text="{Binding ResultMessage}"
+                                   ToolTip.Tip="{Binding ResultMessage}" />
+                        <Button Grid.Column="1" Content="{Binding ResultActionLabel}"
+                                IsVisible="{Binding HasResultAction}" Command="{Binding RunResultActionCommand}" />
+                        <Button Grid.Column="2" Content="{Binding ResultSecondaryLabel}" Margin="6,0,0,0"
+                                IsVisible="{Binding HasResultSecondaryAction}"
+                                Command="{Binding RunResultSecondaryActionCommand}" />
+                        <Button Grid.Column="3" Classes="dismiss" Command="{Binding DismissResultCommand}" />
+                    </Grid>
+                </Border>
             </Panel>
-            <Button Grid.Column="1" Content="Cancel" FontSize="9" Padding="8,0" Margin="8,0,0,0"
-                    VerticalAlignment="Stretch" VerticalContentAlignment="Center"
-                    Command="{Binding Progress.CancelCommand}" />
+
+            <!-- The pages, in sidebar order (MainTab). Disabled while something runs; the sidebar and
+                 the Cancel button above stay usable. -->
+            <Carousel Grid.Row="1" SelectedIndex="{Binding SelectedTab}" IsEnabled="{Binding !Progress.IsBusy}">
+
+                <!-- ===== Sources ===== -->
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Classes="page">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="page-title" Text="Sources" />
+                                <TextBlock Classes="page-subtitle"
+                                           Text="Where your games come from. Untick a store to leave it out of exports, the library and auto-sync." />
+                            </StackPanel>
+                            <!-- Browse the merged library (nothing is exported). -->
+                            <Button Grid.Column="1" Classes="accent" Content="View library…" Padding="18,8"
+                                    Margin="16,4,0,0" VerticalAlignment="Top"
+                                    ToolTip.Tip="{Binding LibraryHint, TargetNullValue='Browse what will be exported: search, filter, hide demos, or let SteamDb pick a game'}"
+                                    ToolTip.ShowOnDisabled="True"
+                                    Command="{Binding ViewLibraryCommand}" />
+                        </Grid>
+
+                        <Border Classes="panel">
+                            <StackPanel>
+                                <Grid Classes="panel-header" ColumnDefinitions="Auto,*,Auto">
+                                    <Svg Classes="icon" Path="/Assets/steam.svg" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="panel-title" Text="Steam" />
+                                        <TextBlock Classes="hint" Text="Your Web API key and Steam ID (or profile link)." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="include" Content="Include"
+                                              IsChecked="{Binding IncludeSteam}" />
+                                </Grid>
+                                <WrapPanel Classes="fields">
+                                    <StackPanel Classes="field-row">
+                                        <TextBox Classes="field revealPasswordButton" PasswordChar="*"
+                                                 PlaceholderText="Steam API key"
+                                                 Text="{Binding SteamApiKey, Mode=TwoWay}" />
+                                        <Button Classes="info"
+                                                ToolTip.Tip="How to get a Steam Web API key"
+                                                AutomationProperties.Name="How to get a Steam Web API key"
+                                                Command="{Binding OpenSteamApiKeyInfoCommand}" />
+                                    </StackPanel>
+                                    <StackPanel Classes="field-row">
+                                        <!-- Not a secret, so not masked. Accepts the id, a profile link or a custom-URL name. -->
+                                        <TextBox Classes="field"
+                                                 PlaceholderText="Steam ID or profile link"
+                                                 Text="{Binding SteamId, Mode=TwoWay}" />
+                                        <Button Classes="info"
+                                                ToolTip.Tip="How to find your Steam ID"
+                                                AutomationProperties.Name="How to find your Steam ID"
+                                                Command="{Binding OpenInfoLinkSteamIdCommand}" />
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="panel">
+                            <StackPanel Spacing="12">
+                                <Grid Classes="panel-header" ColumnDefinitions="Auto,*,Auto">
+                                    <Image Classes="icon" Source="{DynamicResource EpicIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="panel-title" Text="Epic Games" />
+                                        <TextBlock Classes="hint" Text="Log in in your browser, then paste the code it shows." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="include" Content="Include"
+                                              IsChecked="{Binding IncludeEpic}" />
+                                </Grid>
+                                <views:StoreConnectRow DataContext="{Binding Epic}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="panel">
+                            <StackPanel Spacing="12">
+                                <Grid Classes="panel-header" ColumnDefinitions="Auto,*,Auto">
+                                    <Image Classes="icon" Source="{DynamicResource GogIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="panel-title" Text="GOG" />
+                                        <TextBlock Classes="hint" Text="Log in once; SteamDb keeps the session." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="include" Content="Include"
+                                              IsChecked="{Binding IncludeGog}" />
+                                </Grid>
+                                <views:StoreConnectRow DataContext="{Binding Gog}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="panel">
+                            <StackPanel Spacing="12">
+                                <Grid Classes="panel-header" ColumnDefinitions="Auto,*,Auto">
+                                    <Image Classes="icon" Source="{DynamicResource XboxIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="panel-title" Text="Xbox" />
+                                        <TextBlock Classes="hint" Text="Games you've played on Xbox / PC Game Pass, with Microsoft account login." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="include" Content="Include"
+                                              IsChecked="{Binding IncludeXbox}" />
+                                </Grid>
+                                <views:StoreConnectRow DataContext="{Binding Xbox}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===== Export ===== -->
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Classes="page">
+                        <TextBlock Classes="page-title" Text="Export" />
+                        <TextBlock Classes="page-subtitle"
+                                   Text="Send your library to a tracker. Exports merge: your ticks, notes and extra columns are kept." />
+
+                        <Border Classes="banner warning" Margin="0,0,0,12" Padding="12,6"
+                                IsVisible="{Binding HasNoSource}">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                                           Text="Nothing to export yet: enter your Steam key and ID, or connect a store." />
+                                <Button Grid.Column="1" Content="Go to Sources" Margin="8,0,0,0"
+                                        Command="{Binding GoToSourcesCommand}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- CSV -->
+                        <Border Classes="panel">
+                            <StackPanel>
+                                <Grid Classes="panel-header" ColumnDefinitions="Auto,*,Auto">
+                                    <Image Classes="icon" Source="{DynamicResource CsvIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="panel-title" Text="CSV file" />
+                                        <TextBlock Classes="hint" Text="A spreadsheet file on this computer (opens in Excel)." />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Classes="pill" Classes.ready="{Binding CanFetchLibrary}">
+                                        <TextBlock Text="{Binding CsvStatus}" />
+                                    </Border>
+                                </Grid>
+                                <StackPanel Classes="actions">
+                                    <Button Classes="accent" Content="Export to .csv" Command="{Binding ExportToCsvCommand}"
+                                            ToolTip.Tip="{Binding LibraryHint}" ToolTip.ShowOnDisabled="True" />
+                                    <Button Content="Update .csv…" Command="{Binding UpdateCsvCommand}"
+                                            ToolTip.Tip="Add new games to a CSV you exported before (a .bak copy is kept)"
+                                            ToolTip.ShowOnDisabled="True" />
+                                    <TextBlock Classes="last-sync" Margin="8,0,0,0" Text="{Binding CsvLastSync}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Notion -->
+                        <Border Classes="panel">
+                            <StackPanel>
+                                <Grid Classes="panel-header" ColumnDefinitions="Auto,*,Auto">
+                                    <Image Classes="icon" Source="{DynamicResource NotionIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="panel-title" Text="Notion" />
+                                        <TextBlock Classes="hint" Text="Adds and updates pages in your Notion database. You see a preview before anything is written." />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Classes="pill" Classes.ready="{Binding CanExportNotion}">
+                                        <TextBlock Text="{Binding NotionStatus}" />
+                                    </Border>
+                                </Grid>
+                                <WrapPanel Classes="fields">
+                                    <StackPanel Classes="field-row">
+                                        <TextBox Classes="field revealPasswordButton" PasswordChar="*"
+                                                 PlaceholderText="Notion integration token"
+                                                 Text="{Binding NotionToken, Mode=TwoWay}" />
+                                        <Button Classes="info"
+                                                ToolTip.Tip="How to create a Notion integration token"
+                                                AutomationProperties.Name="How to create a Notion integration token"
+                                                Command="{Binding OpenInfoLinkNotionTokenCommand}" />
+                                    </StackPanel>
+                                    <StackPanel Classes="field-row">
+                                        <TextBox Classes="field revealPasswordButton" PasswordChar="*"
+                                                 PlaceholderText="Database ID"
+                                                 Text="{Binding DbId, Mode=TwoWay}" />
+                                        <Button Classes="info"
+                                                ToolTip.Tip="How to find your Notion database ID"
+                                                AutomationProperties.Name="How to find your Notion database ID"
+                                                Command="{Binding OpenInfoLinkNotionDbIdCommand}" />
+                                    </StackPanel>
+                                </WrapPanel>
+                                <StackPanel Classes="actions" Margin="0,4,0,0">
+                                    <Button Classes="accent" Content="Export to Notion" Command="{Binding ExportToNotionCommand}"
+                                            ToolTip.Tip="{Binding NotionHint}" ToolTip.ShowOnDisabled="True" />
+                                    <Button Content="Find duplicates…" Command="{Binding FindNotionDuplicatesCommand}"
+                                            ToolTip.Tip="Find pages of the same game in the database and merge them (you confirm first)"
+                                            ToolTip.ShowOnDisabled="True" />
+                                    <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Classes="last-sync" Text="{Binding NotionLastSync}" />
+                                        <TextBlock Classes="last-sync" Text="{Binding NotionProgress}"
+                                                   ToolTip.Tip="Pages ticked as completed in Notion (a Completed / Done checkbox or a Status set to Done), as of the last export" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Google Sheets -->
+                        <Border Classes="panel">
+                            <StackPanel>
+                                <Grid Classes="panel-header" ColumnDefinitions="Auto,*,Auto">
+                                    <Svg Classes="icon" Path="/Assets/google-sheets-2026.svg" />
+                                    <StackPanel Grid.Column="1">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Classes="panel-title" Text="Google Sheets" />
+                                            <Border Classes="chip" VerticalAlignment="Center">
+                                                <TextBlock Text="Beta" FontSize="10" />
+                                            </Border>
+                                            <Button Classes="info"
+                                                    ToolTip.Tip="About the Google Sheets export"
+                                                    AutomationProperties.Name="About the Google Sheets export"
+                                                    Command="{Binding OpenInfoGoogleSheetsCommand}" />
+                                        </StackPanel>
+                                        <TextBlock Classes="hint" Text="Keeps the first tab of a spreadsheet in your Google Drive up to date (created if it doesn't exist)." />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Classes="pill" Classes.ready="{Binding CanExportSheets}">
+                                        <TextBlock Text="{Binding SheetsStatus}" />
+                                    </Border>
+                                </Grid>
+                                <WrapPanel Classes="fields">
+                                    <StackPanel Classes="field-row">
+                                        <TextBox Classes="field" PlaceholderText="Spreadsheet name"
+                                                 Text="{Binding GoogleSheetsTableName, Mode=TwoWay}" />
+                                    </StackPanel>
+                                </WrapPanel>
+                                <StackPanel Classes="actions" Margin="0,4,0,0">
+                                    <Button Classes="accent" Content="Export to Google Sheets"
+                                            Command="{Binding ExportToGoogleSheetsCommand}"
+                                            ToolTip.Tip="{Binding SheetsHint}" ToolTip.ShowOnDisabled="True" />
+                                    <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Classes="last-sync" Text="{Binding SheetsLastSync}" />
+                                        <TextBlock Classes="last-sync" Text="{Binding SheetsProgress}"
+                                                   ToolTip.Tip="Rows with Completed ticked in the sheet, as of the last export" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===== Automation ===== -->
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Classes="page">
+                        <TextBlock Classes="page-title" Text="Automation" />
+                        <TextBlock Classes="page-subtitle"
+                                   Text="Keep your trackers up to date without opening SteamDb." />
+
+                        <Border Classes="panel">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="panel-title" Text="Auto-sync" />
+                                <TextBlock Classes="hint"
+                                           Text="Syncs on a schedule while SteamDb is open or in the tray. Notion changes are applied without the preview; every run is listed in History." />
+                                <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0">
+                                    <TextBlock Text="Schedule" VerticalAlignment="Center" />
+                                    <ComboBox Width="140" AutomationProperties.Name="Auto-sync interval"
+                                              ItemsSource="{Binding AutoSyncIntervalLabels}"
+                                              SelectedIndex="{Binding AutoSyncIntervalIndex}" />
+                                    <CheckBox Classes="include" Content="Notion" IsChecked="{Binding AutoSyncNotion}"
+                                              IsEnabled="{Binding IsAutoSyncOn}" />
+                                    <CheckBox Classes="include" Content="Google Sheets" IsChecked="{Binding AutoSyncSheets}"
+                                              IsEnabled="{Binding IsAutoSyncOn}" />
+                                    <CheckBox Classes="include" Content="CSV file" IsChecked="{Binding AutoSyncCsv}"
+                                              IsEnabled="{Binding IsAutoSyncOn}" />
+                                </StackPanel>
+                                <TextBlock Classes="hint" Text="{Binding AutoSyncCsvHint, StringFormat='CSV: {0}'}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="panel">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="panel-title" Text="Run in the background" />
+                                <StackPanel Spacing="2">
+                                    <CheckBox Classes="include" Content="Close to tray" IsChecked="{Binding CloseToTray}"
+                                              IsEnabled="{Binding IsTrayAvailable}" />
+                                    <TextBlock Classes="hint" Margin="28,0,0,0" Text="{Binding CloseToTrayHint}" />
+                                </StackPanel>
+                                <StackPanel Spacing="2" IsVisible="{Binding CanStartAtLogin}">
+                                    <CheckBox Classes="include" Content="Start at login" IsChecked="{Binding StartAtLogin}" />
+                                    <TextBlock Classes="hint" Margin="28,0,0,0" Text="{Binding StartAtLoginHint}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="panel">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="panel-title" Text="History" />
+                                    <TextBlock Classes="hint"
+                                               Text="Every sync (manual, scheduled, from the tray or the command line) with its result." />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Open history…" VerticalAlignment="Center"
+                                        Command="{Binding ShowSyncHistoryCommand}" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===== Settings ===== -->
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Classes="page">
+                        <TextBlock Classes="page-title" Text="Settings" />
+                        <TextBlock Classes="page-subtitle" Text="Appearance, your settings file and help." />
+
+                        <Border Classes="panel">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="panel-title" Text="Theme" />
+                                    <TextBlock Classes="hint" Text="System, light or dark. System follows your OS setting." />
+                                </StackPanel>
+                                <views:ThemeSwitch Grid.Column="1" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Border Classes="panel">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="panel-title" Text="Settings file" />
+                                <TextBlock Classes="hint"
+                                           Text="Save your keys and options to move them to another computer, or load a saved file (you can also drop it on this window). The file is plain text: keep it private." />
+                                <StackPanel Classes="actions">
+                                    <Button Content="Save settings…" Command="{Binding SaveSettingsCommand}" />
+                                    <Button Content="Import settings…" Command="{Binding ImportSettingsCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="panel">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="panel-title" Text="Help" />
+                                <TextBlock Classes="hint"
+                                           Text="{Binding AppVersion, StringFormat='SteamDb {0}. The log files help with bug reports.'}" />
+                                <StackPanel Classes="actions">
+                                    <Button Content="Documentation" Command="{Binding OpenReadmeCommand}" />
+                                    <Button Content="Open log folder" Command="{Binding OpenLogsFolderCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Carousel>
         </Grid>
 
-        <!-- Update banner: a newer release was found on GitHub at startup (Velopack). Hidden while
-             busy, so the progress bar above takes its place during the download, and while an export
-             result is shown (same slot; it comes back once the result is dismissed). -->
-        <Border Grid.Row="0" Classes="banner info" Margin="0,0,0,14">
-            <Border.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="IsUpdateAvailable" />
-                    <Binding Path="!Progress.IsBusy" />
-                    <Binding Path="!HasResult" />
-                </MultiBinding>
-            </Border.IsVisible>
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
-                           Text="{Binding AvailableUpdateVersion, StringFormat='A new version v{0} is available'}" />
-                <Button Grid.Column="1" Classes="accent" Content="Update &amp; restart"
-                        Command="{Binding InstallUpdateCommand}" />
-            </Grid>
-        </Border>
-
-        <!-- Result banner: outcome of the last export + up to two follow-up actions. -->
-        <Border Grid.Row="0" Classes="banner success" Margin="0,0,0,14">
-            <Border.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding Path="HasResult" />
-                    <Binding Path="!Progress.IsBusy" />
-                </MultiBinding>
-            </Border.IsVisible>
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
-                           TextTrimming="CharacterEllipsis" Text="{Binding ResultMessage}"
-                           ToolTip.Tip="{Binding ResultMessage}" />
-                <Button Grid.Column="1" Content="{Binding ResultActionLabel}"
-                        IsVisible="{Binding HasResultAction}" Command="{Binding RunResultActionCommand}" />
-                <Button Grid.Column="2" Content="{Binding ResultSecondaryLabel}" Margin="6,0,0,0"
-                        IsVisible="{Binding HasResultSecondaryAction}"
-                        Command="{Binding RunResultSecondaryActionCommand}" />
-                <Button Grid.Column="3" Classes="dismiss" Command="{Binding DismissResultCommand}" />
-            </Grid>
-        </Border>
-
-        <!-- Running version (bottom-left). -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8"
-                    HorizontalAlignment="Left" VerticalAlignment="Bottom">
-            <TextBlock FontSize="10" Opacity="0.6" VerticalAlignment="Center" Text="{Binding AppVersion}" />
-            <Button Content="Logs" FontSize="10" Padding="4,0" Opacity="0.7" Background="Transparent"
-                    ToolTip.Tip="Open the folder with the log files (useful for bug reports)"
-                    Command="{Binding OpenLogsFolderCommand}" />
-        </StackPanel>
-
-        <!-- Two columns: credential inputs (left) and action cards (right), centred in a resizable
-             window and scrollable when it's made shorter than the content.
-             Disabled while an export/connect is running (Cancel stays active in the row above).
-             The negative right margin keeps the scrollbar clear of the theme toggle. -->
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
-                      Margin="0,0,-24,22">
-            <!-- Right margin: room for the Sheets ⓘ button that overflows its card, so centring
-                 accounts for it. -->
-            <Grid ColumnDefinitions="Auto,56,Auto" VerticalAlignment="Top" HorizontalAlignment="Center"
-                  Margin="0,0,74,0"
-                  IsEnabled="{Binding !Progress.IsBusy}">
-
-                <!-- ===== Left: credentials, stores and options ===== -->
-                <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="12">
-
-                    <StackPanel Classes="credential">
-                        <Svg Classes="icon" Path="/Assets/steam.svg" />
-                        <TextBox Classes="field revealPasswordButton" PasswordChar="*"
-                                 PlaceholderText="Steam API key"
-                                 Text="{Binding SteamApiKey, Mode=TwoWay}" />
-                        <Button Classes="info"
-                                ToolTip.Tip="How to get a Steam Web API key"
-                                AutomationProperties.Name="How to get a Steam Web API key"
-                                Command="{Binding OpenSteamApiKeyInfoCommand}" />
-                    </StackPanel>
-
-                    <StackPanel Classes="credential">
-                        <Svg Classes="icon" Path="/Assets/steam.svg" />
-                        <!-- Not a secret, so not masked. Accepts the id, a profile link or a custom-URL name. -->
-                        <TextBox Classes="field"
-                                 PlaceholderText="Steam ID or profile link"
-                                 Text="{Binding SteamId, Mode=TwoWay}" />
-                        <Button Classes="info"
-                                ToolTip.Tip="How to find your Steam ID"
-                                AutomationProperties.Name="How to find your Steam ID"
-                                Command="{Binding OpenInfoLinkSteamIdCommand}" />
-                    </StackPanel>
-
-                    <StackPanel Classes="credential">
-                        <Image Classes="icon" Source="{DynamicResource NotionIcon}" />
-                        <TextBox Classes="field revealPasswordButton" PasswordChar="*"
-                                 PlaceholderText="Notion API integration token"
-                                 Text="{Binding NotionToken, Mode=TwoWay}" />
-                        <Button Classes="info"
-                                ToolTip.Tip="How to create a Notion integration token"
-                                AutomationProperties.Name="How to create a Notion integration token"
-                                Command="{Binding OpenInfoLinkNotionTokenCommand}" />
-                    </StackPanel>
-
-                    <StackPanel Classes="credential">
-                        <Image Classes="icon" Source="{DynamicResource NotionIcon}" />
-                        <TextBox Classes="field revealPasswordButton" PasswordChar="*"
-                                 PlaceholderText="Database ID"
-                                 Text="{Binding DbId, Mode=TwoWay}" />
-                        <Button Classes="info"
-                                ToolTip.Tip="How to find your Notion database ID"
-                                AutomationProperties.Name="How to find your Notion database ID"
-                                Command="{Binding OpenInfoLinkNotionDbIdCommand}" />
-                    </StackPanel>
-
-                    <!-- Store connect rows (icon + Connect / code / Connected) — see StoreConnectRow. -->
-                    <views:StoreConnectRow DataContext="{Binding Epic}" Icon="{DynamicResource EpicIcon}" />
-                    <views:StoreConnectRow DataContext="{Binding Gog}" Icon="{DynamicResource GogIcon}" />
-                    <views:StoreConnectRow DataContext="{Binding Xbox}" Icon="{DynamicResource XboxIcon}" />
-
-                    <!-- Browse the merged library from the stores above (nothing is exported).
-                         Indented past the icon column so it lines up with the fields. -->
-                    <Button Content="View library…" Height="36" Width="220" Margin="52,0,0,0"
-                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                            ToolTip.Tip="{Binding LibraryHint, FallbackValue='Fetch your games and browse them before exporting', TargetNullValue='Fetch your games and browse them before exporting'}"
-                            ToolTip.ShowOnDisabled="True"
-                            Command="{Binding ViewLibraryCommand}" />
-
-                    <!-- Which stores go into exports, the library view and the command-line sync (saved). -->
-                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="52,-4,0,0"
-                                ToolTip.Tip="Stores included in exports and the library view">
-                        <CheckBox Classes="include" Content="Steam" IsChecked="{Binding IncludeSteam}" />
-                        <CheckBox Classes="include" Content="Epic" IsChecked="{Binding IncludeEpic}" />
-                        <CheckBox Classes="include" Content="GOG" IsChecked="{Binding IncludeGog}" />
-                        <CheckBox Classes="include" Content="Xbox" IsChecked="{Binding IncludeXbox}" />
-                    </StackPanel>
-
-                    <!-- Auto-sync (saved). Runs like the command-line sync: Notion is applied without the
-                         preview; the outcome shows in the result banner and the history. -->
-                    <StackPanel Orientation="Horizontal" Spacing="8"
-                                ToolTip.Tip="While SteamDb is open, sync the ticked targets on this schedule. Notion changes are applied without the preview; the result appears in the banner at the top.">
-                        <TextBlock Text="Auto-sync" FontSize="11" VerticalAlignment="Center" />
-                        <ComboBox FontSize="11" Width="104" Padding="8,2" VerticalAlignment="Center"
-                                  AutomationProperties.Name="Auto-sync interval"
-                                  ItemsSource="{Binding AutoSyncIntervalLabels}"
-                                  SelectedIndex="{Binding AutoSyncIntervalIndex}" />
-                        <CheckBox Classes="include" Content="Notion" IsChecked="{Binding AutoSyncNotion}"
-                                  IsEnabled="{Binding IsAutoSyncOn}" />
-                        <CheckBox Classes="include" Content="Sheets" IsChecked="{Binding AutoSyncSheets}"
-                                  IsEnabled="{Binding IsAutoSyncOn}" />
-                        <CheckBox Classes="include" Content="CSV" IsChecked="{Binding AutoSyncCsv}"
-                                  IsEnabled="{Binding IsAutoSyncOn}"
-                                  ToolTip.Tip="{Binding AutoSyncCsvHint}" ToolTip.ShowOnDisabled="True" />
-                    </StackPanel>
-
-                    <!-- Background mode: keep running in the tray, start hidden at login, past runs. -->
-                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="52,-4,0,0">
-                        <CheckBox Classes="include" Content="Close to tray" IsChecked="{Binding CloseToTray}"
-                                  IsEnabled="{Binding IsTrayAvailable}"
-                                  ToolTip.Tip="{Binding CloseToTrayHint}" ToolTip.ShowOnDisabled="True" />
-                        <CheckBox Classes="include" Content="Start at login" IsChecked="{Binding StartAtLogin}"
-                                  IsVisible="{Binding CanStartAtLogin}"
-                                  ToolTip.Tip="{Binding StartAtLoginHint}" />
-                        <Button Content="History…" FontSize="11" Padding="8,2" VerticalAlignment="Center"
-                                Command="{Binding ShowSyncHistoryCommand}"
-                                ToolTip.Tip="Recent syncs: manual exports, auto-sync, tray and command line, with their results" />
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- ===== Right: action cards (uniform width, evenly spaced) — see ActionCard ===== -->
-                <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="16">
-
-                    <views:ActionCard Icon="{DynamicResource CsvIcon}">
-                        <StackPanel Spacing="8">
-                            <Button Content="Export to .csv" Command="{Binding ExportToCsvCommand}"
-                                    ToolTip.Tip="{Binding LibraryHint}" ToolTip.ShowOnDisabled="True" />
-                            <Button Content="Update .csv" Command="{Binding UpdateCsvCommand}"
-                                    ToolTip.Tip="{Binding LibraryHint}" ToolTip.ShowOnDisabled="True" />
-                            <TextBlock Classes="last-sync" Text="{Binding CsvLastSync}"
-                                       IsVisible="{Binding CsvLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                        </StackPanel>
-                    </views:ActionCard>
-
-                    <views:ActionCard Icon="{DynamicResource NotionIcon}">
-                        <StackPanel Spacing="8">
-                            <Button Content="Export to Notion" Command="{Binding ExportToNotionCommand}"
-                                    ToolTip.Tip="{Binding NotionHint}" ToolTip.ShowOnDisabled="True" />
-                            <Button Content="Find duplicates…" Command="{Binding FindNotionDuplicatesCommand}"
-                                    ToolTip.Tip="Find pages of the same game in the Notion database and merge them (you confirm first)"
-                                    ToolTip.ShowOnDisabled="True" />
-                            <TextBlock Classes="last-sync" Text="{Binding NotionLastSync}"
-                                       IsVisible="{Binding NotionLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                            <TextBlock Classes="last-sync" Text="{Binding NotionProgress}"
-                                       ToolTip.Tip="Pages ticked as completed in Notion (a Completed / Done checkbox or a Status set to Done), as of the last export"
-                                       IsVisible="{Binding NotionProgress, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                        </StackPanel>
-                    </views:ActionCard>
-
-                    <views:ActionCard Icon="{DynamicResource SettingsIcon}">
-                        <StackPanel Spacing="8">
-                            <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" />
-                            <Button Content="Import settings" Command="{Binding ImportSettingsCommand}" />
-                        </StackPanel>
-                    </views:ActionCard>
-
-                    <!-- Google Sheets, with its ⓘ button overflowing to the right of the card. -->
-                    <Grid HorizontalAlignment="Center">
-                        <views:ActionCard Icon="{SvgImage /Assets/google-sheets-2026.svg}">
-                            <StackPanel Spacing="8">
-                                <Button Content="Export to Google Sheets" Height="40"
-                                        VerticalContentAlignment="Center"
-                                        Command="{Binding ExportToGoogleSheetsCommand}"
-                                        ToolTip.Tip="{Binding SheetsHint}" ToolTip.ShowOnDisabled="True" />
-                                <TextBox FontSize="10" HorizontalAlignment="Stretch"
-                                         PlaceholderText="Google Sheets Table Name"
-                                         UseFloatingPlaceholder="True"
-                                         Text="{Binding GoogleSheetsTableName, Mode=TwoWay}" />
-                                <TextBlock Classes="last-sync" Text="{Binding SheetsLastSync}"
-                                           IsVisible="{Binding SheetsLastSync, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                <TextBlock Classes="last-sync" Text="{Binding SheetsProgress}"
-                                           ToolTip.Tip="Rows with Completed ticked in the sheet, as of the last export"
-                                           IsVisible="{Binding SheetsProgress, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                            </StackPanel>
-                        </views:ActionCard>
-                        <Button Classes="info"
-                                HorizontalAlignment="Right" Margin="0,0,-50,0"
-                                ToolTip.Tip="About the Google Sheets export"
-                                AutomationProperties.Name="About the Google Sheets export"
-                                Command="{Binding OpenInfoGoogleSheetsCommand}" />
-                    </Grid>
-
-                    <!-- Donation: a titled frame with a clickable Ko-fi icon. -->
-                    <Panel HorizontalAlignment="Center">
-                        <Border Classes="card" Margin="24,9,0,0" Padding="20,16,20,12">
-                            <Button Classes="animated-button icon-button"
-                                    ToolTip.Tip="Support the project on Ko-fi"
-                                    AutomationProperties.Name="Support the project on Ko-fi"
-                                    Command="{Binding OpenLinkKofiCommand}">
-                                <Viewbox>
-                                    <Image Source="{SvgImage /Assets/ko-fi.svg}" />
-                                </Viewbox>
-                            </Button>
-                        </Border>
-                        <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="24,0,0,0"
-                                Background="{Binding $parent[Window].Background}" Padding="8,0">
-                            <TextBlock Text="Donation" FontSize="14" FontWeight="SemiBold" />
-                        </Border>
-                    </Panel>
-                </StackPanel>
-            </Grid>
-        </ScrollViewer>
-
         <!-- Shown while a file is dragged over the window (see MainWindow.axaml.cs). -->
-        <Border x:Name="DropOverlay" Grid.Row="0" Grid.RowSpan="2" Margin="-16,-8"
+        <Border x:Name="DropOverlay" Grid.Column="0" Grid.ColumnSpan="2" Margin="12"
                 IsVisible="False" IsHitTestVisible="False" CornerRadius="10"
                 Background="#E6202020" BorderBrush="#803B82F6" BorderThickness="2">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">

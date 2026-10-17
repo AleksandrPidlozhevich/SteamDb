@@ -4,59 +4,65 @@
         xmlns:services="using:SteamDb.Services"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="420"
+        mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="460"
         x:Class="SteamDb.Views.SyncLogWindow"
         x:DataType="vm:SyncLogViewModel"
         Icon="/Assets/gamedate.ico"
         Title="Sync history"
-        Width="720" Height="420" MinWidth="480" MinHeight="240"
+        Width="760" Height="480" MinWidth="520" MinHeight="280"
         WindowStartupLocation="CenterOwner">
 
     <Design.DataContext>
         <vm:SyncLogViewModel />
     </Design.DataContext>
 
-    <Grid Margin="16" RowDefinitions="Auto,Auto,*">
+    <Grid Margin="24,20,24,20" RowDefinitions="Auto,*">
 
-        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
-            <TextBlock VerticalAlignment="Center" Opacity="0.7" Text="{Binding Summary}" />
-            <Button Grid.Column="1" Content="Clear" FontSize="11" Padding="10,2"
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel>
+                <TextBlock Classes="page-title" Text="Sync history" />
+                <TextBlock Classes="page-subtitle" Margin="0,2,0,14" Text="{Binding Summary}" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="Clear" VerticalAlignment="Top" Margin="16,4,0,0"
                     Command="{Binding ClearCommand}" IsEnabled="{Binding !IsEmpty}" />
         </Grid>
 
-        <!-- Column headers (same widths as the item template below). -->
-        <Grid Grid.Row="1" ColumnDefinitions="28,100,110,96,*" Margin="12,0,12,4">
-            <TextBlock Grid.Column="1" Classes="column-header" Text="When" />
-            <TextBlock Grid.Column="2" Classes="column-header" Text="Target" />
-            <TextBlock Grid.Column="3" Classes="column-header" Text="Started by" />
-            <TextBlock Grid.Column="4" Classes="column-header" Text="Result" />
-        </Grid>
-
-        <Border Grid.Row="2" Classes="list-frame">
-            <Panel>
-                <ListBox ItemsSource="{Binding Entries}" Background="Transparent">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="services:SyncLogEntry">
-                            <Grid ColumnDefinitions="28,100,110,96,*">
-                                <TextBlock Grid.Column="0" VerticalAlignment="Top" FontWeight="Bold"
-                                           Text="{Binding StatusIcon}" />
-                                <TextBlock Grid.Column="1" VerticalAlignment="Top" FontSize="12"
-                                           Text="{Binding WhenText}" />
-                                <TextBlock Grid.Column="2" VerticalAlignment="Top" FontSize="12"
-                                           Text="{Binding Target}" />
-                                <TextBlock Grid.Column="3" VerticalAlignment="Top" FontSize="12" Opacity="0.7"
-                                           Text="{Binding Source}" />
-                                <SelectableTextBlock Grid.Column="4" VerticalAlignment="Top" FontSize="12"
-                                                     TextWrapping="Wrap" Text="{Binding Summary}" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6"
-                           TextAlignment="Center"
-                           Text="No syncs yet. Exports, auto-sync and SteamDb --sync runs are listed here."
-                           IsVisible="{Binding IsEmpty}" />
-            </Panel>
+        <Border Grid.Row="1" Classes="list-frame">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Classes="list-header">
+                    <!-- Same widths as the item template below. -->
+                    <Grid ColumnDefinitions="28,100,110,96,*">
+                        <TextBlock Grid.Column="1" Classes="column-header" Text="WHEN" />
+                        <TextBlock Grid.Column="2" Classes="column-header" Text="TARGET" />
+                        <TextBlock Grid.Column="3" Classes="column-header" Text="STARTED BY" />
+                        <TextBlock Grid.Column="4" Classes="column-header" Text="RESULT" />
+                    </Grid>
+                </Border>
+                <Panel>
+                    <ListBox Classes="rows" ItemsSource="{Binding Entries}" Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="services:SyncLogEntry">
+                                <Grid ColumnDefinitions="28,100,110,96,*">
+                                    <TextBlock Grid.Column="0" VerticalAlignment="Top" FontWeight="Bold"
+                                               Text="{Binding StatusIcon}" />
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Top" FontSize="12"
+                                               Text="{Binding WhenText}" />
+                                    <TextBlock Grid.Column="2" VerticalAlignment="Top" FontSize="12"
+                                               FontWeight="SemiBold" Text="{Binding Target}" />
+                                    <TextBlock Grid.Column="3" VerticalAlignment="Top" FontSize="12" Opacity="0.65"
+                                               Text="{Binding Source}" />
+                                    <SelectableTextBlock Grid.Column="4" VerticalAlignment="Top" FontSize="12"
+                                                         TextWrapping="Wrap" Text="{Binding Summary}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6"
+                               TextAlignment="Center" TextWrapping="Wrap" Margin="24"
+                               Text="No syncs yet. Exports, auto-sync and SteamDb --sync runs are listed here."
+                               IsVisible="{Binding IsEmpty}" />
+                </Panel>
+            </DockPanel>
         </Border>
     </Grid>
 </Window>

@@ -4,7 +4,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
-using Avalonia.Styling;
 using Avalonia.Threading;
 using SteamDb.Models;
 using SteamDb.Services;
@@ -24,6 +23,7 @@ public partial class MainWindow : Window
     // Named controls from MainWindow.axaml.
     private readonly Border _dropOverlay;
     private readonly NativeWebView _prewarmWebView;
+    private readonly Grid _root;
 
     // Parameterless ctor for the XAML loader / previewer (no pre-warm without DI dependencies).
     public MainWindow()
@@ -31,6 +31,11 @@ public partial class MainWindow : Window
         AvaloniaXamlLoader.Load(this);
         _dropOverlay = this.Named<Border>("DropOverlay");
         _prewarmWebView = this.Named<NativeWebView>("PrewarmWebView");
+        _root = this.Named<Grid>("Root");
+
+        // A soft fade-in instead of an instant flash when the theme changes.
+        if (Application.Current is { } app)
+            app.ActualThemeVariantChanged += (_, _) => FadeIn();
 
         // Drop a game list / settings file anywhere on the window.
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -99,15 +104,14 @@ public partial class MainWindow : Window
         }
     }
 
-    // Flips between light and dark. Starting from "Default" (system), ActualThemeVariant tells us
-    // what's currently shown, so the first click switches to the opposite explicit variant.
-    private void OnToggleTheme(object? sender, RoutedEventArgs e)
+    // Drops the content to faint without animating, then lets the Opacity transition bring it back.
+    private void FadeIn()
     {
-        var app = Application.Current;
-        if (app is null) return;
-
-        app.RequestedThemeVariant =
-            app.ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
+        var transitions = _root.Transitions;
+        _root.Transitions = null;
+        _root.Opacity = 0.25;
+        _root.Transitions = transitions;
+        Dispatcher.UIThread.Post(() => _root.Opacity = 1, DispatcherPriority.Render);
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)

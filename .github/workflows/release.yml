@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DOTNET_VERSION: '9.0.x'
+  DOTNET_VERSION: '10.0.x'
   VPK_VERSION: '1.2.161'
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true

@@ -3,25 +3,91 @@
         xmlns:vm="using:SteamDb.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="560"
+        mc:Ignorable="d" d:DesignWidth="980" d:DesignHeight="640"
         x:Class="SteamDb.Views.LibraryWindow"
         x:DataType="vm:LibraryViewModel"
         Icon="/Assets/gamedate.ico"
         Title="Game library"
-        Width="920" Height="580" MinWidth="620" MinHeight="320"
+        Width="980" Height="660" MinWidth="680" MinHeight="400"
         WindowStartupLocation="CenterOwner">
 
     <Design.DataContext>
         <vm:LibraryViewModel />
     </Design.DataContext>
 
-    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,*,Auto">
+    <Grid Margin="24,20,24,20" RowDefinitions="Auto,Auto,Auto,Auto,*">
 
-        <!-- Search + platform filter + count. -->
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,12">
+        <!-- Title + count, and the pick button. -->
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel>
+                <TextBlock Classes="page-title" Text="Game library" />
+                <TextBlock Classes="page-subtitle" Margin="0,2,0,12" Text="{Binding Summary}" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="accent" Content="🎲 Pick for me" Padding="16,8"
+                    VerticalAlignment="Top" Margin="16,4,0,0"
+                    Command="{Binding PickForMeCommand}"
+                    ToolTip.Tip="Suggest a game to play from the list shown: skips completed and hidden games, and prefers ones you've barely touched" />
+        </Grid>
+
+        <!-- Stat tiles (hidden games excluded; search and filter don't change them). -->
+        <WrapPanel Grid.Row="1">
+            <Border Classes="stat" IsVisible="{Binding Stats.HasCompletion}" ToolTip.Tip="{Binding Stats.CompletedTip}">
+                <StackPanel>
+                    <TextBlock Classes="stat-value" Foreground="#2E9E5B" Text="{Binding Stats.CompletedValue}" />
+                    <TextBlock Classes="stat-label" Text="{Binding Stats.CompletedLabel}" />
+                </StackPanel>
+            </Border>
+            <Border Classes="stat">
+                <StackPanel>
+                    <TextBlock Classes="stat-value" Text="{Binding Stats.GamesValue}" />
+                    <TextBlock Classes="stat-label" Text="games" />
+                </StackPanel>
+            </Border>
+            <Border Classes="stat" IsVisible="{Binding Stats.HasPlaytimeData}" ToolTip.Tip="{Binding Stats.PlayedTip}">
+                <StackPanel>
+                    <TextBlock Classes="stat-value" Text="{Binding Stats.PlayedValue}" />
+                    <TextBlock Classes="stat-label" Text="{Binding Stats.PlayedLabel}" />
+                </StackPanel>
+            </Border>
+            <Border Classes="stat" IsVisible="{Binding Stats.HasPlaytimeData}"
+                    ToolTip.Tip="{Binding Stats.MostPlayedText}">
+                <StackPanel>
+                    <TextBlock Classes="stat-value" Text="{Binding Stats.HoursValue}" />
+                    <TextBlock Classes="stat-label" Text="hours played" />
+                </StackPanel>
+            </Border>
+            <Border Classes="stat" IsVisible="{Binding Stats.HasPlaytimeData}">
+                <StackPanel>
+                    <TextBlock Classes="stat-value" Text="{Binding Stats.NeverPlayed}" />
+                    <TextBlock Classes="stat-label" Text="never played" />
+                </StackPanel>
+            </Border>
+            <Border Classes="stat">
+                <StackPanel>
+                    <TextBlock Classes="stat-value" Text="{Binding Stats.MultiStore}" />
+                    <TextBlock Classes="stat-label" Text="on 2+ stores" />
+                </StackPanel>
+            </Border>
+            <Border Classes="stat" IsVisible="{Binding Stats.HasRecentlyAdded}"
+                    ToolTip.Tip="Games SteamDb saw for the first time recently (stores don't report purchase dates, so this counts from when SteamDb started tracking each store)">
+                <StackPanel>
+                    <TextBlock Classes="stat-value" Text="{Binding Stats.RecentlyAdded}" />
+                    <TextBlock Classes="stat-label" Text="added in 30 days" />
+                </StackPanel>
+            </Border>
+        </WrapPanel>
+
+        <!-- Search, filter, sort. -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,2,0,12">
             <TextBox Grid.Column="0" PlaceholderText="Search by name…"
-                     Text="{Binding SearchText, Mode=TwoWay}" />
-            <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="190"
+                     Text="{Binding SearchText, Mode=TwoWay}">
+                <TextBox.InnerLeftContent>
+                    <PathIcon Width="14" Height="14" Margin="10,0,0,0" Opacity="0.6"
+                              Data="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" />
+                </TextBox.InnerLeftContent>
+            </TextBox>
+            <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="200"
+                      AutomationProperties.Name="Filter"
                       ItemsSource="{Binding Filters}"
                       SelectedItem="{Binding SelectedFilter, Mode=TwoWay}">
                 <ComboBox.ItemTemplate>
@@ -33,18 +99,14 @@
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
-            <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="170"
+            <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="180"
+                      AutomationProperties.Name="Sort"
                       ItemsSource="{Binding Sorts}"
                       SelectedItem="{Binding SelectedSort, Mode=TwoWay}" />
-            <Button Grid.Column="3" Margin="8,0,0,0" Content="🎲 Pick for me"
-                    Command="{Binding PickForMeCommand}"
-                    ToolTip.Tip="Suggest a game to play from the list shown: skips completed and hidden games, and prefers ones you've barely touched" />
-            <TextBlock Grid.Column="4" Margin="12,0,0,0" VerticalAlignment="Center" Opacity="0.7"
-                       Text="{Binding Summary}" />
         </Grid>
 
         <!-- Pick for me: the suggestion, its store page, another pick. -->
-        <Border Grid.Row="1" Classes="banner info" Margin="0,0,0,10">
+        <Border Grid.Row="3" Classes="banner info" Margin="0,0,0,12" Padding="12,6">
             <Border.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="HasPicked" />
@@ -52,7 +114,7 @@
                 </MultiBinding>
             </Border.IsVisible>
             <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold"
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis" Text="{Binding PickedText}"
                            IsVisible="{Binding HasPicked}" />
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
@@ -72,100 +134,74 @@
             </Grid>
         </Border>
 
-        <!-- Column headers (same widths as the item template below). -->
-        <Grid Grid.Row="2" ColumnDefinitions="*,170,80,100,220,76" Margin="12,0,12,4">
-            <TextBlock Grid.Column="0" Classes="column-header" Text="Name" />
-            <TextBlock Grid.Column="1" Classes="column-header" Text="Platform" />
-            <TextBlock Grid.Column="2" Classes="column-header" Text="Playtime" />
-            <TextBlock Grid.Column="3" Classes="column-header" Text="Last played" />
-            <TextBlock Grid.Column="4" Classes="column-header" Text="ID" />
-        </Grid>
-
-        <Border Grid.Row="3" Classes="list-frame">
-            <Panel>
-                <ListBox ItemsSource="{Binding VisibleGames}" Background="Transparent"
-                         SelectedItem="{Binding SelectedGame, Mode=TwoWay}" AutoScrollToSelectedItem="True"
-                         DoubleTapped="OnGameDoubleTapped">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:LibraryGameItem">
-                            <Grid ColumnDefinitions="*,170,80,100,220,76">
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6"
-                                            VerticalAlignment="Center" Margin="0,0,8,0">
-                                    <TextBlock Text="✓" FontWeight="Bold" Foreground="#2E9E5B"
-                                               IsVisible="{Binding IsCompleted}" ToolTip.Tip="Completed" />
-                                    <Border Classes="chip new" IsVisible="{Binding IsNew}"
-                                            ToolTip.Tip="{Binding AddedText}">
-                                        <TextBlock Text="NEW" FontSize="9" FontWeight="Bold" />
-                                    </Border>
-                                    <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}"
-                                               ToolTip.Tip="Double-click to open the store page" />
-                                </StackPanel>
-                                <ItemsControl Grid.Column="1" VerticalAlignment="Center"
-                                              ItemsSource="{Binding Platforms}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="x:String">
-                                            <Border Classes="chip">
-                                                <TextBlock FontSize="11" Text="{Binding}" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="12"
-                                           Text="{Binding PlaytimeText}" />
-                                <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="12"
-                                           Text="{Binding LastPlayedText}" />
-                                <TextBlock Grid.Column="4" VerticalAlignment="Center" FontSize="11"
-                                           Opacity="0.7" TextTrimming="CharacterEllipsis"
-                                           Text="{Binding Id}" ToolTip.Tip="{Binding Id}" />
-                                <!-- Hide / Unhide: leaves the game out of every export (saved). -->
-                                <Button Grid.Column="5" FontSize="11" Padding="8,2" HorizontalAlignment="Right"
-                                        Content="{Binding HideLabel}" ToolTip.Tip="{Binding HideTip}"
-                                        IsVisible="{Binding $parent[ListBox].((vm:LibraryViewModel)DataContext).CanHide}"
-                                        Command="{Binding $parent[ListBox].((vm:LibraryViewModel)DataContext).ToggleHiddenCommand}"
-                                        CommandParameter="{Binding}" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6"
-                           Text="No games match the search."
-                           IsVisible="{Binding !HasVisibleGames}" />
-            </Panel>
+        <!-- The list, with its column names in the frame's header. -->
+        <Border Grid.Row="4" Classes="list-frame">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Classes="list-header">
+                    <!-- Same widths as the item template below (+ the item's own padding). -->
+                    <Grid ColumnDefinitions="*,170,80,100,200,76" Margin="0,0,0,0">
+                        <TextBlock Grid.Column="0" Classes="column-header" Text="NAME" />
+                        <TextBlock Grid.Column="1" Classes="column-header" Text="PLATFORM" />
+                        <TextBlock Grid.Column="2" Classes="column-header" Text="PLAYTIME" />
+                        <TextBlock Grid.Column="3" Classes="column-header" Text="LAST PLAYED" />
+                        <TextBlock Grid.Column="4" Classes="column-header" Text="ID" />
+                    </Grid>
+                </Border>
+                <Panel>
+                    <ListBox Classes="rows" ItemsSource="{Binding VisibleGames}" Background="Transparent"
+                             SelectedItem="{Binding SelectedGame, Mode=TwoWay}" AutoScrollToSelectedItem="True"
+                             DoubleTapped="OnGameDoubleTapped">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LibraryGameItem">
+                                <Grid ColumnDefinitions="*,170,80,100,200,76" MinHeight="30">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6"
+                                                VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="✓" FontWeight="Bold" Foreground="#2E9E5B"
+                                                   IsVisible="{Binding IsCompleted}" ToolTip.Tip="Completed" />
+                                        <Border Classes="chip new" IsVisible="{Binding IsNew}"
+                                                ToolTip.Tip="{Binding AddedText}">
+                                            <TextBlock Text="NEW" FontSize="9" FontWeight="Bold" />
+                                        </Border>
+                                        <TextBlock TextTrimming="CharacterEllipsis" Text="{Binding Name}"
+                                                   ToolTip.Tip="Double-click to open the store page" />
+                                    </StackPanel>
+                                    <ItemsControl Grid.Column="1" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding Platforms}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <Border Classes="chip">
+                                                    <TextBlock FontSize="11" Text="{Binding}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="12"
+                                               Text="{Binding PlaytimeText}" />
+                                    <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="12"
+                                               Text="{Binding LastPlayedText}" />
+                                    <TextBlock Grid.Column="4" VerticalAlignment="Center" FontSize="11"
+                                               Opacity="0.6" TextTrimming="CharacterEllipsis"
+                                               Text="{Binding Id}" ToolTip.Tip="{Binding Id}" />
+                                    <!-- Hide / Unhide: leaves the game out of every export (saved). -->
+                                    <Button Grid.Column="5" FontSize="11" Padding="10,3" HorizontalAlignment="Right"
+                                            Content="{Binding HideLabel}" ToolTip.Tip="{Binding HideTip}"
+                                            IsVisible="{Binding $parent[ListBox].((vm:LibraryViewModel)DataContext).CanHide}"
+                                            Command="{Binding $parent[ListBox].((vm:LibraryViewModel)DataContext).ToggleHiddenCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6"
+                               Text="No games match the search."
+                               IsVisible="{Binding !HasVisibleGames}" />
+                </Panel>
+            </DockPanel>
         </Border>
-
-        <!-- Library totals (hidden games excluded; search and filter don't change them). -->
-        <WrapPanel Grid.Row="4" Margin="2,10,0,0" Orientation="Horizontal">
-            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,20,4"
-                        IsVisible="{Binding Stats.HasCompletion}" ToolTip.Tip="{Binding Stats.CompletedTip}">
-                <ProgressBar Width="120" MinWidth="120" Height="6" MinHeight="6" VerticalAlignment="Center"
-                             Minimum="0" Maximum="100" Value="{Binding Stats.CompletedPercent}"
-                             Foreground="#2E9E5B" />
-                <TextBlock FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
-                           Text="{Binding Stats.CompletedText}" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,20,4"
-                        IsVisible="{Binding Stats.HasPlaytimeData}" ToolTip.Tip="{Binding Stats.PlayedTip}">
-                <ProgressBar Width="120" MinWidth="120" Height="6" MinHeight="6" VerticalAlignment="Center"
-                             Minimum="0" Maximum="100" Value="{Binding Stats.PlayedPercent}" />
-                <TextBlock FontSize="12" VerticalAlignment="Center" Text="{Binding Stats.PlayedText}" />
-            </StackPanel>
-            <TextBlock FontSize="12" Opacity="0.75" Margin="0,0,20,4" VerticalAlignment="Center"
-                       IsVisible="{Binding Stats.HasPlaytimeData}" Text="{Binding Stats.TotalText}" />
-            <TextBlock FontSize="12" Opacity="0.75" Margin="0,0,20,4" VerticalAlignment="Center"
-                       IsVisible="{Binding Stats.HasPlaytimeData}" Text="{Binding Stats.NeverPlayedText}" />
-            <TextBlock FontSize="12" Opacity="0.75" Margin="0,0,20,4" VerticalAlignment="Center"
-                       Text="{Binding Stats.MultiStoreText}" />
-            <TextBlock FontSize="12" Opacity="0.75" Margin="0,0,20,4" VerticalAlignment="Center"
-                       IsVisible="{Binding Stats.HasRecentlyAdded}" Text="{Binding Stats.RecentlyAddedText}"
-                       ToolTip.Tip="Games SteamDb saw for the first time recently (stores don't report purchase dates, so this counts from when SteamDb started tracking each store)" />
-            <TextBlock FontSize="12" Opacity="0.75" Margin="0,0,0,4" VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" MaxWidth="360"
-                       Text="{Binding Stats.MostPlayedText}" ToolTip.Tip="{Binding Stats.MostPlayedText}" />
-        </WrapPanel>
     </Grid>
 </Window>

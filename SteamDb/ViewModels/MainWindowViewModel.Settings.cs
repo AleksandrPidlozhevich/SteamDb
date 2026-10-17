@@ -51,6 +51,7 @@ public partial class MainWindowViewModel
     private void LoadPersistedSettings()
     {
         var content = _secrets.Load(AppSettingsService.SecretKey);
+        ChooseStartTab(firstRun: string.IsNullOrEmpty(content));
         if (string.IsNullOrEmpty(content)) return;
 
         var settings = AppSettingsService.Parse(content);
@@ -59,6 +60,7 @@ public partial class MainWindowViewModel
         ApplyAutoSync(settings.AutoSync);
         CloseToTray = settings.CloseToTray ?? false;
         CsvFilePath = settings.CsvFile;
+        ThemeIndex = ThemeIndexFor(settings.Theme);
     }
 
     // Only overwrites the fields actually present in the settings file, then remembers them.
@@ -70,6 +72,7 @@ public partial class MainWindowViewModel
         if (settings.AutoSync != null) ApplyAutoSync(settings.AutoSync);
         if (settings.CloseToTray != null) CloseToTray = settings.CloseToTray.Value;
         if (settings.CsvFile != null) CsvFilePath = settings.CsvFile;
+        if (settings.Theme != null) ThemeIndex = ThemeIndexFor(settings.Theme);
         PersistSettings();
     }
 
@@ -85,7 +88,7 @@ public partial class MainWindowViewModel
 
     private AppSettings CurrentSettings() =>
         new(SteamApiKey, SteamId, NotionToken, DbId, GoogleSheetsTableName, _selection.Serialize(),
-            CurrentAutoSync().Serialize(), CloseToTray, CsvFilePath);
+            CurrentAutoSync().Serialize(), CloseToTray, CsvFilePath, ThemeSetting);
 
     private void ApplyExcludedStores(string? excluded)
     {

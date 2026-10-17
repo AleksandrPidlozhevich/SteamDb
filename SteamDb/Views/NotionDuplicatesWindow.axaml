@@ -5,46 +5,52 @@
                     xmlns:services="using:SteamDb.Services"
                     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-                    mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="480"
+                    mc:Ignorable="d" d:DesignWidth="680" d:DesignHeight="520"
                     x:Class="SteamDb.Views.NotionDuplicatesWindow"
                     x:DataType="vm:NotionDuplicatesViewModel"
                     Icon="/Assets/gamedate.ico"
                     Title="Notion: duplicate pages"
-                    Width="640" Height="480" MinWidth="420" MinHeight="260"
+                    Width="680" Height="520" MinWidth="460" MinHeight="300"
                     WindowStartupLocation="CenterOwner">
 
     <Design.DataContext>
         <vm:NotionDuplicatesViewModel />
     </Design.DataContext>
 
-    <Grid Margin="16" RowDefinitions="Auto,*,Auto">
-        <StackPanel Spacing="4" Margin="0,0,0,12">
-            <TextBlock Classes="dialog-title" Text="Nothing has been changed yet" />
-            <TextBlock Opacity="0.8" TextWrapping="Wrap" Text="{Binding Summary}" />
-        </StackPanel>
+    <Grid RowDefinitions="*,Auto">
+        <Grid Margin="24,20,24,16" RowDefinitions="Auto,*">
+            <StackPanel Spacing="4" Margin="0,0,0,14">
+                <TextBlock Classes="dialog-title" Text="Nothing has been changed yet" />
+                <TextBlock Opacity="0.8" TextWrapping="Wrap" Text="{Binding Summary}" />
+            </StackPanel>
 
-        <ListBox Grid.Row="1" ItemsSource="{Binding Groups}" IsVisible="{Binding HasGroups}">
-            <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="services:NotionDuplicateGroup">
-                    <StackPanel Spacing="2">
-                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
-                        <TextBlock FontSize="11" Opacity="0.8" TextWrapping="Wrap">
-                            <Run Text="Keeps: " />
-                            <Run Text="{Binding ResultText}" />
-                        </TextBlock>
-                        <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap">
-                            <Run Text="To trash: " />
-                            <Run Text="{Binding RemoveText}" />
-                        </TextBlock>
-                    </StackPanel>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+            <Border Grid.Row="1" Classes="list-frame" IsVisible="{Binding HasGroups}">
+                <ListBox ItemsSource="{Binding Groups}" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="services:NotionDuplicateGroup">
+                            <StackPanel Spacing="2">
+                                <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                                <TextBlock FontSize="11" Opacity="0.8" TextWrapping="Wrap">
+                                    <Run Text="Keeps: " />
+                                    <Run Text="{Binding ResultText}" />
+                                </TextBlock>
+                                <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap">
+                                    <Run Text="To trash: " />
+                                    <Run Text="{Binding RemoveText}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Grid>
 
         <!-- confirm / cancel close the dialog with true / false (DialogWindow). -->
-        <StackPanel Grid.Row="2" Classes="dialog-buttons">
-            <Button Classes="cancel" Content="{Binding CancelLabel}" />
-            <Button Classes="accent confirm" Content="{Binding ConfirmLabel}" IsVisible="{Binding HasGroups}" />
-        </StackPanel>
+        <Border Grid.Row="1" Classes="dialog-footer">
+            <StackPanel Classes="dialog-buttons">
+                <Button Classes="cancel" Content="{Binding CancelLabel}" />
+                <Button Classes="accent confirm" Content="{Binding ConfirmLabel}" IsVisible="{Binding HasGroups}" />
+            </StackPanel>
+        </Border>
     </Grid>
 </views:DialogWindow>

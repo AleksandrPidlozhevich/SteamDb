@@ -5,31 +5,32 @@
              x:Class="SteamDb.Views.StoreConnectRow"
              x:DataType="vm:StoreConnectionViewModel">
 
-    <!-- Connect button → (paste-flow) code input → Connected, swapped in the same 220-wide slot. -->
-    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+    <!-- Connect button → (paste-flow) code input → Connected, swapped in the same field-wide slot. -->
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <!-- Optional: the main window shows the store icon in the panel header instead. -->
         <Image Classes="icon"
-               Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=views:StoreConnectRow}}" />
-        <Panel Width="220" VerticalAlignment="Center">
-            <Button Content="{Binding ConnectLabel}" Height="44"
+               Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=views:StoreConnectRow}}"
+               IsVisible="{Binding Icon, RelativeSource={RelativeSource AncestorType=views:StoreConnectRow}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Panel Width="240" VerticalAlignment="Center">
+            <Button Content="{Binding ConnectLabel}" Height="36"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                     IsVisible="{Binding ShowConnectButton}"
                     Command="{Binding StartConnectCommand}" />
             <TextBox Classes="field" IsVisible="{Binding ShowCodeInput}"
                      PlaceholderText="{Binding CodePlaceholder}"
-                     UseFloatingPlaceholder="True"
                      Text="{Binding AuthorizationCode, Mode=TwoWay}" />
             <StackPanel Orientation="Horizontal" Spacing="6"
-                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        VerticalAlignment="Center" HorizontalAlignment="Left"
                         IsVisible="{Binding IsConnected}">
                 <Ellipse Width="9" Height="9" Fill="#3FB950" VerticalAlignment="Center" />
                 <TextBlock Text="Connected" VerticalAlignment="Center" />
-                <Button Content="Disconnect" FontSize="10" Padding="8,2" Margin="6,0,0,0"
+                <Button Content="Disconnect" FontSize="11" Padding="8,2" Margin="8,0,0,0"
                         VerticalAlignment="Center"
                         Command="{Binding DisconnectCommand}" />
             </StackPanel>
         </Panel>
-        <!-- Per-store info: opens the relevant README section on GitHub. -->
+        <!-- Per-store help: opens the relevant README section on GitHub. -->
         <Button Classes="info"
                 ToolTip.Tip="{Binding InfoTip}" AutomationProperties.Name="{Binding InfoTip}"
                 IsVisible="{Binding HasInfo}"

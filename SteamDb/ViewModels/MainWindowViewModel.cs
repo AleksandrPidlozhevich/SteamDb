@@ -19,7 +19,8 @@ namespace SteamDb.ViewModels;
 /// <item><c>.Settings</c> — remembered settings, Save / Import, store ticks;</item>
 /// <item><c>.Exports</c> — CSV / Notion / Sheets / library / duplicates / dropped files;</item>
 /// <item><c>.Background</c> — auto-sync, tray "Sync now", close to tray, start at login;</item>
-/// <item><c>.Status</c> — result banner, last sync / progress lines, sync history, app updates.</item>
+/// <item><c>.Status</c> — result banner, last sync / progress lines, sync history, app updates;</item>
+/// <item><c>.Navigation</c> — sidebar pages, per-target ready status, theme.</item>
 /// </list>
 /// </summary>
 public partial class MainWindowViewModel : ViewModelBase
@@ -201,7 +202,7 @@ public partial class MainWindowViewModel : ViewModelBase
             new WindowDialogService(),
             new CsvFileService(log),
             log,
-            new VelopackUpdateService(log),
+            new DesignTimeUpdateService(),
             selection,
             ignored,
             new AutoStart(log),
@@ -286,6 +287,10 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(LibraryHint));
         OnPropertyChanged(nameof(NotionHint));
         OnPropertyChanged(nameof(SheetsHint));
+        OnPropertyChanged(nameof(CsvStatus));
+        OnPropertyChanged(nameof(NotionStatus));
+        OnPropertyChanged(nameof(SheetsStatus));
+        OnPropertyChanged(nameof(HasNoSource));
         ExportToCsvCommand.NotifyCanExecuteChanged();
         UpdateCsvCommand.NotifyCanExecuteChanged();
         ViewLibraryCommand.NotifyCanExecuteChanged();
@@ -328,6 +333,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private static string ReadmeLink(string section) =>
         $"https://github.com/AleksandrPidlozhevich/SteamDb#{section}";
+
+    [RelayCommand]
+    private void OpenReadme() => _dialogs.OpenLink(ReadmeLink("readme"));
 
     [RelayCommand]
     private void OpenSteamApiKeyInfo() => _dialogs.OpenLink("https://steamcommunity.com/dev/apikey");

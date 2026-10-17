@@ -10,7 +10,7 @@
                     x:DataType="vm:NotionExportPreviewViewModel"
                     Icon="/Assets/gamedate.ico"
                     Title="Export to Notion: preview"
-                    Width="640" Height="480" MinWidth="420" MinHeight="260"
+                    Width="680" Height="520" MinWidth="460" MinHeight="300"
                     WindowStartupLocation="CenterOwner">
 
     <Design.DataContext>
@@ -45,43 +45,53 @@
         </DataTemplate>
     </Window.DataTemplates>
 
-    <Grid Margin="16" RowDefinitions="Auto,*,Auto">
-        <StackPanel Spacing="4" Margin="0,0,0,12">
-            <TextBlock Classes="dialog-title" Text="Nothing has been written yet" />
-            <TextBlock Opacity="0.8" TextWrapping="Wrap" Text="{Binding Summary}" />
-            <Border Classes="banner warning" Margin="0,6,0,0" Padding="10,6"
-                    IsVisible="{Binding HasNewProperties}">
-                <TextBlock TextWrapping="Wrap" Text="{Binding NewPropertiesText}" />
-            </Border>
-        </StackPanel>
+    <Grid RowDefinitions="*,Auto">
+        <Grid Margin="24,20,24,16" RowDefinitions="Auto,*">
+            <StackPanel Spacing="4" Margin="0,0,0,14">
+                <TextBlock Classes="dialog-title" Text="Nothing has been written yet" />
+                <TextBlock Opacity="0.8" TextWrapping="Wrap" Text="{Binding Summary}" />
+                <Border Classes="banner warning" Margin="0,6,0,0" Padding="10,6"
+                        IsVisible="{Binding HasNewProperties}">
+                    <TextBlock TextWrapping="Wrap" Text="{Binding NewPropertiesText}" />
+                </Border>
+            </StackPanel>
 
-        <TabControl Grid.Row="1" Padding="0,8,0,0">
-            <TabControl.IsVisible>
-                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                    <Binding Path="HasCreates" />
-                    <Binding Path="HasUpdates" />
-                    <Binding Path="HasGone" />
-                </MultiBinding>
-            </TabControl.IsVisible>
-            <TabItem Header="{Binding CreateHeader}" IsVisible="{Binding HasCreates}">
-                <ListBox ItemsSource="{Binding ToCreate}" />
-            </TabItem>
-            <TabItem Header="{Binding UpdateHeader}" IsVisible="{Binding HasUpdates}">
-                <ListBox ItemsSource="{Binding ToUpdate}" />
-            </TabItem>
-            <TabItem Header="{Binding GoneHeader}" IsVisible="{Binding HasGone}">
-                <Grid RowDefinitions="Auto,*">
-                    <TextBlock Margin="0,0,0,8" Opacity="0.8" TextWrapping="Wrap" Text="{Binding GoneNote}" />
-                    <ListBox Grid.Row="1" ItemsSource="{Binding NoLongerOwned}" />
-                </Grid>
-            </TabItem>
-        </TabControl>
+            <TabControl Grid.Row="1" Classes="compact" Padding="0,10,0,0">
+                <TabControl.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                        <Binding Path="HasCreates" />
+                        <Binding Path="HasUpdates" />
+                        <Binding Path="HasGone" />
+                    </MultiBinding>
+                </TabControl.IsVisible>
+                <TabItem Header="{Binding CreateHeader}" IsVisible="{Binding HasCreates}">
+                    <Border Classes="list-frame">
+                        <ListBox ItemsSource="{Binding ToCreate}" Background="Transparent" />
+                    </Border>
+                </TabItem>
+                <TabItem Header="{Binding UpdateHeader}" IsVisible="{Binding HasUpdates}">
+                    <Border Classes="list-frame">
+                        <ListBox ItemsSource="{Binding ToUpdate}" Background="Transparent" />
+                    </Border>
+                </TabItem>
+                <TabItem Header="{Binding GoneHeader}" IsVisible="{Binding HasGone}">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Margin="0,0,0,8" Opacity="0.8" TextWrapping="Wrap" Text="{Binding GoneNote}" />
+                        <Border Grid.Row="1" Classes="list-frame">
+                            <ListBox ItemsSource="{Binding NoLongerOwned}" Background="Transparent" />
+                        </Border>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Grid>
 
         <!-- confirm / cancel close the dialog with true / false (DialogWindow). -->
-        <StackPanel Grid.Row="2" Classes="dialog-buttons">
-            <Button Classes="cancel" Content="Cancel" IsVisible="{Binding HasChanges}" />
-            <Button Classes="cancel" Content="Close" IsVisible="{Binding !HasChanges}" />
-            <Button Classes="accent confirm" Content="{Binding ConfirmLabel}" IsVisible="{Binding HasChanges}" />
-        </StackPanel>
+        <Border Grid.Row="1" Classes="dialog-footer">
+            <StackPanel Classes="dialog-buttons">
+                <Button Classes="cancel" Content="Cancel" IsVisible="{Binding HasChanges}" />
+                <Button Classes="cancel" Content="Close" IsVisible="{Binding !HasChanges}" />
+                <Button Classes="accent confirm" Content="{Binding ConfirmLabel}" IsVisible="{Binding HasChanges}" />
+            </StackPanel>
+        </Border>
     </Grid>
 </views:DialogWindow>
