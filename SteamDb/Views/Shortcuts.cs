@@ -1,0 +1,19 @@
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.VisualTree;
+using System;
+
+namespace SteamDb.Views;
+
+/// <summary>
+/// Keyboard shortcuts use the platform's command key: Ctrl on Windows / Linux, ⌘ on macOS.
+/// </summary>
+internal static class Shortcuts
+{
+    /// <summary>True for exactly command + <paramref name="key"/> (no Shift / Alt).</summary>
+    public static bool IsCommand(KeyEventArgs e, TopLevel topLevel, params Key[] keys) =>
+        e.KeyModifiers == CommandModifier(topLevel) && Array.IndexOf(keys, e.Key) >= 0;
+
+    private static KeyModifiers CommandModifier(TopLevel topLevel) =>
+        topLevel.GetPlatformSettings()?.HotkeyConfiguration.CommandModifiers ?? KeyModifiers.Control;
+}
