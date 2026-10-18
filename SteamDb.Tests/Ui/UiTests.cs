@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using SteamDb.Models;
@@ -72,6 +73,38 @@ public class UiTests
             window.Close();
         }
     });
+
+    /// <summary>
+    /// At the smallest window size, nothing on any page may stick out of its panel (a row that
+    /// doesn't wrap, a field too wide…). Checks the logical tree, so a control's own template parts
+    /// (e.g. the text inside a scrolled text box) don't count.
+    /// </summary>
+    [Theory]
+    [InlineData(MainTab.Sources)]
+    [InlineData(MainTab.Export)]
+    [InlineData(MainTab.Automation)]
+    [InlineData(MainTab.Settings)]
+    public async Task MinimumWidth_NothingSticksOutOfItsPanel(MainTab tab)
+    {
+        var problems = await UiSession.RunAsync(() =>
+        {
+            var window = MainWindowOn(tab);
+            window.Width = window.MinWidth;
+            window.Height = window.MinHeight;
+            UiSession.Show(window);
+            UiSession.Snapshot(window, $"min-width-{tab}");
+            try
+            {
+                return OverflowsOutOfPanels(window);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+        Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+    }
 
     [Fact]
     public Task Export_NotionFields_SitOnOneRow() => UiSession.RunAsync(() =>
@@ -287,6 +320,35 @@ public class UiTests
     }
 
     // ---- helpers --------------------------------------------------------------------------------
+
+    private static List<string> OverflowsOutOfPanels(Window window)
+    {
+        var problems = new List<string>();
+        foreach (var panel in Descendants<Border>(window).Where(b => b.Classes.Contains("panel") && b.IsEffectivelyVisible))
+        {
+            var panelRight = Right(panel, window);
+            foreach (var control in panel.GetLogicalDescendants().OfType<Control>()
+                         .Where(c => c.IsEffectivelyVisible && c.Bounds.Width > 0))
+            {
+                var right = Right(control, window);
+                if (right > panelRight + 1)
+                    problems.Add($"{control.GetType().Name} \"{Label(control)}\" ends at x={right:0}, its panel at x={panelRight:0}");
+            }
+        }
+
+        return problems;
+    }
+
+    private static string Label(Control control) => control switch
+    {
+        ContentControl { Content: string text } => text,
+        TextBlock { Text: { } text } => text,
+        TextBox { PlaceholderText: { } placeholder } => placeholder,
+        _ => control.Name ?? ""
+    };
+
+    private static double Right(Visual visual, Visual relativeTo) =>
+        visual.TranslatePoint(new Point(visual.Bounds.Width, 0), relativeTo)!.Value.X;
 
     // The headless platform's command key (Ctrl; tests run on Windows / Linux CI).
     private static RawInputModifiers CommandModifier =>

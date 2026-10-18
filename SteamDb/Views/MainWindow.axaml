@@ -35,12 +35,13 @@
         </Style>
 
         <!-- Rows of buttons under a panel's fields. -->
-        <Style Selector="StackPanel.actions">
-            <Setter Property="Orientation" Value="Horizontal" />
-            <Setter Property="Spacing" Value="8" />
+        <!-- Wraps when the window is too narrow for the whole row. -->
+        <Style Selector="WrapPanel.actions">
+            <Setter Property="ItemSpacing" Value="8" />
+            <Setter Property="LineSpacing" Value="8" />
             <Setter Property="Margin" Value="0,12,0,0" />
         </Style>
-        <Style Selector="StackPanel.actions > Button">
+        <Style Selector="WrapPanel.actions > Button">
             <Setter Property="Padding" Value="16,7" />
         </Style>
 
@@ -355,14 +356,14 @@
                                         <TextBlock Text="{Binding CsvStatus}" />
                                     </Border>
                                 </Grid>
-                                <StackPanel Classes="actions">
+                                <WrapPanel Classes="actions">
                                     <Button Classes="accent" Content="Export to .csv" Command="{Binding ExportToCsvCommand}"
                                             ToolTip.Tip="{Binding LibraryHint}" ToolTip.ShowOnDisabled="True" />
                                     <Button Content="Update .csv…" Command="{Binding UpdateCsvCommand}"
                                             ToolTip.Tip="Add new games to a CSV you exported before (a .bak copy is kept)"
                                             ToolTip.ShowOnDisabled="True" />
                                     <TextBlock Classes="last-sync" Margin="8,0,0,0" Text="{Binding CsvLastSync}" />
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
 
@@ -399,7 +400,7 @@
                                                 Command="{Binding OpenInfoLinkNotionDbIdCommand}" />
                                     </StackPanel>
                                 </WrapPanel>
-                                <StackPanel Classes="actions" Margin="0,4,0,0">
+                                <WrapPanel Classes="actions" Margin="0,4,0,0">
                                     <Button Classes="accent" Content="Export to Notion" Command="{Binding ExportToNotionCommand}"
                                             ToolTip.Tip="{Binding NotionHint}" ToolTip.ShowOnDisabled="True" />
                                     <Button Content="Find duplicates…" Command="{Binding FindNotionDuplicatesCommand}"
@@ -410,7 +411,7 @@
                                         <TextBlock Classes="last-sync" Text="{Binding NotionProgress}"
                                                    ToolTip.Tip="Pages ticked as completed in Notion (a Completed / Done checkbox or a Status set to Done), as of the last export" />
                                     </StackPanel>
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
 
@@ -442,7 +443,7 @@
                                                  Text="{Binding GoogleSheetsTableName, Mode=TwoWay}" />
                                     </StackPanel>
                                 </WrapPanel>
-                                <StackPanel Classes="actions" Margin="0,4,0,0">
+                                <WrapPanel Classes="actions" Margin="0,4,0,0">
                                     <Button Classes="accent" Content="Export to Google Sheets"
                                             Command="{Binding ExportToGoogleSheetsCommand}"
                                             ToolTip.Tip="{Binding SheetsHint}" ToolTip.ShowOnDisabled="True" />
@@ -454,7 +455,7 @@
                                         <TextBlock Classes="last-sync" Text="{Binding SheetsProgress}"
                                                    ToolTip.Tip="Rows with Completed ticked in the sheet, as of the last export" />
                                     </StackPanel>
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -472,18 +473,21 @@
                                 <TextBlock Classes="panel-title" Text="Auto-sync" />
                                 <TextBlock Classes="hint"
                                            Text="Syncs on a schedule while SteamDb is open or in the tray. Notion changes are applied without the preview; every run is listed in History." />
-                                <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0">
-                                    <TextBlock Text="Schedule" VerticalAlignment="Center" />
-                                    <ComboBox Width="140" AutomationProperties.Name="Auto-sync interval"
-                                              ItemsSource="{Binding AutoSyncIntervalLabels}"
-                                              SelectedIndex="{Binding AutoSyncIntervalIndex}" />
+                                <!-- Wraps on a narrow window; "Schedule" and its box stay together. -->
+                                <WrapPanel ItemSpacing="16" LineSpacing="8" Margin="0,4,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="16">
+                                        <TextBlock Text="Schedule" VerticalAlignment="Center" />
+                                        <ComboBox Width="140" AutomationProperties.Name="Auto-sync interval"
+                                                  ItemsSource="{Binding AutoSyncIntervalLabels}"
+                                                  SelectedIndex="{Binding AutoSyncIntervalIndex}" />
+                                    </StackPanel>
                                     <CheckBox Classes="include" Content="Notion" IsChecked="{Binding AutoSyncNotion}"
                                               IsEnabled="{Binding IsAutoSyncOn}" />
                                     <CheckBox Classes="include" Content="Google Sheets" IsChecked="{Binding AutoSyncSheets}"
                                               IsEnabled="{Binding IsAutoSyncOn}" />
                                     <CheckBox Classes="include" Content="CSV file" IsChecked="{Binding AutoSyncCsv}"
                                               IsEnabled="{Binding IsAutoSyncOn}" />
-                                </StackPanel>
+                                </WrapPanel>
                                 <TextBlock Classes="hint" Text="{Binding AutoSyncCsvHint, StringFormat='CSV: {0}'}" />
                             </StackPanel>
                         </Border>
@@ -538,10 +542,10 @@
                                 <TextBlock Classes="panel-title" Text="Settings file" />
                                 <TextBlock Classes="hint"
                                            Text="Save your keys and options to move them to another computer, or load a saved file (you can also drop it on this window). The file is plain text: keep it private." />
-                                <StackPanel Classes="actions">
+                                <WrapPanel Classes="actions">
                                     <Button Content="Save settings…" Command="{Binding SaveSettingsCommand}" />
                                     <Button Content="Import settings…" Command="{Binding ImportSettingsCommand}" />
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
 
@@ -568,10 +572,10 @@
                                 <TextBlock Classes="hint"
                                            Text="The documentation covers setup for every store and tracker; the log files help with bug reports." />
                                 <TextBlock Classes="hint" Text="{x:Static vm:MainWindowViewModel.ShortcutsText}" />
-                                <StackPanel Classes="actions">
+                                <WrapPanel Classes="actions">
                                     <Button Content="Documentation" Command="{Binding OpenReadmeCommand}" />
                                     <Button Content="Open log folder" Command="{Binding OpenLogsFolderCommand}" />
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
