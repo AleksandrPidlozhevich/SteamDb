@@ -5,6 +5,7 @@ using SteamDb.Services;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SteamDb.ViewModels;
@@ -219,22 +220,35 @@ public partial class MainWindowViewModel
                 addedOn: _firstSeen.AddedOn));
         }, catchSteamAuth: true);
 
-    // Store pages, clipboard, and re-reading the ✓ marks from Notion when it's set up.
-    private LibraryActions LibraryActions() => new(
-        _dialogs.OpenLink,
-        async text =>
-        {
-            if (_dialogs.Clipboard is { } clipboard) await clipboard.SetTextAsync(text);
-        },
-        CanFindNotionDuplicates
-            ? async ct =>
+    // Store pages, clipboard, and re-reading the ✓ marks from the tracker they came from (Notion or
+    // Google Sheets: the one the latest snapshot is from, else whichever is set up, Notion first).
+    private LibraryActions LibraryActions()
+    {
+        var notion = CanFindNotionDuplicates;
+        var sheets = CanFindSheetsDuplicates;
+        var useSheets = sheets && (!notion || _backlog.Latest()?.Target == SyncHistory.GoogleSheets);
+
+        Func<CancellationToken, Task<BacklogSnapshot?>>? refresh =
+            useSheets ? ct => _sheetsExporter.ReadBacklogAsync(GoogleSheetsTableName, _ignored.IsIgnored, ct)
+            : notion ? ct => _notionExporter.ReadBacklogAsync(NotionToken, DbId, _ignored.IsIgnored, ct)
+            : null;
+
+        return new LibraryActions(
+            _dialogs.OpenLink,
+            async text =>
             {
-                var snapshot = await _notionExporter.ReadBacklogAsync(NotionToken, DbId, _ignored.IsIgnored, ct);
-                RefreshLastSync(); // the Notion card's "Completed …" line
-                return snapshot;
-            }
-            : null,
-        "Notion");
+                if (_dialogs.Clipboard is { } clipboard) await clipboard.SetTextAsync(text);
+            },
+            refresh == null
+                ? null
+                : async ct =>
+                {
+                    var snapshot = await refresh(ct);
+                    RefreshLastSync(); // the card's "Completed …" line
+                    return snapshot;
+                },
+            useSheets ? SyncHistory.GoogleSheets : "Notion");
+    }
 
     // ---- Notion --------------------------------------------------------------------------------
 
@@ -291,7 +305,7 @@ public partial class MainWindowViewModel
                 }
 
                 Progress.SetIndeterminate("Waiting for confirmation…");
-                if (!await _dialogs.ConfirmNotionDuplicatesAsync(new NotionDuplicatesViewModel(groups)))
+                if (!await _dialogs.ConfirmDuplicatesAsync(DuplicatesViewModel.ForNotion(groups)))
                 {
                     _log.WriteInfo("Notion duplicate merge not confirmed; nothing changed.");
                     return;
@@ -302,6 +316,31 @@ public partial class MainWindowViewModel
                 var trashed = groups.Sum(g => g.Remove.Count);
                 ShowResult($"✓ Merged {groups.Count} duplicate games · {trashed} pages moved to Notion's trash",
                     "Open database", NotionDatabaseAction());
+            });
+
+    /// <summary>Finds rows of the same game in the Google Sheet and, after confirmation, merges them.</summary>
+    [RelayCommand(CanExecute = nameof(CanFindSheetsDuplicates))]
+    private Task FindSheetsDuplicates() =>
+        RunOperationAsync("Reading the Google Sheet…", "Google Sheets duplicate search", "Google Sheets duplicates error",
+            async () =>
+            {
+                var groups = await _sheetsExporter.FindDuplicatesAsync(GoogleSheetsTableName, Progress.Token);
+                if (groups.Count == 0)
+                {
+                    ShowResult("✓ No duplicate rows in Google Sheets");
+                    return;
+                }
+
+                Progress.SetIndeterminate("Waiting for confirmation…");
+                if (!await _dialogs.ConfirmDuplicatesAsync(DuplicatesViewModel.ForSheets(groups)))
+                {
+                    _log.WriteInfo("Google Sheets duplicate merge not confirmed; nothing changed.");
+                    return;
+                }
+
+                Progress.SetIndeterminate("Merging duplicate rows…");
+                await _sheetsExporter.MergeDuplicatesAsync(GoogleSheetsTableName, groups, Progress.Token);
+                ShowResult($"✓ Merged {groups.Count} duplicate games · {groups.Sum(g => g.Remove.Count)} rows deleted");
             });
 
     private Action? NotionDatabaseAction()

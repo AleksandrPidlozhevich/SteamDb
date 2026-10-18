@@ -253,6 +253,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool CanExportSheets => HasSource && !string.IsNullOrWhiteSpace(GoogleSheetsTableName);
 
+    /// <summary>Finding duplicates in the sheet reads only Google Sheets, so no store is needed.</summary>
+    public bool CanFindSheetsDuplicates => !string.IsNullOrWhiteSpace(GoogleSheetsTableName);
+
     /// <summary>Finding duplicates reads only the Notion database, so no store is needed.</summary>
     public bool CanFindNotionDuplicates => !string.IsNullOrWhiteSpace(NotionToken) && !string.IsNullOrWhiteSpace(DbId);
 
@@ -297,6 +300,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ExportToNotionCommand.NotifyCanExecuteChanged();
         ExportToGoogleSheetsCommand.NotifyCanExecuteChanged();
         FindNotionDuplicatesCommand.NotifyCanExecuteChanged();
+        FindSheetsDuplicatesCommand.NotifyCanExecuteChanged();
     }
 
     // ---- Xbox post-connect check ---------------------------------------------------------------

@@ -65,8 +65,8 @@ public sealed class WindowDialogService : IDialogService
     public Task<bool> ConfirmNotionExportAsync(NotionExportPreviewViewModel preview) =>
         ShowDialogAsync(new NotionExportPreviewWindow { DataContext = preview });
 
-    public Task<bool> ConfirmNotionDuplicatesAsync(NotionDuplicatesViewModel duplicates) =>
-        ShowDialogAsync(new NotionDuplicatesWindow { DataContext = duplicates });
+    public Task<bool> ConfirmDuplicatesAsync(DuplicatesViewModel duplicates) =>
+        ShowDialogAsync(new DuplicatesWindow { DataContext = duplicates });
 
     private SyncLogWindow? _syncLogWindow;
 

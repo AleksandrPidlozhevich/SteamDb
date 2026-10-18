@@ -217,7 +217,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     /// <summary>The game "Pick for me" suggested, or null.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPicked), nameof(PickedText))]
+    [NotifyPropertyChangedFor(nameof(HasPicked), nameof(PickedText), nameof(CanOpenPickedStorePage))]
     private LibraryGameItem? picked;
 
     /// <summary>A one-line message in the banner when no game is picked ("Copied 12 games…").</summary>
@@ -321,6 +321,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Store pages can be opened (not in tests / the previewer).</summary>
     public bool CanOpenStorePage => _actions.OpenLink != null;
 
+    /// <summary>The pick's "Store page" button: a game is picked and it has a store page.</summary>
+    public bool CanOpenPickedStorePage => CanOpenStorePage && Picked?.HasStoreUrl == true;
+
     [RelayCommand]
     private void OpenStorePage(LibraryGameItem? item)
     {
@@ -332,6 +335,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
     public bool CanRefreshBacklog => _actions.RefreshBacklog != null;
 
     public string RefreshLabel => IsRefreshing ? "Refreshing…" : "Refresh";
+
+    public string RefreshTip => $"Read the completed ticks from {_actions.BacklogSource} now (nothing is written)";
 
     /// <summary>"✓ from Notion · 17 Oct 16:23", or a hint when there are no marks yet.</summary>
     public string? BacklogText => _backlog is { } b

@@ -16,6 +16,15 @@ public sealed record SheetColumns(
     public int Width => new[] { Platform, Name, Id, Completed, Playtime, LastPlayed, Owned, StoreLink, Cover }.Max() + 1;
 }
 
+/// <summary>A game row as read from the sheet: its 0-based index, the parsed row, the stored cells and
+/// the Completed tick (null when the sheet has no Completed column).</summary>
+public sealed record SheetRow(int RowIndex, CsvGameExportRow Row, string StoredPlatform, string StoredId, bool? Completed);
+
+/// <summary>A sheet's SteamDb rows as they are now (see <see cref="GoogleSheetsSyncPlanner.Read"/>).</summary>
+/// <param name="NeedsUpgrade">An old layout (no Platform column / no header) that an export would migrate
+/// first; row and column positions would move, so nothing should be written by position until then.</param>
+public sealed record SheetContents(SheetColumns Columns, bool NeedsUpgrade, IReadOnlyList<SheetRow> Rows);
+
 /// <summary>A header cell to write (row 0) — only the SteamDb columns the sheet is missing.</summary>
 public sealed record SheetHeaderCell(int Column, string Text);
 
@@ -154,6 +163,17 @@ public static class GoogleSheetsSyncPlanner
             noLongerOwned.Order(StringComparer.OrdinalIgnoreCase).ToList(),
             // The rows the backlog progress is counted over (hidden games left out).
             existing.Where(e => !hiddenRows.Contains(e.Row)).Select(e => (e.Row, e.StoredCompleted)).ToList());
+    }
+
+    /// <summary>Reads the game rows of a sheet without planning an export (duplicates, ✓ marks).</summary>
+    public static SheetContents Read(IList<IList<object>>? values)
+    {
+        values ??= [];
+        var layout = DetectLayout(values);
+        var rows = ReadExistingRows(values, layout, 0)
+            .Select(e => new SheetRow(e.RowIndex, e.Row, e.StoredPlatform, e.StoredId, e.StoredCompleted))
+            .ToList();
+        return new SheetContents(layout.Columns, layout.InsertPlatformColumn || layout.InsertHeaderRow, rows);
     }
 
     // Where the SteamDb columns are in the sheet as read (Orig*, -1 = absent) and where they end up.

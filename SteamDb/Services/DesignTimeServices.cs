@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,7 +27,10 @@ internal sealed class DesignTimeSecretStore : ISecretStore
 /// </summary>
 internal sealed class DesignTimeUpdateService : IUpdateService
 {
-    public string CurrentVersion => "0.0.0";
+    // The build's own version ("2.0.0+sha" → "2.0.0"), so the previewer shows the real one.
+    public string CurrentVersion =>
+        typeof(DesignTimeUpdateService).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+')[0] ?? "0.0.0";
 
     public bool IsInstalled => false;
 

@@ -446,6 +446,9 @@
                                     <Button Classes="accent" Content="Export to Google Sheets"
                                             Command="{Binding ExportToGoogleSheetsCommand}"
                                             ToolTip.Tip="{Binding SheetsHint}" ToolTip.ShowOnDisabled="True" />
+                                    <Button Content="Find duplicates…" Command="{Binding FindSheetsDuplicatesCommand}"
+                                            ToolTip.Tip="Find rows of the same game in the sheet and merge them (you confirm first)"
+                                            ToolTip.ShowOnDisabled="True" />
                                     <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
                                         <TextBlock Classes="last-sync" Text="{Binding SheetsLastSync}" />
                                         <TextBlock Classes="last-sync" Text="{Binding SheetsProgress}"
@@ -564,6 +567,7 @@
                                 <TextBlock Classes="panel-title" Text="Help" />
                                 <TextBlock Classes="hint"
                                            Text="The documentation covers setup for every store and tracker; the log files help with bug reports." />
+                                <TextBlock Classes="hint" Text="{x:Static vm:MainWindowViewModel.ShortcutsText}" />
                                 <StackPanel Classes="actions">
                                     <Button Content="Documentation" Command="{Binding OpenReadmeCommand}" />
                                     <Button Content="Open log folder" Command="{Binding OpenLogsFolderCommand}" />

@@ -83,13 +83,13 @@
             <TextBlock Classes="hint" VerticalAlignment="Center" Text="{Binding BacklogText}" />
             <Button Content="{Binding RefreshLabel}" FontSize="12" Padding="10,3"
                     IsVisible="{Binding CanRefreshBacklog}" IsEnabled="{Binding !IsRefreshing}"
-                    ToolTip.Tip="Read the Completed / Done ticks from Notion now (nothing is written)"
+                    ToolTip.Tip="{Binding RefreshTip}"
                     Command="{Binding RefreshBacklogCommand}" />
         </StackPanel>
 
         <!-- Search, filter, sort, copy. -->
         <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,2,0,12">
-            <TextBox Grid.Column="0" PlaceholderText="Search by name…"
+            <TextBox x:Name="Search" Grid.Column="0" PlaceholderText="Search by name…"
                      Text="{Binding SearchText, Mode=TwoWay}">
                 <TextBox.InnerLeftContent>
                     <PathIcon Width="14" Height="14" Margin="10,0,0,0" Opacity="0.6"
@@ -132,15 +132,8 @@
                            IsVisible="{Binding HasPicked}" />
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
                            TextWrapping="Wrap" Text="{Binding Notice}" IsVisible="{Binding !HasPicked}" />
-                <Button Grid.Column="1" Content="Store page"
-                        Command="{Binding OpenStorePageCommand}" CommandParameter="{Binding Picked}">
-                    <Button.IsVisible>
-                        <MultiBinding Converter="{x:Static BoolConverters.And}">
-                            <Binding Path="CanOpenStorePage" />
-                            <Binding Path="Picked.HasStoreUrl" FallbackValue="False" />
-                        </MultiBinding>
-                    </Button.IsVisible>
-                </Button>
+                <Button Grid.Column="1" Content="Store page" IsVisible="{Binding CanOpenPickedStorePage}"
+                        Command="{Binding OpenStorePageCommand}" CommandParameter="{Binding Picked}" />
                 <Button Grid.Column="2" Content="Another" Margin="6,0,0,0"
                         Command="{Binding PickForMeCommand}" IsVisible="{Binding HasPicked}" />
                 <Button Grid.Column="3" Classes="dismiss" Command="{Binding DismissPickCommand}" />

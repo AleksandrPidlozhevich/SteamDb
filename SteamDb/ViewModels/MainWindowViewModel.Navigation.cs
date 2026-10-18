@@ -41,6 +41,17 @@ public partial class MainWindowViewModel
     [RelayCommand]
     private void GoToExport() => SelectedTab = (int)MainTab.Export;
 
+    /// <summary>The keyboard shortcuts, for the Help panel (⌘ on macOS, Ctrl elsewhere).</summary>
+    public static string ShortcutsText
+    {
+        get
+        {
+            var cmd = System.OperatingSystem.IsMacOS() ? "⌘" : "Ctrl+";
+            return $"Shortcuts: {cmd}1–{cmd}4 switch pages · {cmd}L opens the library · in the library, " +
+                   $"{cmd}F jumps to the search and Esc clears it (or closes the window).";
+        }
+    }
+
     // First start (nothing remembered yet): open on Sources, where setup begins.
     private void ChooseStartTab(bool firstRun) =>
         SelectedTab = (int)(firstRun ? MainTab.Sources : MainTab.Export);

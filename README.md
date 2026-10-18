@@ -75,11 +75,12 @@ the file for your system:
 | 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. A footer sums it up: share of games played, total hours, most played. Double-click a game to open its store page. |
 | 🆕 **Recently added** | SteamDb remembers when it first saw each game, so the library viewer marks new games **NEW** and can filter / sort by *recently added* (stores don't report purchase dates; games you owned before SteamDb tracked a store don't count). |
 | 🎲 **Pick for me** | Can't decide? The library viewer suggests a game from the list shown, skipping completed and hidden ones and preferring games you've barely touched. |
-| ✅ **Backlog progress** | After an export to Notion or Google Sheets, the card shows *Completed 120 of 640 (19%)*, and the library viewer marks completed games ✓ with **Completed / Not completed** filters. **Refresh** in the library re-reads the ✓ from Notion right away (read-only). |
+| ✅ **Backlog progress** | After an export to Notion or Google Sheets, the card shows *Completed 120 of 640 (19%)*, and the library viewer marks completed games ✓ with **Completed / Not completed** filters. **Refresh** in the library re-reads the ✓ from Notion or Google Sheets right away (read-only). |
 | 📋 **Copy list** | Copies the games shown in the library (search and filter apply) — pastes into a spreadsheet as columns. |
 | ⬇️ **Updates** | A new version shows up in the sidebar and under *Settings → Updates* (**Check for updates**, **Download & restart**); a long-running app re-checks every 12 hours. |
 | 🖼️ **Covers & store links** | New Notion pages get the game's cover image and a `Store link`; existing pages without one are filled in. |
-| 🧹 **Duplicate finder** | **Find duplicates…** spots Notion pages of the same game and merges them (you confirm first; extras go to Notion's trash). |
+| 🧹 **Duplicate finder** | **Find duplicates…** spots Notion pages or Google Sheets rows of the same game and merges them (you confirm first; extra Notion pages go to the trash, extra sheet rows are deleted — Sheets' version history can bring them back). |
+| ⌨️ **Shortcuts** | Ctrl+1–4 (⌘ on macOS) switch pages, Ctrl+L opens the library; in the library Ctrl+F searches and Esc clears the search or closes it. |
 | 🗑️ **No longer owned** | Spots games in your tracker that left your library (refunds, delistings). They're never deleted. An optional `Owned` checkbox column gets unticked for them. |
 | ⏰ **Scheduled sync** | **Auto-sync** keeps Notion, Google Sheets and your CSV up to date (hourly, every 6 hours or daily) while the app runs; with **Close to tray** and **Start at login** it keeps going in the background on Windows, macOS and Linux. `SteamDb --sync notion,sheets` syncs without opening the window, ready for Task Scheduler or cron. **History…** (also in the tray menu) lists every recent sync and its result. |
 | ⏱️ **Playtime** | Optional `Playtime` and `Last played` columns in Notion and Google Sheets are filled from Steam (last played from Xbox too). |
@@ -341,6 +342,11 @@ A `Store link` header gets the game's store page and a `Cover` header its cover 
 Re-running the export adds new games and updates platform tags in place. Your ticks, row order
 and any extra columns you added are kept. Sheets created by older versions (Steam-only
 `Name | Game ID | Completed`) are upgraded automatically.
+
+**Find duplicates…** under the Google Sheets export looks for rows of the same game. For each, the
+top row is kept and gets every store tag and id (plus the Completed tick, if any copy had it); the
+other rows are deleted after you confirm. If the sheet changed since the search, nothing is
+written. *File → Version history* in Google Sheets brings deleted rows back.
 
 > [!CAUTION]
 > This integration is in **beta**. The authentication flow may sometimes fail, and some

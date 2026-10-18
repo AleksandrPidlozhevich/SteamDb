@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
 using SteamDb.ViewModels;
@@ -9,9 +10,30 @@ namespace SteamDb.Views;
 /// <summary>Viewer of the fetched library (see <see cref="ViewModels.LibraryViewModel"/>).</summary>
 public partial class LibraryWindow : Window
 {
+    private readonly TextBox _search;
+
     public LibraryWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        _search = this.Named<TextBox>("Search");
+        AddHandler(KeyDownEvent, OnShortcut, RoutingStrategies.Tunnel);
+    }
+
+    // Ctrl+F (⌘F): jump to the search box. Esc: clear the search, or close the window when it's empty.
+    private void OnShortcut(object? sender, KeyEventArgs e)
+    {
+        if (Shortcuts.IsCommand(e, this, Key.F))
+        {
+            _search.Focus();
+            _search.SelectAll();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+        {
+            if (!string.IsNullOrEmpty(_search.Text)) _search.Text = "";
+            else Close();
+            e.Handled = true;
+        }
     }
 
     // Double-clicking a game opens its store page (not when the double-click hit the Hide button).

@@ -29,7 +29,7 @@ public interface IDialogService
     void ShowSyncLog(SyncLogViewModel log);
 
     /// <summary>Shows the duplicate pages found in Notion; true when the user confirms the merge.</summary>
-    Task<bool> ConfirmNotionDuplicatesAsync(NotionDuplicatesViewModel duplicates);
+    Task<bool> ConfirmDuplicatesAsync(DuplicatesViewModel duplicates);
 
     void OpenLink(string url);
 

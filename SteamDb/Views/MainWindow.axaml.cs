@@ -41,6 +41,9 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DragLeaveEvent, (_, _) => _dropOverlay.IsVisible = false);
         AddHandler(DragDrop.DropEvent, OnDrop);
+
+        // Tunnel, so the shortcuts also work while a text field has the focus.
+        AddHandler(KeyDownEvent, OnShortcut, RoutingStrategies.Tunnel);
     }
 
     public MainWindow(IStoreClientFactory clients, ILogService log, ISecretStore secrets) : this()
@@ -112,6 +115,31 @@ public partial class MainWindow : Window
         _root.Opacity = 0.25;
         _root.Transitions = transitions;
         Dispatcher.UIThread.Post(() => _root.Opacity = 1, DispatcherPriority.Render);
+    }
+
+    // Ctrl+1…4 (⌘ on macOS): switch page. Ctrl+L: open the library.
+    private void OnShortcut(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel) return;
+
+        int? page = e.Key switch
+        {
+            Key.D1 or Key.NumPad1 => (int)MainTab.Sources,
+            Key.D2 or Key.NumPad2 => (int)MainTab.Export,
+            Key.D3 or Key.NumPad3 => (int)MainTab.Automation,
+            Key.D4 or Key.NumPad4 => (int)MainTab.Settings,
+            _ => null
+        };
+        if (page is { } index && Shortcuts.IsCommand(e, this, e.Key))
+        {
+            viewModel.SelectedTab = index;
+            e.Handled = true;
+        }
+        else if (Shortcuts.IsCommand(e, this, Key.L) && viewModel.ViewLibraryCommand.CanExecute(null))
+        {
+            viewModel.ViewLibraryCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)

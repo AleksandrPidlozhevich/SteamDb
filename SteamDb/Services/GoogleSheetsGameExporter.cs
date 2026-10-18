@@ -107,6 +107,118 @@ public sealed class GoogleSheetsGameExporter
             library, plan.NewRows.Count, plan.Updates.Count, spreadsheet.SpreadsheetUrl, plan.NoLongerOwned.Count);
     }
 
+    // ---- read-only and maintenance operations on an existing sheet ---------------------------
+
+    /// <summary>
+    /// Read-only: reads the Completed ticks of the sheet and records them as the Google Sheets backlog
+    /// snapshot (the library viewer's ✓ marks), without fetching any store or writing.
+    /// </summary>
+    /// <param name="isHidden">Games hidden in the library viewer, left out of the counts.</param>
+    public async Task<BacklogSnapshot?> ReadBacklogAsync(
+        string? tableName, Func<CsvGameExportRow, bool>? isHidden = null, CancellationToken ct = default)
+    {
+        var sheet = await OpenExistingAsync(tableName, ct);
+        var contents = GoogleSheetsSyncPlanner.Read(sheet.Values);
+        var snapshot = BacklogSnapshot.From(SyncHistory.GoogleSheets, DateTimeOffset.Now,
+            contents.Rows.Where(r => isHidden?.Invoke(r.Row) != true).Select(r => (r.Row, r.Completed)));
+        _backlog?.Record(snapshot);
+        return snapshot;
+    }
+
+    /// <summary>Read-only: finds rows of the same game in the sheet.</summary>
+    public async Task<IReadOnlyList<SheetDuplicateGroup>> FindDuplicatesAsync(string? tableName, CancellationToken ct = default)
+    {
+        var sheet = await OpenExistingAsync(tableName, ct);
+        var contents = GoogleSheetsSyncPlanner.Read(sheet.Values);
+        if (contents.NeedsUpgrade)
+            throw new InvalidOperationException(
+                "This sheet still has the old layout. Export to Google Sheets once (it upgrades the sheet), then search again.");
+        return SheetDuplicateFinder.Find(contents.Rows);
+    }
+
+    /// <summary>
+    /// Merges each group into its kept row (store tags, ids, and the Completed tick of any copy) and
+    /// deletes the other rows. The sheet is re-read first: if any of those rows moved or changed since
+    /// the search, nothing is written. Google Sheets' version history can undo the merge.
+    /// </summary>
+    public async Task MergeDuplicatesAsync(
+        string? tableName, IReadOnlyList<SheetDuplicateGroup> groups, CancellationToken ct = default)
+    {
+        if (groups.Count == 0) return;
+
+        var sheet = await OpenExistingAsync(tableName, ct);
+        var contents = GoogleSheetsSyncPlanner.Read(sheet.Values);
+        if (contents.NeedsUpgrade || !SheetDuplicateFinder.StillMatches(contents, groups))
+            throw new InvalidOperationException(
+                "The sheet changed since the search (rows were added, moved or edited). Run Find duplicates again.");
+
+        var columns = contents.Columns;
+        var data = new List<ValueRange>();
+        foreach (var group in groups)
+        {
+            data.Add(CellValue(sheet.SheetRef, columns.Platform, group.Keep.RowIndex, group.Merged.PlatformText));
+            data.Add(CellValue(sheet.SheetRef, columns.Id, group.Keep.RowIndex, group.Merged.IdText));
+            if (group.CarriesCompleted)
+                data.Add(CellValue(sheet.SheetRef, columns.Completed, group.Keep.RowIndex, true));
+        }
+
+        await sheet.Sheets.Spreadsheets.Values
+            .BatchUpdate(new BatchUpdateValuesRequest { ValueInputOption = "RAW", Data = data }, sheet.SpreadsheetId)
+            .ExecuteAsync(ct);
+
+        // Bottom-up, so deleting a row never shifts one that's still to be deleted.
+        var deletes = groups.SelectMany(g => g.Remove).Select(r => r.RowIndex).Distinct().OrderDescending()
+            .Select(index => new Request
+            {
+                DeleteDimension = new DeleteDimensionRequest
+                {
+                    Range = new DimensionRange
+                    {
+                        SheetId = sheet.SheetId, Dimension = "ROWS", StartIndex = index, EndIndex = index + 1
+                    }
+                }
+            })
+            .ToList();
+        await sheet.Sheets.Spreadsheets
+            .BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = deletes }, sheet.SpreadsheetId)
+            .ExecuteAsync(ct);
+
+        _log.WriteInfo($"Google Sheets: merged {groups.Count} duplicate games, deleted {deletes.Count} rows.");
+    }
+
+    // The first tab of an existing spreadsheet, with its values; throws when it doesn't exist yet.
+    private async Task<OpenedSheet> OpenExistingAsync(string? tableName, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(tableName))
+            throw new InvalidOperationException("Enter the Google Sheets table name first.");
+        var name = tableName.Trim();
+
+        var client = new GoogleSheetsApiClient(_secrets, _log);
+        if (!await client.ConnectAsync(ct) || client.DriveService == null || client.SheetsService == null)
+            throw new InvalidOperationException(
+                "Google authorization failed. Please try again; details are in the log.");
+
+        var spreadsheetId = await FindSpreadsheetAsync(client.DriveService, name, ct) ??
+                            throw new InvalidOperationException(
+                                $"There's no spreadsheet named \"{name}\" in your Google Drive yet. Export to it first.");
+
+        var sheets = client.SheetsService;
+        var getRequest = sheets.Spreadsheets.Get(spreadsheetId);
+        getRequest.Fields = "spreadsheetUrl,sheets.properties(sheetId,title)";
+        var spreadsheet = await getRequest.ExecuteAsync(ct);
+        var properties = spreadsheet.Sheets[0].Properties;
+        var sheetRef = QuoteSheetTitle(properties.Title);
+
+        var getValues = sheets.Spreadsheets.Values.Get(spreadsheetId, sheetRef);
+        getValues.ValueRenderOption =
+            SpreadsheetsResource.ValuesResource.GetRequest.ValueRenderOptionEnum.FORMULA;
+        var values = await getValues.ExecuteAsync(ct);
+        return new OpenedSheet(sheets, spreadsheetId, properties.SheetId ?? 0, sheetRef, values.Values);
+    }
+
+    private sealed record OpenedSheet(
+        SheetsService Sheets, string SpreadsheetId, int SheetId, string SheetRef, IList<IList<object>>? Values);
+
     // The spreadsheet with this name in the user's Drive, or null.
     private static async Task<string?> FindSpreadsheetAsync(DriveService drive, string name, CancellationToken ct)
     {
