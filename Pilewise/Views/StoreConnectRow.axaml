@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:SteamDb.ViewModels"
-             xmlns:views="using:SteamDb.Views"
-             x:Class="SteamDb.Views.StoreConnectRow"
+             xmlns:vm="using:Pilewise.ViewModels"
+             xmlns:views="using:Pilewise.Views"
+             x:Class="Pilewise.Views.StoreConnectRow"
              x:DataType="vm:StoreConnectionViewModel">
 
     <!-- Connect button → (paste-flow) code input → Connected, swapped in the same field-wide slot. -->

@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Runs an interactive web login inside an embedded WebView and returns the text payload the

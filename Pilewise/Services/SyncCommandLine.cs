@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>Export targets the command-line sync can run.</summary>
 public enum SyncTarget
@@ -26,14 +26,14 @@ public sealed record SyncCommand(SyncOptions? Options, string? Message, int Exit
 }
 
 /// <summary>
-/// Parses the headless sync command line, e.g. <c>SteamDb --sync notion,sheets --sheet "My games"</c>.
+/// Parses the headless sync command line, e.g. <c>Pilewise --sync notion,sheets --sheet "My games"</c>.
 /// Pure, so it's unit-tested; <see cref="HeadlessSync"/> runs the result.
 /// </summary>
 public static class SyncCommandLine
 {
     public const string Usage =
         """
-        Usage: SteamDb --sync <targets> [options]
+        Usage: Pilewise --sync <targets> [options]
 
           <targets>        Comma-separated: csv, notion, sheets
           --file <path>    CSV file to update (created if missing). Default: the CSV last
@@ -42,7 +42,7 @@ public static class SyncCommandLine
           --dry-run        Show what would change without writing anything.
           --help           Show this help.
 
-        Credentials and store logins come from the app: open SteamDb once, fill in the fields
+        Credentials and store logins come from the app: open Pilewise once, fill in the fields
         and connect your stores. Exit code: 0 = success, 1 = a sync failed, 2 = bad arguments.
         """;
 

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Games the user hid in the library viewer (demos, test servers, tools…). Hidden games are left out

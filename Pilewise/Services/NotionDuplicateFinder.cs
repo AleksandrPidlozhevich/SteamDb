@@ -1,9 +1,9 @@
-using SteamDb.Models;
+using Pilewise.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Pages of the same game found by <see cref="NotionDuplicateFinder"/>: the one to keep (the oldest,

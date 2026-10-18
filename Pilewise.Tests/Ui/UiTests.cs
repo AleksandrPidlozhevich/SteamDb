@@ -9,13 +9,13 @@ using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
-using SteamDb.Models;
-using SteamDb.Services;
-using SteamDb.ViewModels;
-using SteamDb.Views;
+using Pilewise.Models;
+using Pilewise.Services;
+using Pilewise.ViewModels;
+using Pilewise.Views;
 using Xunit;
 
-namespace SteamDb.Tests.Ui;
+namespace Pilewise.Tests.Ui;
 
 /// <summary>
 /// Renders every window headlessly in both themes (snapshots in <c>ui-snapshots/</c>) and checks layout
@@ -214,13 +214,13 @@ public class UiTests
 
     /// <summary>
     /// Regenerates the README's main-window screenshots (made-up data, no real keys or ids) when
-    /// <c>STEAMDB_README_SCREENSHOTS</c> names the output folder, e.g. <c>docs/images</c>; otherwise it
+    /// <c>PILEWISE_README_SCREENSHOTS</c> names the output folder, e.g. <c>docs/images</c>; otherwise it
     /// does nothing.
     /// </summary>
     [Fact]
     public Task ReadmeScreenshots_WhenAsked()
     {
-        var folder = Environment.GetEnvironmentVariable("STEAMDB_README_SCREENSHOTS");
+        var folder = Environment.GetEnvironmentVariable("PILEWISE_README_SCREENSHOTS");
         if (string.IsNullOrWhiteSpace(folder)) return Task.CompletedTask;
 
         return UiSession.RunAsync(() =>

@@ -1,10 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:SteamDb.ViewModels"
+        xmlns:vm="using:Pilewise.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="980" d:DesignHeight="640"
-        x:Class="SteamDb.Views.LibraryWindow"
+        x:Class="Pilewise.Views.LibraryWindow"
         x:DataType="vm:LibraryViewModel"
         Icon="/Assets/gamedate.ico"
         Title="Game library"
@@ -69,7 +69,7 @@
                 </StackPanel>
             </Border>
             <Border Classes="stat" IsVisible="{Binding Stats.HasRecentlyAdded}"
-                    ToolTip.Tip="Games SteamDb saw for the first time recently (stores don't report purchase dates, so this counts from when SteamDb started tracking each store)">
+                    ToolTip.Tip="Games Pilewise saw for the first time recently (stores don't report purchase dates, so this counts from when Pilewise started tracking each store)">
                 <StackPanel>
                     <TextBlock Classes="stat-value" Text="{Binding Stats.RecentlyAdded}" />
                     <TextBlock Classes="stat-label" Text="added in 30 days" />

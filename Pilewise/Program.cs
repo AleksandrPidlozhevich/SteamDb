@@ -1,13 +1,13 @@
 ﻿using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Velopack;
 
-namespace SteamDb;
+namespace Pilewise;
 
 internal sealed class Program
 {
@@ -18,7 +18,7 @@ internal sealed class Program
         // and finishes applying a downloaded update. A no-op when not installed via Velopack.
         VelopackApp.Build().Run();
 
-        // `SteamDb --sync notion …`: sync without opening the window (Task Scheduler, scripts).
+        // `Pilewise --sync notion …`: sync without opening the window (Task Scheduler, scripts).
         if (SyncCommandLine.IsHeadless(args))
         {
             Environment.ExitCode = RunHeadless(args);

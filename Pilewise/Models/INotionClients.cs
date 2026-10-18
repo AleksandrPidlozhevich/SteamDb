@@ -1,11 +1,11 @@
 using Newtonsoft.Json.Linq;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 /// <summary>The Notion REST calls the export pipeline needs. Disposable — it owns an HttpClient.</summary>
 public interface INotionApiClient : IDisposable

@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>One sync run of one target, as shown in the Sync history window.</summary>
 /// <param name="Source">What started it: <see cref="SyncLog.Manual"/>, "Auto-sync", "Sync" (tray) or

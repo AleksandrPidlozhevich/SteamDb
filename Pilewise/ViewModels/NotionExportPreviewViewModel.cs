@@ -1,8 +1,8 @@
-using SteamDb.Services;
+using Pilewise.Services;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>
 /// The Notion dry run shown before anything is written: which pages would be created and which

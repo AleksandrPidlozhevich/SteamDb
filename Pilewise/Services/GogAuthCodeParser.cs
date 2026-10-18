@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Extracts a GOG authorization <c>code</c> from arbitrary clipboard / pasted text:

@@ -1,10 +1,10 @@
 using System;
 using System.Linq;
-using SteamDb.Models;
-using SteamDb.Services;
+using Pilewise.Models;
+using Pilewise.Services;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class CsvGameExportServiceTests
 {

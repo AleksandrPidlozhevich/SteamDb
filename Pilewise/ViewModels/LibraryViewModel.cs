@@ -1,13 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>One game in the library viewer: the merged row flattened for display.</summary>
 public sealed record LibraryGameItem(
@@ -33,7 +33,7 @@ public sealed record LibraryGameItem(
     /// <summary>Added in the last <see cref="FirstSeenGames.RecentDays"/> days.</summary>
     public bool IsNew => FirstSeenGames.IsRecent(AddedOn, DateOnly.FromDateTime(DateTime.Today));
 
-    /// <summary>"Added 12 Oct" (first seen by SteamDb).</summary>
+    /// <summary>"Added 12 Oct" (first seen by Pilewise).</summary>
     public string AddedText => AddedOn is { } day
         ? $"Added {day.ToString("d MMM", System.Globalization.CultureInfo.CurrentCulture)}"
         : "";

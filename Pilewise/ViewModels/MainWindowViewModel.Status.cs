@@ -1,10 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 // What the window reports: the result banner, the "Last sync" / backlog lines under the cards, the
 // sync history, and app updates.
@@ -137,7 +137,7 @@ public partial class MainWindowViewModel
 
     /// <summary>The Updates panel's line: up to date / a version is available / why it can't tell.</summary>
     public string UpdateStatus =>
-        !_updates.IsInstalled ? $"SteamDb {AppVersion}. Updates work in the installed app (from the GitHub release), not in a development build."
+        !_updates.IsInstalled ? $"Pilewise {AppVersion}. Updates work in the installed app (from the GitHub release), not in a development build."
         : IsCheckingForUpdate ? "Checking GitHub for a newer version…"
         : AvailableUpdateVersion is { } version ? $"Version {version} is available (you have {AppVersion})."
         : _updates.LastCheckError is { } error ? $"Couldn't check for updates: {error}"

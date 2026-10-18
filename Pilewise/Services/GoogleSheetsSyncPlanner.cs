@@ -3,16 +3,16 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
-/// <summary>0-based column indexes of the SteamDb columns, after any migration has been applied.
+/// <summary>0-based column indexes of the Pilewise columns, after any migration has been applied.
 /// <see cref="Playtime"/>, <see cref="LastPlayed"/>, <see cref="Owned"/>, <see cref="StoreLink"/> and
 /// <see cref="Cover"/> are opt-in (the user adds the header); -1 = absent.</summary>
 public sealed record SheetColumns(
     int Platform, int Name, int Id, int Completed, int Playtime = -1, int LastPlayed = -1, int Owned = -1,
     int StoreLink = -1, int Cover = -1)
 {
-    /// <summary>Number of columns needed to hold every SteamDb column.</summary>
+    /// <summary>Number of columns needed to hold every Pilewise column.</summary>
     public int Width => new[] { Platform, Name, Id, Completed, Playtime, LastPlayed, Owned, StoreLink, Cover }.Max() + 1;
 }
 
@@ -20,12 +20,12 @@ public sealed record SheetColumns(
 /// the Completed tick (null when the sheet has no Completed column).</summary>
 public sealed record SheetRow(int RowIndex, CsvGameExportRow Row, string StoredPlatform, string StoredId, bool? Completed);
 
-/// <summary>A sheet's SteamDb rows as they are now (see <see cref="GoogleSheetsSyncPlanner.Read"/>).</summary>
+/// <summary>A sheet's Pilewise rows as they are now (see <see cref="GoogleSheetsSyncPlanner.Read"/>).</summary>
 /// <param name="NeedsUpgrade">An old layout (no Platform column / no header) that an export would migrate
 /// first; row and column positions would move, so nothing should be written by position until then.</param>
 public sealed record SheetContents(SheetColumns Columns, bool NeedsUpgrade, IReadOnlyList<SheetRow> Rows);
 
-/// <summary>A header cell to write (row 0) — only the SteamDb columns the sheet is missing.</summary>
+/// <summary>A header cell to write (row 0) — only the Pilewise columns the sheet is missing.</summary>
 public sealed record SheetHeaderCell(int Column, string Text);
 
 /// <summary>New values for an existing row (0-based index in the migrated sheet). Playtime /
@@ -176,7 +176,7 @@ public static class GoogleSheetsSyncPlanner
         return new SheetContents(layout.Columns, layout.InsertPlatformColumn || layout.InsertHeaderRow, rows);
     }
 
-    // Where the SteamDb columns are in the sheet as read (Orig*, -1 = absent) and where they end up.
+    // Where the Pilewise columns are in the sheet as read (Orig*, -1 = absent) and where they end up.
     private sealed record Layout(
         bool InsertPlatformColumn,
         bool InsertHeaderRow,
@@ -212,7 +212,7 @@ public static class GoogleSheetsSyncPlanner
                 return new Layout(true, true, -1, 0, 1, 0, fresh, FullHeader(fresh), OrigCompleted: 2);
 
             throw new InvalidOperationException(
-                "This spreadsheet doesn't look like a SteamDb sheet: the first row of its first tab " +
+                "This spreadsheet doesn't look like a Pilewise sheet: the first row of its first tab " +
                 $"must be a header with \"{NameHeader}\" and \"{IdHeader}\" columns. " +
                 "Enter a new table name to create a fresh sheet.");
         }

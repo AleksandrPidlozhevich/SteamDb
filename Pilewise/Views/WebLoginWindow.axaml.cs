@@ -3,7 +3,7 @@ using Avalonia.Markup.Xaml;
 using System;
 using System.Threading.Tasks;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 /// <summary>
 /// Hosts the store login in an embedded <see cref="NativeWebView"/> so we can show a loading

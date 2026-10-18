@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SteamDb\SteamDb.csproj" />
+    <ProjectReference Include="..\Pilewise\Pilewise.csproj" />
   </ItemGroup>
 
 </Project>

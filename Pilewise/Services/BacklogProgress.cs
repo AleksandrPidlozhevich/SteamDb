@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// How much of the backlog is done in one tracker, as read during its last export: the number of

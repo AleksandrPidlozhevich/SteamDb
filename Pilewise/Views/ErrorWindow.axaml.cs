@@ -2,7 +2,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 /// <summary>Modal error dialog: the message (inner exceptions included) with Copy and OK.</summary>
 public partial class ErrorWindow : DialogWindow

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Detects the Microsoft (live.com) implicit-flow redirect from arbitrary clipboard / pasted text.

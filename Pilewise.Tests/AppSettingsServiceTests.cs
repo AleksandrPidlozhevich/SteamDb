@@ -1,8 +1,8 @@
 using System;
-using SteamDb.Services;
+using Pilewise.Services;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class AppSettingsServiceTests
 {

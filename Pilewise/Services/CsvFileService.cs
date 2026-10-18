@@ -4,9 +4,9 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
-/// <summary>Reads/writes SteamDb CSV files chosen through the storage pickers.</summary>
+/// <summary>Reads/writes Pilewise CSV files chosen through the storage pickers.</summary>
 public sealed class CsvFileService
 {
     private readonly ILogService _log;

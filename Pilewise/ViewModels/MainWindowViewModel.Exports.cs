@@ -1,14 +1,14 @@
 using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 // The export commands: CSV, Notion (preview first), Google Sheets, the library viewer, Notion
 // duplicates and files dropped on the window.
@@ -91,14 +91,14 @@ public partial class MainWindowViewModel
     private Task UpdateCsvFileAsync(IStorageFile file) =>
         RunOperationAsync(FetchingGames, "CSV update", "CSV update error", async () =>
         {
-            // Validate the chosen file is a SteamDb CSV before touching it.
+            // Validate the chosen file is a Pilewise CSV before touching it.
             var existingContent = await _csv.ReadAsync(file);
             var missingColumns = CsvGameExportService.GetMissingColumns(existingContent);
             if (missingColumns.Count > 0)
             {
                 _log.WriteWarning($"Update CSV aborted: missing columns {string.Join(", ", missingColumns)}.");
                 await _dialogs.ShowErrorAsync("Update CSV", new Exception(
-                    "The selected file is not a SteamDb CSV. Missing columns: " +
+                    "The selected file is not a Pilewise CSV. Missing columns: " +
                     string.Join(", ", missingColumns) +
                     $".{Environment.NewLine}Expected header: {CsvGameExportService.Header}"));
                 return;
@@ -156,7 +156,7 @@ public partial class MainWindowViewModel
     }
 
     /// <summary>
-    /// Handles a file dropped onto the window: a SteamDb game list is updated like
+    /// Handles a file dropped onto the window: a Pilewise game list is updated like
     /// <c>Update .csv</c>, a settings file is imported, anything else is explained.
     /// </summary>
     public async Task OpenDroppedFileAsync(IStorageFile file)
@@ -168,7 +168,7 @@ public partial class MainWindowViewModel
             if (!DroppedFile.HasSupportedExtension(file.Name))
             {
                 await _dialogs.ShowErrorAsync("Unsupported file", new Exception(
-                    $"\"{file.Name}\" isn't a .csv file. Drop a SteamDb game list to update it, " +
+                    $"\"{file.Name}\" isn't a .csv file. Drop a Pilewise game list to update it, " +
                     "or a saved settings file to import it."));
                 return;
             }
@@ -194,7 +194,7 @@ public partial class MainWindowViewModel
                     break;
                 default:
                     await _dialogs.ShowErrorAsync("Unsupported file", new Exception(
-                        $"\"{file.Name}\" is neither a SteamDb game list (expected header: " +
+                        $"\"{file.Name}\" is neither a Pilewise game list (expected header: " +
                         $"{CsvGameExportService.Header}) nor a saved settings file."));
                     break;
             }

@@ -3,9 +3,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
-using SteamDb.ViewModels;
+using Pilewise.ViewModels;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 /// <summary>Viewer of the fetched library (see <see cref="ViewModels.LibraryViewModel"/>).</summary>
 public partial class LibraryWindow : Window

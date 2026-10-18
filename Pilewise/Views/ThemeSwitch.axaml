@@ -2,8 +2,8 @@
      Bound to MainWindowViewModel (ThemeIndex and its commands). -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:SteamDb.ViewModels"
-             x:Class="SteamDb.Views.ThemeSwitch"
+             xmlns:vm="using:Pilewise.ViewModels"
+             x:Class="Pilewise.Views.ThemeSwitch"
              x:DataType="vm:MainWindowViewModel">
 
     <UserControl.Styles>

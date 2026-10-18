@@ -1,6 +1,6 @@
 using System;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>Credentials persisted to / loaded from the plaintext settings file.</summary>
 public sealed record AppSettings(

@@ -1,8 +1,8 @@
-using SteamDb.Models;
+using Pilewise.Models;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>A database property the export would add (name + Notion type, e.g. "multi_select").</summary>
 public sealed record NotionPropertyToCreate(string Name, string Type)

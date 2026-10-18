@@ -1,9 +1,9 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using SteamDb.ViewModels;
+using Pilewise.ViewModels;
 
-namespace SteamDb;
+namespace Pilewise;
 
 public class ViewLocator : IDataTemplate
 {

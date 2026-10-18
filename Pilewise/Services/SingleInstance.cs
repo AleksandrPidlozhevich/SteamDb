@@ -5,10 +5,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
-/// Keeps one SteamDb window per user. The first instance holds a named mutex and listens on a
+/// Keeps one Pilewise window per user. The first instance holds a named mutex and listens on a
 /// named pipe (a Unix domain socket on macOS / Linux); a later start asks it to show its window
 /// and exits, so a tray / login-started copy never runs a second auto-sync next to it.
 /// </summary>
@@ -32,11 +32,11 @@ public sealed class SingleInstance : IDisposable
     /// <summary>Raised (on a background thread) when another start asked to show the window.</summary>
     public event Action? ShowRequested;
 
-    /// <summary>The per-user instance name, e.g. "SteamDb-alex" (only letters, digits, '-' and '_').</summary>
+    /// <summary>The per-user instance name, e.g. "Pilewise-alex" (only letters, digits, '-' and '_').</summary>
     public static string NameFor(string user)
     {
         var safe = new string(user.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').Take(32).ToArray());
-        return "SteamDb-" + (safe.Length > 0 ? safe : "user");
+        return "Pilewise-" + (safe.Length > 0 ? safe : "user");
     }
 
     /// <summary>The name for the current OS user.</summary>

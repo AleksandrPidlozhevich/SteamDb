@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Velopack;
 using Velopack.Sources;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// <see cref="IUpdateService"/> backed by Velopack, reading stable releases from the project's GitHub
@@ -14,7 +14,7 @@ namespace SteamDb.Services;
 /// </summary>
 public sealed class VelopackUpdateService : IUpdateService
 {
-    private const string RepoUrl = "https://github.com/AleksandrPidlozhevich/SteamDb";
+    private const string RepoUrl = "https://github.com/AleksandrPidlozhevich/Pilewise";
 
     private readonly UpdateManager _manager = new(new GithubSource(RepoUrl, accessToken: null, prerelease: false));
     private readonly ILogService _log;

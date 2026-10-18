@@ -1,12 +1,12 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 // Running in the background: auto-sync on a schedule, the tray's "Sync now", close to tray and
 // start at login.
@@ -36,7 +36,7 @@ public partial class MainWindowViewModel
         ? $"Update {path} on the schedule (a .bak of the previous version is kept)"
         : "Export or update a CSV once and it's remembered here for auto-sync";
 
-    /// <summary>Closing the window keeps SteamDb running in the tray (saved).</summary>
+    /// <summary>Closing the window keeps Pilewise running in the tray (saved).</summary>
     [ObservableProperty] private bool closeToTray;
 
     /// <summary>False on a Linux desktop without a tray: closing then really closes (set by <c>App</c>).</summary>
@@ -48,12 +48,12 @@ public partial class MainWindowViewModel
     public bool KeepsRunningOnClose => CloseToTray && IsTrayAvailable;
 
     public string CloseToTrayHint => IsTrayAvailable
-        ? "Closing the window keeps SteamDb running in the tray (so auto-sync keeps going). Quit from the tray icon's menu."
-        : "This desktop has no system tray (on GNOME, install the AppIndicator extension), so closing the window quits SteamDb.";
+        ? "Closing the window keeps Pilewise running in the tray (so auto-sync keeps going). Quit from the tray icon's menu."
+        : "This desktop has no system tray (on GNOME, install the AppIndicator extension), so closing the window quits Pilewise.";
 
     public string StartAtLoginHint => IsTrayAvailable
-        ? "Start SteamDb hidden in the tray when you log in (turns on Close to tray as well)."
-        : "Start SteamDb when you log in (the window opens, since this desktop has no tray).";
+        ? "Start Pilewise hidden in the tray when you log in (turns on Close to tray as well)."
+        : "Start Pilewise when you log in (the window opens, since this desktop has no tray).";
 
     /// <summary>Start hidden in the tray at login (a system login item, not a saved setting).</summary>
     [ObservableProperty] private bool startAtLogin;

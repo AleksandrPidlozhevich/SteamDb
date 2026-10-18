@@ -1,6 +1,6 @@
-using SteamDb.Services;
+using Pilewise.Services;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 /// <summary>
 /// Creates fresh store clients on demand. A new client is built per connect/fetch operation so it

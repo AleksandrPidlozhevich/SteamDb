@@ -2,10 +2,10 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
-/// Reads whether a Notion page is marked as completed. SteamDb never writes this — it's the user's
+/// Reads whether a Notion page is marked as completed. Pilewise never writes this — it's the user's
 /// own column, so a few common shapes are recognised: a checkbox named Completed / Done / Finished /
 /// Beaten, or a Status / select property (named Status or one of those) set to a "done" option.
 /// </summary>

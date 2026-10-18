@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
-using SteamDb.Models;
-using SteamDb.Services;
-using SteamDb.ViewModels;
+using Pilewise.Models;
+using Pilewise.Services;
+using Pilewise.ViewModels;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class CoversAndHiddenGamesTests
 {

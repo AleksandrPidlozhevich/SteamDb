@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Rows of the same game in a Google Sheet: the top-most row is kept and gets every store tag and id
@@ -24,7 +24,7 @@ public sealed record SheetDuplicateGroup(SheetRow Keep, IReadOnlyList<SheetRow> 
         $"row {r.RowIndex + 1}: {r.Row.Name} ({DuplicateFinder.Describe(r.StoredPlatform, r.StoredId)})"));
 }
 
-/// <summary>Duplicate rows in a SteamDb Google Sheet (see <see cref="DuplicateFinder"/>). Pure.</summary>
+/// <summary>Duplicate rows in a Pilewise Google Sheet (see <see cref="DuplicateFinder"/>). Pure.</summary>
 public static class SheetDuplicateFinder
 {
     public static IReadOnlyList<SheetDuplicateGroup> Find(IReadOnlyList<SheetRow> rows) =>

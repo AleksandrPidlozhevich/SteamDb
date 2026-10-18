@@ -1,5 +1,5 @@
 ﻿using Newtonsoft.Json;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 public class SteamApiClient : ISteamClient
 {

@@ -1,10 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SteamDb.Models;
+using Pilewise.Models;
 using System;
 using System.Threading;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>
 /// Owns the busy/progress bar state and cancellation of the current long-running operation.

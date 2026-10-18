@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using SteamDb.Services;
-using SteamDb.ViewModels;
+using Pilewise.Services;
+using Pilewise.ViewModels;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class SingleInstanceTests
 {
@@ -25,10 +25,10 @@ public class SingleInstanceTests
     [Fact]
     public void NameFor_KeepsOnlySafeCharacters()
     {
-        Assert.Equal("SteamDb-alex_k-1", SingleInstance.NameFor("alex_k-1"));
-        Assert.Equal("SteamDb-alexk1", SingleInstance.NameFor("alex.k 1"));
-        Assert.Equal("SteamDb-user", SingleInstance.NameFor("Олег"));
-        Assert.Equal("SteamDb-ab", SingleInstance.NameFor("a/b"));
+        Assert.Equal("Pilewise-alex_k-1", SingleInstance.NameFor("alex_k-1"));
+        Assert.Equal("Pilewise-alexk1", SingleInstance.NameFor("alex.k 1"));
+        Assert.Equal("Pilewise-user", SingleInstance.NameFor("Олег"));
+        Assert.Equal("Pilewise-ab", SingleInstance.NameFor("a/b"));
     }
 
     [Fact]

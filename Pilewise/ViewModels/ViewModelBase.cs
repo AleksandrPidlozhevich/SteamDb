@@ -1,6 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 public class ViewModelBase : ObservableObject
 {

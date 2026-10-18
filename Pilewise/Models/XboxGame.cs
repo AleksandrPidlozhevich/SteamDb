@@ -1,6 +1,6 @@
 using System;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 /// <summary>
 /// An owned title from the user's Xbox library (the purchased/owned set). The fetch only returns

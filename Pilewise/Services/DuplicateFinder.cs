@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>What the duplicates dialog shows for one game, whatever the tracker (Notion / Sheets).</summary>
 public interface IDuplicateGroupView

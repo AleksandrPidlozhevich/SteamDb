@@ -1,5 +1,5 @@
 using Newtonsoft.Json;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 /// <summary>
 /// Minimal client for GOG's (unofficial) Galaxy OAuth API. The shared refresh-token bearer

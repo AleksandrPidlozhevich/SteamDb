@@ -1,4 +1,4 @@
-# Builds SteamDb for Windows, macOS and Linux with Velopack and publishes a GitHub Release that the
+# Builds Pilewise for Windows, macOS and Linux with Velopack and publishes a GitHub Release that the
 # app's built-in updater reads. Runs only when a version tag is pushed:
 #
 #   1. set the new version in VERSION (e.g. 1.2.0) and commit it
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - run: dotnet test SteamDb.Tests/SteamDb.Tests.csproj -c Release
+      - run: dotnet test Pilewise.Tests/Pilewise.Tests.csproj -c Release
 
   build:
     needs: [prepare, test]
@@ -62,20 +62,20 @@ jobs:
         include:
           - rid: win-x64
             os: windows-latest
-            exe: SteamDb.exe
-            icon: SteamDb/gamedate.ico
+            exe: Pilewise.exe
+            icon: Pilewise/gamedate.ico
           - rid: linux-x64
             os: ubuntu-latest
-            exe: SteamDb
-            icon: SteamDb/Assets/SteamDB.png
+            exe: Pilewise
+            icon: Pilewise/Assets/Pilewise.png
           - rid: osx-arm64
             os: macos-latest
-            exe: SteamDb
-            icon: SteamDb/Assets/gamedate.icns
+            exe: Pilewise
+            icon: Pilewise/Assets/gamedate.icns
           - rid: osx-x64
             os: macos-latest
-            exe: SteamDb
-            icon: SteamDb/Assets/gamedate.icns
+            exe: Pilewise
+            icon: Pilewise/Assets/gamedate.icns
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -91,7 +91,7 @@ jobs:
 
       # The version comes from VERSION via Directory.Build.props.
       - name: Publish
-        run: dotnet publish SteamDb/SteamDb.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish
+        run: dotnet publish Pilewise/Pilewise.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish
 
       # The previous release's full package lets vpk build a small delta update.
       - name: Download previous release
@@ -106,9 +106,9 @@ jobs:
       - name: Pack
         run: >
           vpk pack
-          --packId SteamDb
+          --packId Pilewise
           --packVersion "$VERSION"
-          --packTitle SteamDb
+          --packTitle Pilewise
           --packAuthors "Aliaksandr Pidlazhevich"
           --packDir publish
           --mainExe ${{ matrix.exe }}
@@ -153,7 +153,7 @@ jobs:
               --repoUrl "${{ github.server_url }}/${{ github.repository }}" \
               --token "$GH_TOKEN" \
               --tag "v$VERSION" \
-              --releaseName "SteamDb $VERSION" \
+              --releaseName "Pilewise $VERSION" \
               --publish --merge $pre
           done
 

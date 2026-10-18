@@ -1,9 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SteamDb.Services;
+using Pilewise.Services;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 // Remembered settings (encrypted secret store), the Save / Import settings file and the store ticks.
 public partial class MainWindowViewModel
@@ -20,7 +20,7 @@ public partial class MainWindowViewModel
     [RelayCommand]
     private async Task SaveSettings()
     {
-        var file = await _dialogs.PickSaveCsvAsync("steamdb-settings.csv");
+        var file = await _dialogs.PickSaveCsvAsync("pilewise-settings.csv");
         if (file == null) return;
 
         await _csv.WriteAsync(file, AppSettingsService.Serialize(CurrentSettings()));

@@ -6,7 +6,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 public sealed class MsalSecretStore : ISecretStore
 {
@@ -94,11 +94,11 @@ public sealed class MsalSecretStore : ISecretStore
         var fileName = SafeFileName(key) + ".bin";
 
         var props = new StorageCreationPropertiesBuilder(fileName, _folder)
-            .WithMacKeyChain($"SteamDb.{key}", key)
+            .WithMacKeyChain($"Pilewise.{key}", key)
             .WithLinuxKeyring(
-                $"com.steamdb.secrets.{key}",
+                $"com.pilewise.secrets.{key}",
                 "default",
-                $"SteamDb secret: {key}",
+                $"Pilewise secret: {key}",
                 new KeyValuePair<string, string>("Version", "1"),
                 new KeyValuePair<string, string>("Key", key))
             .Build();

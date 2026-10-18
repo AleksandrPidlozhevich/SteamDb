@@ -1,6 +1,6 @@
 using System;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>Canonical store identifiers, shared as constants to avoid stringly-typed typos.</summary>
 public static class Platforms

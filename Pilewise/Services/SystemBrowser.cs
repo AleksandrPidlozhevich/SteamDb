@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>Opens a URL in the user's default browser, cross-platform.</summary>
 public static class SystemBrowser

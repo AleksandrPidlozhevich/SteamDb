@@ -1,8 +1,8 @@
-using SteamDb.Services;
+using Pilewise.Services;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>"Find duplicates" result for Notion or Google Sheets: which entries would be merged, for the
 /// user to confirm.</summary>

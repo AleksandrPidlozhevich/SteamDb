@@ -4,9 +4,9 @@ using System.Runtime.Versioning;
 using System.Security;
 using System.Text;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
-/// <summary>Starts SteamDb (hidden in the tray) when the user logs in.</summary>
+/// <summary>Starts Pilewise (hidden in the tray) when the user logs in.</summary>
 public interface IAutoStart
 {
     /// <summary>False where it isn't supported (e.g. the exe path is unknown).</summary>
@@ -27,8 +27,8 @@ public sealed class AutoStart : IAutoStart
     public const string MinimizedArgument = "--minimized";
 
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValue = "SteamDb";
-    private const string LaunchAgentLabel = "com.aleksandrpidlozhevich.steamdb";
+    private const string RunValue = "Pilewise";
+    private const string LaunchAgentLabel = "com.aleksandrpidlozhevich.pilewise";
 
     private readonly ILogService _log;
     private readonly string? _executable;
@@ -96,7 +96,7 @@ public sealed class AutoStart : IAutoStart
     public static string DesktopEntry(string executable) =>
         "[Desktop Entry]\n" +
         "Type=Application\n" +
-        "Name=SteamDb\n" +
+        "Name=Pilewise\n" +
         "Comment=Sync your game library in the background\n" +
         $"Exec={QuoteExec(executable)} {MinimizedArgument}\n" +
         "Terminal=false\n" +
@@ -139,7 +139,7 @@ public sealed class AutoStart : IAutoStart
     // ---- platform plumbing ------------------------------------------------------------------
 
     // The AppImage itself on Linux (the running binary sits in a temporary mount); otherwise the exe.
-    // Velopack keeps the install path stable across updates (Windows: …\SteamDb\current\SteamDb.exe).
+    // Velopack keeps the install path stable across updates (Windows: …\Pilewise\current\Pilewise.exe).
     private static string? ResolveExecutable()
     {
         var appImage = Environment.GetEnvironmentVariable("APPIMAGE");
@@ -156,7 +156,7 @@ public sealed class AutoStart : IAutoStart
         {
             var config = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
             if (string.IsNullOrEmpty(config)) config = Path.Combine(home, ".config");
-            return Path.Combine(config, "autostart", "steamdb.desktop");
+            return Path.Combine(config, "autostart", "pilewise.desktop");
         }
 
         return null;

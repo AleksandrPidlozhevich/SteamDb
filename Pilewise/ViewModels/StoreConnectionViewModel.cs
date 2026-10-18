@@ -1,12 +1,12 @@
 using Avalonia.Input.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SteamDb.Models;
-using SteamDb.Services;
+using Pilewise.Models;
+using Pilewise.Services;
 using System;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>
 /// One store's connect state (Epic / GOG / Xbox): the bindable connected/code-input flags and the

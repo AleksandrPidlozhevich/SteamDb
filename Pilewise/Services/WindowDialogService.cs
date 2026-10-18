@@ -3,14 +3,14 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
-using SteamDb.ViewModels;
-using SteamDb.Views;
+using Pilewise.ViewModels;
+using Pilewise.Views;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// <see cref="IDialogService"/> backed by the application's main window. Resolves the window

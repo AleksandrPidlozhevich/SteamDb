@@ -2,7 +2,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Keeps the previous version of a CSV before Update .csv (or <c>--sync csv</c>) rewrites it:

@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>Checks GitHub Releases for a newer version and installs it (see <see cref="VelopackUpdateService"/>).</summary>
 public interface IUpdateService

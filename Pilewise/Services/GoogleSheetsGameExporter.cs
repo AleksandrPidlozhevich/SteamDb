@@ -1,14 +1,14 @@
 using Google.Apis.Drive.v3;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
-using SteamDb.Models;
+using Pilewise.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>Outcome of a Google Sheets export. <see cref="SpreadsheetUrl"/> is null when the library
 /// came back empty and nothing was written.</summary>
@@ -324,7 +324,7 @@ public sealed class GoogleSheetsGameExporter
             .ExecuteAsync(ct);
     }
 
-    // A full-width row; cells outside the SteamDb columns stay null, which the API skips.
+    // A full-width row; cells outside the Pilewise columns stay null, which the API skips.
     private static IList<object> BuildRow(SheetColumns columns, CsvGameExportRow row)
     {
         var cells = new object[columns.Width];

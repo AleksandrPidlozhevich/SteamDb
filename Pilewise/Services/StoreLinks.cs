@@ -2,7 +2,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Builds cover-image and store-page URLs from what each store returns. Steam needs only the app id

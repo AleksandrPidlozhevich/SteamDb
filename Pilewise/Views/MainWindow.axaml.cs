@@ -5,14 +5,14 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using SteamDb.Models;
-using SteamDb.Services;
-using SteamDb.ViewModels;
+using Pilewise.Models;
+using Pilewise.Services;
+using Pilewise.ViewModels;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 public partial class MainWindow : Window
 {

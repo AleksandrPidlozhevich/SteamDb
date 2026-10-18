@@ -1,9 +1,9 @@
 using System.Linq;
-using SteamDb.Services;
-using SteamDb.ViewModels;
+using Pilewise.Services;
+using Pilewise.ViewModels;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class LibraryViewModelTests
 {

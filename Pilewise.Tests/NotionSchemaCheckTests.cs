@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
-using SteamDb.Services;
+using Pilewise.Services;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class NotionSchemaCheckTests
 {

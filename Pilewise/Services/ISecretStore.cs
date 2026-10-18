@@ -1,4 +1,4 @@
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 public interface ISecretStore
 {

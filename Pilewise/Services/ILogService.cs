@@ -1,6 +1,6 @@
 using System;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 public enum LogLevel
 {

@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 /// <summary>Non-modal list of recent sync runs (see <see cref="ViewModels.SyncLogViewModel"/>).</summary>
 public partial class SyncLogWindow : Window

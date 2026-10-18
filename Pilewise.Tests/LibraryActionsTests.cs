@@ -1,11 +1,11 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using SteamDb.Services;
-using SteamDb.ViewModels;
+using Pilewise.Services;
+using Pilewise.ViewModels;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class LibraryActionsTests
 {

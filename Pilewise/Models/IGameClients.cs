@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 // Per-store "fetch the owned library" seams. Return types differ per store, so each store gets its
 // own interface (rather than one generic one); GameLibraryService depends on these so the clients

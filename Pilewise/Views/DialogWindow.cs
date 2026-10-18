@@ -2,7 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 /// <summary>
 /// Base for the app's dialogs. A button with the <c>confirm</c> class closes the dialog with

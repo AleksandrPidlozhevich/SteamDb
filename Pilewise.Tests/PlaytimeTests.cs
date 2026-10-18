@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SteamDb.Models;
-using SteamDb.Services;
-using SteamDb.ViewModels;
+using Pilewise.Models;
+using Pilewise.Services;
+using Pilewise.ViewModels;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 /// <summary>Playtime / last played: model, library viewer and the opt-in Notion / Sheets columns.</summary>
 public class PlaytimeTests

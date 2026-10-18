@@ -2,12 +2,12 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.DependencyInjection;
-using SteamDb.Models;
-using SteamDb.Services;
-using SteamDb.ViewModels;
-using SteamDb.Views;
+using Pilewise.Models;
+using Pilewise.Services;
+using Pilewise.ViewModels;
+using Pilewise.Views;
 
-namespace SteamDb;
+namespace Pilewise;
 
 /// <summary>
 /// Composition root: wires the app's services and view models into a DI container. The store

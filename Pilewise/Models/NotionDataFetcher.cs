@@ -1,12 +1,12 @@
 using Newtonsoft.Json.Linq;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 /// <summary>An existing Notion page flattened into a CSV-style row, plus its page id and the
 /// raw values stored in Notion (used to detect rows whose stored format is out of date).</summary>

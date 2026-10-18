@@ -1,15 +1,15 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:SteamDb.ViewModels"
-        xmlns:views="using:SteamDb.Views"
+        xmlns:vm="using:Pilewise.ViewModels"
+        xmlns:views="using:Pilewise.Views"
         xmlns:wv="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="640"
-        x:Class="SteamDb.Views.MainWindow"
+        x:Class="Pilewise.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/gamedate.ico"
-        Title="SteamDb"
+        Title="Pilewise"
         Width="900" Height="640" MinWidth="720" MinHeight="480"
         DragDrop.AllowDrop="True"
         WindowStartupLocation="CenterScreen">
@@ -88,7 +88,7 @@
                         <PathIcon Width="18" Height="18" Data="{DynamicResource MenuIcon}" />
                     </Button>
                     <Image Source="/Assets/gamedate.ico" Width="26" Height="26" IsVisible="{Binding IsSidebarExpanded}" />
-                    <TextBlock Text="SteamDb" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"
+                    <TextBlock Text="Pilewise" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"
                                IsVisible="{Binding IsSidebarExpanded}" />
                 </StackPanel>
 
@@ -239,7 +239,7 @@
                             <!-- Browse the merged library (nothing is exported). -->
                             <Button Grid.Column="1" Classes="accent" Content="View library…" Padding="18,8"
                                     Margin="16,4,0,0" VerticalAlignment="Top"
-                                    ToolTip.Tip="{Binding LibraryHint, TargetNullValue='Browse what will be exported: search, filter, hide demos, or let SteamDb pick a game'}"
+                                    ToolTip.Tip="{Binding LibraryHint, TargetNullValue='Browse what will be exported: search, filter, hide demos, or let Pilewise pick a game'}"
                                     ToolTip.ShowOnDisabled="True"
                                     Command="{Binding ViewLibraryCommand}" />
                         </Grid>
@@ -300,7 +300,7 @@
                                     <Image Classes="icon" Source="{DynamicResource GogIcon}" />
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Classes="panel-title" Text="GOG" />
-                                        <TextBlock Classes="hint" Text="Log in once; SteamDb keeps the session." />
+                                        <TextBlock Classes="hint" Text="Log in once; Pilewise keeps the session." />
                                     </StackPanel>
                                     <CheckBox Grid.Column="2" Classes="include" Content="Include"
                                               IsChecked="{Binding IncludeGog}" />
@@ -466,13 +466,13 @@
                     <StackPanel Classes="page">
                         <TextBlock Classes="page-title" Text="Automation" />
                         <TextBlock Classes="page-subtitle"
-                                   Text="Keep your trackers up to date without opening SteamDb." />
+                                   Text="Keep your trackers up to date without opening Pilewise." />
 
                         <Border Classes="panel">
                             <StackPanel Spacing="10">
                                 <TextBlock Classes="panel-title" Text="Auto-sync" />
                                 <TextBlock Classes="hint"
-                                           Text="Syncs on a schedule while SteamDb is open or in the tray. Notion changes are applied without the preview; every run is listed in History." />
+                                           Text="Syncs on a schedule while Pilewise is open or in the tray. Notion changes are applied without the preview; every run is listed in History." />
                                 <!-- Wraps on a narrow window; "Schedule" and its box stay together. -->
                                 <WrapPanel ItemSpacing="16" LineSpacing="8" Margin="0,4,0,0">
                                     <StackPanel Orientation="Horizontal" Spacing="16">
@@ -590,7 +590,7 @@
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">
                 <TextBlock Text="Drop the file here" FontSize="20" FontWeight="SemiBold"
                            Foreground="White" HorizontalAlignment="Center" />
-                <TextBlock Text="A SteamDb game list (.csv) is updated with your current library;"
+                <TextBlock Text="A Pilewise game list (.csv) is updated with your current library;"
                            Foreground="#DDFFFFFF" HorizontalAlignment="Center" />
                 <TextBlock Text="a saved settings file is imported."
                            Foreground="#DDFFFFFF" HorizontalAlignment="Center" />

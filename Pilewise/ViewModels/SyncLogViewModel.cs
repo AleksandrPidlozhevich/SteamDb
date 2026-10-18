@@ -1,12 +1,12 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SteamDb.Services;
+using Pilewise.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>The Sync history window: recent runs, newest first, refreshed live as runs finish.</summary>
 public sealed partial class SyncLogViewModel : ViewModelBase, IDisposable

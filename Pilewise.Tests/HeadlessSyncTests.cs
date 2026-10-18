@@ -4,15 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using SteamDb.Models;
-using SteamDb.Services;
+using Pilewise.Models;
+using Pilewise.Services;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class HeadlessSyncTests : IDisposable
 {
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "SteamDbTests-" + Guid.NewGuid().ToString("N"));
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "PilewiseTests-" + Guid.NewGuid().ToString("N"));
 
     public HeadlessSyncTests() => Directory.CreateDirectory(_dir);
 
@@ -126,7 +126,7 @@ public class HeadlessSyncTests : IDisposable
     }
 
     [Fact]
-    public async Task Csv_NotASteamDbFile_FailsWithExitCode1_AndLeavesItAlone()
+    public async Task Csv_NotAPilewiseFile_FailsWithExitCode1_AndLeavesItAlone()
     {
         var path = Path.Combine(_dir, "budget.csv");
         await File.WriteAllTextAsync(path, "Item,Amount\nRent,100\n");

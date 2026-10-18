@@ -1,17 +1,17 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using SteamDb.Services;
+using Pilewise.Services;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 public class GoogleSheetsApiClient
 {
-    private const string ApplicationName = "SteamDb";
+    private const string ApplicationName = "Pilewise";
     private const string CLIENT_ID = "400086036961-3uua9rt1oka9r2pahp7a0ljkohd46vhp.apps.googleusercontent.com";
 
     private readonly string[] _scopes =

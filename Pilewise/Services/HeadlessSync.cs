@@ -5,10 +5,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
-/// Runs <c>SteamDb --sync …</c> without a window (e.g. from Task Scheduler): loads the credentials
+/// Runs <c>Pilewise --sync …</c> without a window (e.g. from Task Scheduler): loads the credentials
 /// and store sessions the app saved, then syncs each target. Notion is applied without the preview
 /// (use <c>--dry-run</c> to see the changes first). Every run is also written to the log.
 /// </summary>
@@ -105,7 +105,7 @@ public sealed class HeadlessSync
             var missing = CsvGameExportService.GetMissingColumns(existing);
             if (missing.Count > 0)
                 throw new InvalidOperationException(
-                    $"{path} is not a SteamDb CSV (missing columns: {string.Join(", ", missing)}).");
+                    $"{path} is not a Pilewise CSV (missing columns: {string.Join(", ", missing)}).");
 
             var (merged, mergedAdded, _) = CsvGameExportService.Merge(CsvGameExportService.Parse(existing), library.Rows);
             (added, total, content) = (mergedAdded, merged.Count, CsvGameExportService.Serialize(merged));

@@ -1,11 +1,11 @@
 using Avalonia.Controls;
 using System;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 /// <summary>
 /// Looks up an <c>x:Name</c>d control after <c>AvaloniaXamlLoader.Load(this)</c> (the project doesn't
-/// use Avalonia's generated fields; see SteamDb.csproj). Fails loudly when the name is missing.
+/// use Avalonia's generated fields; see Pilewise.csproj). Fails loudly when the name is missing.
 /// </summary>
 internal static class NamedControls
 {

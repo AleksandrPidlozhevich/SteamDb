@@ -1,4 +1,4 @@
-using SteamDb.Models;
+using Pilewise.Models;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Pushes the owned Steam / Epic / GOG library into a Notion database, merging against
@@ -60,7 +60,7 @@ public sealed class NotionGameExporter
         var schema = NotionSchemaCheck.Check(await notionApiClient.GetPropertyTypesAsync(ct));
         if (!schema.IsUsable)
             throw new InvalidOperationException(
-                "The Notion database needs a fix before SteamDb can export to it:\n• " +
+                "The Notion database needs a fix before Pilewise can export to it:\n• " +
                 string.Join("\n• ", schema.Problems));
 
         var libraryTask = _library.FetchAsync(steamApiKey, steamId, progress, onStatus, ct);

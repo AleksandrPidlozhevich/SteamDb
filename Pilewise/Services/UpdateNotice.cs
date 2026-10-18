@@ -1,6 +1,6 @@
 using System;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// "Updated to v1.2.0 — What's new": shown once, on the first start after the app was updated. The
@@ -20,7 +20,7 @@ public static class UpdateNotice
 
     /// <summary>The GitHub release page of a version (its release notes).</summary>
     public static string ReleaseUrl(string version) =>
-        $"https://github.com/AleksandrPidlozhevich/SteamDb/releases/tag/v{version}";
+        $"https://github.com/AleksandrPidlozhevich/Pilewise/releases/tag/v{version}";
 
     // "1.2.0-beta.1" → 1.2.0 (pre-release suffixes don't change the order for this purpose).
     private static Version? Parse(string? value)

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>A screen's working area in physical pixels (the part not covered by the taskbar / dock).</summary>
 public readonly record struct ScreenArea(int X, int Y, int Width, int Height);

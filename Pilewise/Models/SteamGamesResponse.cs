@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Collections.Generic;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 public class SteamGamesResponse
 {

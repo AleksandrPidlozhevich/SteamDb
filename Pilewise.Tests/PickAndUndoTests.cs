@@ -2,11 +2,11 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using SteamDb.Services;
-using SteamDb.ViewModels;
+using Pilewise.Services;
+using Pilewise.ViewModels;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class PickForMeTests
 {
@@ -77,7 +77,7 @@ public class CsvUndoTests
     [Fact]
     public async Task Restore_PutsTheBackupBack_AndRemovesIt()
     {
-        var dir = Directory.CreateTempSubdirectory("steamdb-undo");
+        var dir = Directory.CreateTempSubdirectory("pilewise-undo");
         try
         {
             var csv = Path.Combine(dir.FullName, "games.csv");

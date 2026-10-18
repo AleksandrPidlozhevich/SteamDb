@@ -1,4 +1,4 @@
-using SteamDb.Models;
+using Pilewise.Models;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 public sealed class CsvGameExportRow
 {
@@ -138,7 +138,7 @@ public static class CsvGameExportService
 
     /// <summary>
     /// Returns the required columns missing from the file's header row.
-    /// An empty list means the file is a valid SteamDb CSV that can be updated.
+    /// An empty list means the file is a valid Pilewise CSV that can be updated.
     /// Accepts both the current "ID" column and the legacy "Game ID" column.
     /// </summary>
     public static IReadOnlyList<string> GetMissingColumns(string? content)

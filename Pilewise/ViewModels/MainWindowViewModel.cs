@@ -3,14 +3,14 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SteamDb.Models;
-using SteamDb.Services;
+using Pilewise.Models;
+using Pilewise.Services;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>
 /// The main window. Split by concern into partial files:
@@ -336,7 +336,7 @@ public partial class MainWindowViewModel : ViewModelBase
     // ---- help links ----------------------------------------------------------------------------
 
     private static string ReadmeLink(string section) =>
-        $"https://github.com/AleksandrPidlozhevich/SteamDb#{section}";
+        $"https://github.com/AleksandrPidlozhevich/Pilewise#{section}";
 
     [RelayCommand]
     private void OpenReadme() => _dialogs.OpenLink(ReadmeLink("readme"));

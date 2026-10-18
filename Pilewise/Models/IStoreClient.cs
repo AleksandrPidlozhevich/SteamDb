@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 /// <summary>
 /// The connect/auth surface shared by store clients (Epic, GOG, Xbox). They authorize via an

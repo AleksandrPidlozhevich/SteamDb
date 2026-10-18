@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
-/// <see cref="ILogService"/> that appends to a daily log file in a <c>DbSteam_Log</c> folder in the
+/// <see cref="ILogService"/> that appends to a daily log file in a <c>Pilewise_Log</c> folder in the
 /// per-user data folder (<see cref="AppPaths"/>). Writes a start banner on construction; thread-safe via a single lock.
 /// </summary>
 public sealed class FileLogService : ILogService
 {
-    private const string LogFolderName = "DbSteam_Log";
+    private const string LogFolderName = "Pilewise_Log";
     private const string ShortDateFormat = "yyyy-MM-dd";
     private const string TimeFormat = "yyyy-MM-dd HH:mm:ss";
 
@@ -27,12 +27,12 @@ public sealed class FileLogService : ILogService
             Directory.CreateDirectory(logDirectory);
 
         var dateStr = DateTime.Now.ToString(ShortDateFormat);
-        _logFilePath = Path.Combine(logDirectory, $"{dateStr}_DbSteam.log");
+        _logFilePath = Path.Combine(logDirectory, $"{dateStr}_Pilewise.log");
 
         var startLines = new List<string>
         {
             "====================================================================================",
-            $"SteamDb_start_{DateTime.Now.ToString(TimeFormat)}",
+            $"Pilewise_start_{DateTime.Now.ToString(TimeFormat)}",
             "===================================================================================="
         };
         File.AppendAllLines(_logFilePath, startLines);

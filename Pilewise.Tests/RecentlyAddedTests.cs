@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SteamDb.Services;
-using SteamDb.ViewModels;
+using Pilewise.Services;
+using Pilewise.ViewModels;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class RecentlyAddedTests
 {
@@ -111,7 +111,7 @@ public class RecentlyAddedTests
 
     [Fact]
     public void UpdateNotice_LinksTheReleaseNotes() =>
-        Assert.Equal("https://github.com/AleksandrPidlozhevich/SteamDb/releases/tag/v1.2.0", UpdateNotice.ReleaseUrl("1.2.0"));
+        Assert.Equal("https://github.com/AleksandrPidlozhevich/Pilewise/releases/tag/v1.2.0", UpdateNotice.ReleaseUrl("1.2.0"));
 
     private sealed class MemorySecretStore : ISecretStore
     {

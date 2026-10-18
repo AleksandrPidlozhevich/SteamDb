@@ -1,7 +1,7 @@
-using SteamDb.Services;
+using Pilewise.Services;
 using Xunit;
 
-namespace SteamDb.Tests;
+namespace Pilewise.Tests;
 
 public class WindowAndAutoStartTests
 {
@@ -56,8 +56,8 @@ public class WindowAndAutoStartTests
     [Fact]
     public void WindowsCommand_QuotesThePath()
     {
-        Assert.Equal("\"C:\\Users\\a b\\SteamDb\\current\\SteamDb.exe\" --minimized",
-            AutoStart.WindowsCommand(@"C:\Users\a b\SteamDb\current\SteamDb.exe"));
+        Assert.Equal("\"C:\\Users\\a b\\Pilewise\\current\\Pilewise.exe\" --minimized",
+            AutoStart.WindowsCommand(@"C:\Users\a b\Pilewise\current\Pilewise.exe"));
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class WindowAndAutoStartTests
     [Fact]
     public void LaunchAgent_RunsAtLoadWithTheMinimizedFlag()
     {
-        var plist = AutoStart.LaunchAgentPlist("com.example.steamdb", "/Applications/Steam & Db.app/Contents/MacOS/SteamDb");
-        Assert.Contains("<string>/Applications/Steam &amp; Db.app/Contents/MacOS/SteamDb</string>", plist);
+        var plist = AutoStart.LaunchAgentPlist("com.example.pilewise", "/Applications/Pile & Wise.app/Contents/MacOS/Pilewise");
+        Assert.Contains("<string>/Applications/Pile &amp; Wise.app/Contents/MacOS/Pilewise</string>", plist);
         Assert.Contains("<string>--minimized</string>", plist);
         Assert.Contains("<key>RunAtLoad</key>", plist);
         Assert.StartsWith("<?xml", plist);

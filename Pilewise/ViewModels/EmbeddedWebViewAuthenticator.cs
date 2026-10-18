@@ -1,10 +1,10 @@
 using Avalonia.Controls;
-using SteamDb.Services;
-using SteamDb.Views;
+using Pilewise.Services;
+using Pilewise.Views;
 using System;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>
 /// <see cref="IWebAuthenticator"/> that hosts the login in our own <see cref="WebLoginWindow"/>

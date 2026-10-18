@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SteamDb", "SteamDb\SteamDb.csproj", "{FE05F4CA-9E48-4BB6-B172-5185419DB954}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pilewise", "Pilewise\Pilewise.csproj", "{FE05F4CA-9E48-4BB6-B172-5185419DB954}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SteamDb.Tests", "SteamDb.Tests\SteamDb.Tests.csproj", "{71857046-954F-4B78-A097-7B7D380D44B6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pilewise.Tests", "Pilewise.Tests\Pilewise.Tests.csproj", "{71857046-954F-4B78-A097-7B7D380D44B6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

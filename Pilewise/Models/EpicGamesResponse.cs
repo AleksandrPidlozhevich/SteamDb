@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace SteamDb.Models;
+namespace Pilewise.Models;
 
 public class EpicGame
 {

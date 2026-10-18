@@ -1,11 +1,11 @@
-using SteamDb.Models;
+using Pilewise.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 public sealed record GameLibraryResult(
     List<CsvGameExportRow> Rows,

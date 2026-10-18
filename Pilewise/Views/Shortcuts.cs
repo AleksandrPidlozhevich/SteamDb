@@ -3,7 +3,7 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using System;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 /// <summary>
 /// Keyboard shortcuts use the platform's command key: Ctrl on Windows / Linux, ⌘ on macOS.

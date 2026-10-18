@@ -7,13 +7,13 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using SteamDb.Services;
-using SteamDb.ViewModels;
-using SteamDb.Views;
+using Pilewise.Services;
+using Pilewise.ViewModels;
+using Pilewise.Views;
 using System;
 using System.Linq;
 
-namespace SteamDb;
+namespace Pilewise;
 
 public partial class App : Application
 {
@@ -83,7 +83,7 @@ public partial class App : Application
         var normalIcon = new WindowIcon(AssetLoader.Open(AppIconUri));
         WindowIcon? warningIcon = null;
 
-        var open = new NativeMenuItem("Open SteamDb");
+        var open = new NativeMenuItem("Open Pilewise");
         open.Click += (_, _) => ShowMainWindow();
         var syncNow = new NativeMenuItem("Sync now");
         syncNow.Click += async (_, _) => await viewModel.SyncNowAsync();
@@ -95,7 +95,7 @@ public partial class App : Application
         _tray = new TrayIcon
         {
             Icon = normalIcon,
-            ToolTipText = "SteamDb",
+            ToolTipText = "Pilewise",
             Menu = new NativeMenu { Items = { open, syncNow, history, new NativeMenuItemSeparator(), quit } }
         };
         _tray.Clicked += (_, _) => ShowMainWindow();
@@ -105,8 +105,8 @@ public partial class App : Application
             if (e.PropertyName is not nameof(MainWindowViewModel.ResultMessage) || _tray == null) return;
 
             _tray.ToolTipText = viewModel.ResultMessage is { } message
-                ? Truncate($"SteamDb — {message}", 120)
-                : "SteamDb";
+                ? Truncate($"Pilewise — {message}", 120)
+                : "Pilewise";
             // Results starting with ⚠ are failures (see MainWindowViewModel.RunSyncTargetsAsync).
             var failed = viewModel.ResultMessage?.StartsWith('⚠') == true;
             _tray.Icon = failed ? warningIcon ??= WarningIcon() ?? normalIcon : normalIcon;
@@ -135,7 +135,7 @@ public partial class App : Application
         }
     }
 
-    private static readonly Uri AppIconUri = new("avares://SteamDb/Assets/gamedate.ico");
+    private static readonly Uri AppIconUri = new("avares://Pilewise/Assets/gamedate.ico");
 
     // The app icon with a red dot in the corner, drawn once when the first failure needs it; null if
     // drawing fails (the plain icon is used then — a tray badge isn't worth a crash).

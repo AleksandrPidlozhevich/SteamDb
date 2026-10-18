@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 
-namespace SteamDb.Views;
+namespace Pilewise.Views;
 
 /// <summary>
 /// One store's connect row (icon + Connect button / code field / "Connected" check). The icon is

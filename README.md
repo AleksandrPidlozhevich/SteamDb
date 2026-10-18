@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="SteamDb/Assets/SteamDB.png" alt="SteamDb logo" width="128" height="128">
+<img src="Pilewise/Assets/Pilewise.png" alt="Pilewise logo" width="128" height="128">
 
-# SteamDb
+# Pilewise
 
 **Your whole game library, in one backlog.**
 
@@ -10,7 +10,7 @@ Pull your owned games from **Steam, Epic, GOG and Xbox** and sync them into **No
 **Google Sheets** or a local **CSV**, so you can see what you've completed, what's in
 progress, and what you never even started.
 
-[![Latest release](https://img.shields.io/github/v/release/AleksandrPidlozhevich/SteamDb?style=for-the-badge&logo=github&label=Release)](https://github.com/AleksandrPidlozhevich/SteamDb/releases)
+[![Latest release](https://img.shields.io/github/v/release/AleksandrPidlozhevich/Pilewise?style=for-the-badge&logo=github&label=Release)](https://github.com/AleksandrPidlozhevich/Pilewise/releases)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Avalonia 12](https://img.shields.io/badge/Avalonia-12-8B44AC?style=for-the-badge)](https://avaloniaui.net/)
 [![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-informational?style=for-the-badge&label=Platforms)](#download)
@@ -32,10 +32,10 @@ progress, and what you never even started.
 
 ---
 
-## Why SteamDb?
+## Why Pilewise?
 
 You buy games during sales, and then you forget what you already own and where you bought it.
-SteamDb collects every library into **one merged list** and keeps your tracker up to date. A
+Pilewise collects every library into **one merged list** and keeps your tracker up to date. A
 game you own on two stores becomes one row, tagged with both platforms.
 
 ---
@@ -44,24 +44,24 @@ game you own on two stores becomes one row, tagged with both platforms.
 
 <div align="center">
 
-[![Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/AleksandrPidlozhevich/SteamDb/releases)
-[![macOS](https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/AleksandrPidlozhevich/SteamDb/releases)
-[![Linux](https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/AleksandrPidlozhevich/SteamDb/releases)
+[![Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/AleksandrPidlozhevich/Pilewise/releases)
+[![macOS](https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/AleksandrPidlozhevich/Pilewise/releases)
+[![Linux](https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/AleksandrPidlozhevich/Pilewise/releases)
 
 </div>
 
-From the [latest release](https://github.com/AleksandrPidlozhevich/SteamDb/releases/latest), pick
+From the [latest release](https://github.com/AleksandrPidlozhevich/Pilewise/releases/latest), pick
 the file for your system:
 
 | System | File |
 | :--- | :--- |
-| Windows | `SteamDb-win-x64-Setup.exe` (installer) or `SteamDb-win-x64-Portable.zip` |
-| macOS (Apple Silicon, M1 and later) | `SteamDb-osx-arm64-Portable.zip` |
-| macOS (Intel) | `SteamDb-osx-x64-Portable.zip` |
-| Linux | `SteamDb-linux-x64.AppImage` |
+| Windows | `Pilewise-win-x64-Setup.exe` (installer) or `Pilewise-win-x64-Portable.zip` |
+| macOS (Apple Silicon, M1 and later) | `Pilewise-osx-arm64-Portable.zip` |
+| macOS (Intel) | `Pilewise-osx-x64-Portable.zip` |
+| Linux | `Pilewise-linux-x64.AppImage` |
 
 > [!TIP]
-> **SteamDb updates itself.** When a new version is out, a banner appears at the top of the
+> **Pilewise updates itself.** When a new version is out, a banner appears at the top of the
 > window. Click **Update & restart** and you're done.
 
 ---
@@ -73,7 +73,7 @@ the file for your system:
 | 🎮 **Four stores, one list** | Fetches owned games from Steam, Epic, GOG and Xbox and merges duplicates across stores. Untick a store to leave it out of exports. |
 | 📤 **Three export targets** | A Notion database, Google Sheets, or a local CSV file. |
 | 📚 **Library viewer** | Browse the merged library before exporting: search by name, filter by store, sort by playtime or last played, and spot games you **never played** or own on two stores. **Hide** demos, test servers or tools to leave them out of every export. A footer sums it up: share of games played, total hours, most played. Double-click a game to open its store page. |
-| 🆕 **Recently added** | SteamDb remembers when it first saw each game, so the library viewer marks new games **NEW** and can filter / sort by *recently added* (stores don't report purchase dates; games you owned before SteamDb tracked a store don't count). |
+| 🆕 **Recently added** | Pilewise remembers when it first saw each game, so the library viewer marks new games **NEW** and can filter / sort by *recently added* (stores don't report purchase dates; games you owned before Pilewise tracked a store don't count). |
 | 🎲 **Pick for me** | Can't decide? The library viewer suggests a game from the list shown, skipping completed and hidden ones and preferring games you've barely touched. |
 | ✅ **Backlog progress** | After an export to Notion or Google Sheets, the card shows *Completed 120 of 640 (19%)*, and the library viewer marks completed games ✓ with **Completed / Not completed** filters. **Refresh** in the library re-reads the ✓ from Notion or Google Sheets right away (read-only). |
 | 📋 **Copy list** | Copies the games shown in the library (search and filter apply) — pastes into a spreadsheet as columns. |
@@ -82,12 +82,12 @@ the file for your system:
 | 🧹 **Duplicate finder** | **Find duplicates…** spots Notion pages or Google Sheets rows of the same game and merges them (you confirm first; extra Notion pages go to the trash, extra sheet rows are deleted — Sheets' version history can bring them back). |
 | ⌨️ **Shortcuts** | Ctrl+1–4 (⌘ on macOS) switch pages, Ctrl+L opens the library; in the library Ctrl+F searches and Esc clears the search or closes it. |
 | 🗑️ **No longer owned** | Spots games in your tracker that left your library (refunds, delistings). They're never deleted. An optional `Owned` checkbox column gets unticked for them. |
-| ⏰ **Scheduled sync** | **Auto-sync** keeps Notion, Google Sheets and your CSV up to date (hourly, every 6 hours or daily) while the app runs; with **Close to tray** and **Start at login** it keeps going in the background on Windows, macOS and Linux. `SteamDb --sync notion,sheets` syncs without opening the window, ready for Task Scheduler or cron. **History…** (also in the tray menu) lists every recent sync and its result. |
+| ⏰ **Scheduled sync** | **Auto-sync** keeps Notion, Google Sheets and your CSV up to date (hourly, every 6 hours or daily) while the app runs; with **Close to tray** and **Start at login** it keeps going in the background on Windows, macOS and Linux. `Pilewise --sync notion,sheets` syncs without opening the window, ready for Task Scheduler or cron. **History…** (also in the tray menu) lists every recent sync and its result. |
 | ⏱️ **Playtime** | Optional `Playtime` and `Last played` columns in Notion and Google Sheets are filled from Steam (last played from Xbox too). |
 | 🔁 **Incremental sync** | Re-running an export reconciles with what's already there. It adds new games and updates platform tags without creating duplicates. |
 | 👀 **Preview before Notion** | See exactly which games will be added or updated, and confirm before anything is written. |
 | 🪟 **Remembers the window** | Size, position and maximized state are restored on the next start. |
-| 🖱️ **Drag & drop** | Drop a SteamDb `.csv` onto the window to update it with your current library, or a saved settings file to import it. |
+| 🖱️ **Drag & drop** | Drop a Pilewise `.csv` onto the window to update it with your current library, or a saved settings file to import it. |
 | ⏹️ **Cancellable** | Every export shows a progress bar with a **Cancel** button. |
 | 🔒 **Secure by default** | Store tokens and remembered credentials are cached **encrypted** (DPAPI on Windows, Keychain on macOS, libsecret on Linux) and refreshed automatically. |
 | 🌗 **Light & dark themes** | Switch with one click. |
@@ -111,10 +111,10 @@ the file for your system:
 
 | Store | How you connect | Login window |
 | :--- | :--- | :--- |
-| <img src="SteamDb/Assets/steam.svg" width="20" align="center"> **Steam** | Steam ID + Web API key | None. Fill in two fields. |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="SteamDb/Assets/epic-games-dark.svg"><img src="SteamDb/Assets/epic-games-light.svg" width="20" align="center"></picture> **Epic Games** | Authorization code | Your **system browser** |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="SteamDb/Assets/gog-com-dark.svg"><img src="SteamDb/Assets/gog-com-light.svg" width="20" align="center"></picture> **GOG** | Automatic | **Embedded** in the app |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="SteamDb/Assets/xbox-dark.svg"><img src="SteamDb/Assets/xbox-light.svg" width="20" align="center"></picture> **Xbox** | Automatic | **Embedded** in the app |
+| <img src="Pilewise/Assets/steam.svg" width="20" align="center"> **Steam** | Steam ID + Web API key | None. Fill in two fields. |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="Pilewise/Assets/epic-games-dark.svg"><img src="Pilewise/Assets/epic-games-light.svg" width="20" align="center"></picture> **Epic Games** | Authorization code | Your **system browser** |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="Pilewise/Assets/gog-com-dark.svg"><img src="Pilewise/Assets/gog-com-light.svg" width="20" align="center"></picture> **GOG** | Automatic | **Embedded** in the app |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="Pilewise/Assets/xbox-dark.svg"><img src="Pilewise/Assets/xbox-light.svg" width="20" align="center"></picture> **Xbox** | Automatic | **Embedded** in the app |
 
 > [!TIP]
 > Once connected, each store's session is cached **encrypted** and refreshed automatically,
@@ -152,7 +152,7 @@ In the Steam desktop app:
 1. Go to the [Steam Web API key page](https://steamcommunity.com/dev/apikey).
 2. Sign in to your Steam account if prompted.
 3. Accept the **Steam Web API Terms of Use**.
-4. Enter a domain name (any name works, e.g. `steamdb-local`) and click **Register**.
+4. Enter a domain name (any name works, e.g. `pilewise-local`) and click **Register**.
 5. Your **API key** is displayed as a long alphanumeric string. Copy and save it.
 
 📘 Reference: [Official Steam Web API documentation](https://developer.valvesoftware.com/wiki/Steam_Web_API)
@@ -194,9 +194,9 @@ Xbox also logs in through an **embedded WebView**:
 
 | Target | Needs | Best for |
 | :--- | :--- | :--- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="SteamDb/Assets/file-csv-dark.svg"><img src="SteamDb/Assets/file-csv-light.svg" width="20" align="center"></picture> **CSV** | Nothing | Excel, quick offline lists |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="SteamDb/Assets/notion-dark.svg"><img src="SteamDb/Assets/notion-light.svg" width="20" align="center"></picture> **Notion** | Integration token + database ID | A rich, filterable backlog tracker |
-| <img src="SteamDb/Assets/google-sheets-2026.svg" width="20" align="center"> **Google Sheets** *(beta)* | A Google account | A shared spreadsheet |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="Pilewise/Assets/file-csv-dark.svg"><img src="Pilewise/Assets/file-csv-light.svg" width="20" align="center"></picture> **CSV** | Nothing | Excel, quick offline lists |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="Pilewise/Assets/notion-dark.svg"><img src="Pilewise/Assets/notion-light.svg" width="20" align="center"></picture> **Notion** | Integration token + database ID | A rich, filterable backlog tracker |
+| <img src="Pilewise/Assets/google-sheets-2026.svg" width="20" align="center"> **Google Sheets** *(beta)* | A Google account | A shared spreadsheet |
 
 ### CSV
 
@@ -288,7 +288,7 @@ The target database **must** have these properties (names are case-sensitive):
 Each page also gets the game's **cover image** (Steam's header image; the GOG, Epic or Xbox art for
 games not on Steam). A cover you set yourself is never replaced.
 
-Optional: add any of these and SteamDb keeps them up to date too:
+Optional: add any of these and Pilewise keeps them up to date too:
 
 | Property | Type | Holds |
 | :--- | :--- | :--- |
@@ -299,7 +299,7 @@ Optional: add any of these and SteamDb keeps them up to date too:
 A game only counts as "no longer owned" when every store it's tagged with was loaded in that run,
 so an expired Epic or GOG session never marks those games as gone.
 
-**Backlog progress** is read from your own completion column, which SteamDb never changes: a
+**Backlog progress** is read from your own completion column, which Pilewise never changes: a
 checkbox named `Completed`, `Done`, `Finished` or `Beaten`, or a `Status` (status or select)
 property set to `Done`, `Completed`, `Finished`, `Beaten` or `Played`.
 
@@ -307,9 +307,9 @@ property set to `Done`, `Completed`, `Finished`, `Beaten` or `Played`.
 
 </details>
 
-When you click **Export to Notion**, SteamDb first checks the database. A missing `Platform's`,
+When you click **Export to Notion**, Pilewise first checks the database. A missing `Platform's`,
 `GameID` or `Store link` property is added for you (the preview says so). The first export after
-updating SteamDb also adds covers and links to your existing pages, so it updates many pages once. A misnamed title column or a wrong
+updating Pilewise also adds covers and links to your existing pages, so it updates many pages once. A misnamed title column or a wrong
 property type is reported with what to change. Then it shows a **preview**: the games it will add
 and the rows it will update (before → after). Nothing is written until you click **Export**.
 
@@ -324,7 +324,7 @@ Authorization with Google Sheets uses standard Google OAuth.
 
 1. Enter a **table name** and click **Export to Google Sheets**. On first use, sign in to Google in
    the browser that opens.
-2. SteamDb finds the spreadsheet with that name in your Google Drive, or creates it, and opens it
+2. Pilewise finds the spreadsheet with that name in your Google Drive, or creates it, and opens it
    when the sync is done.
 
 The first tab gets the same columns as the CSV, plus a checkbox to mark games as done:
@@ -334,7 +334,7 @@ The first tab gets the same columns as the CSV, plus a checkbox to mark games as
 | Steam/GOG | The Witcher 3 | Steam:292030; GOG:1207664643 | ☑ |
 
 Want playtime too? Add a `Playtime`, `Last played` and/or `Owned` header to the first row (any free
-column). SteamDb fills them with hours played (Steam), the date of the last session
+column). Pilewise fills them with hours played (Steam), the date of the last session
 (Steam / Xbox) and an ownership checkbox (unticked for games that left your library).
 A `Store link` header gets the game's store page and a `Cover` header its cover image (an
 `=IMAGE(…)` formula); both are filled only while the cell is empty, so your own values stay.
@@ -356,15 +356,15 @@ written. *File → Version history* in Google Sheets brings deleted rows back.
 
 ## Sync from the command line
 
-Once the app is set up (credentials filled in, stores connected), SteamDb can sync without opening
+Once the app is set up (credentials filled in, stores connected), Pilewise can sync without opening
 its window, e.g. on a schedule:
 
 ```
-SteamDb --sync notion
-SteamDb --sync notion,sheets --sheet "My games"
-SteamDb --sync csv --file "D:\Games\backlog.csv"
-SteamDb --sync notion,sheets --dry-run   # show what would change, write nothing
-SteamDb --help
+Pilewise --sync notion
+Pilewise --sync notion,sheets --sheet "My games"
+Pilewise --sync csv --file "D:\Games\backlog.csv"
+Pilewise --sync notion,sheets --dry-run   # show what would change, write nothing
+Pilewise --help
 ```
 
 - Credentials, the Google Sheets table name, the ticked stores and store logins are the ones saved
@@ -374,18 +374,18 @@ SteamDb --help
 - Notion changes are applied **without** the preview window. Run with `--dry-run` first to check.
 - Each run (not `--dry-run`) also shows up in the app's **History…** window.
 - Output goes to the console and to the log. Exit code: `0` success, `1` a sync failed, `2` bad arguments.
-- On Windows the app installs to `%LocalAppData%\SteamDb\current\SteamDb.exe`. It's a GUI app, so
+- On Windows the app installs to `%LocalAppData%\Pilewise\current\Pilewise.exe`. It's a GUI app, so
   from a terminal start it with `Start-Process … -Wait -NoNewWindow` (PowerShell) or
   `start /wait …` (cmd) to see its output. Task Scheduler waits for it on its own.
 
 **Windows Task Scheduler**: *Create Basic Task* → trigger *Daily* → action *Start a program* →
-program `%LocalAppData%\SteamDb\current\SteamDb.exe`, arguments `--sync notion`.
+program `%LocalAppData%\Pilewise\current\Pilewise.exe`, arguments `--sync notion`.
 
 ---
 
 ## Privacy
 
-🔐 SteamDb does **not** collect, store or send any personal data to its developer. Logs and
+🔐 Pilewise does **not** collect, store or send any personal data to its developer. Logs and
 cached credentials stay on your device, and credentials are encrypted.
 See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
 
@@ -393,7 +393,7 @@ See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
 
 ## Support the project
 
-If SteamDb saved your backlog, you can buy me a coffee:
+If Pilewise saved your backlog, you can buy me a coffee:
 
 <a href="https://ko-fi.com/aliaksandrpidlazhevich"><img src="https://img.shields.io/badge/Support%20on-Ko--fi-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
 
@@ -401,7 +401,7 @@ If SteamDb saved your backlog, you can buy me a coffee:
 
 ## Feedback and issues
 
-Found a bug or have an idea? [Open an issue](https://github.com/AleksandrPidlozhevich/SteamDb/issues)
+Found a bug or have an idea? [Open an issue](https://github.com/AleksandrPidlozhevich/Pilewise/issues)
 (the **Logs** link in the bottom-left corner of the app opens the log files to attach)
 or write to **aleksandr.pidlozhevich@gmail.com**.
 

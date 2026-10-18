@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>A <see cref="TextWriter"/> that hands each written line to a callback (used to show
 /// <see cref="HeadlessSync"/> output in the app instead of a console).</summary>

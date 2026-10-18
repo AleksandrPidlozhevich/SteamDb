@@ -1,10 +1,10 @@
 using Avalonia.Input.Platform;
-using SteamDb.Models;
-using SteamDb.Services;
+using Pilewise.Models;
+using Pilewise.Services;
 using System;
 using System.Threading.Tasks;
 
-namespace SteamDb.ViewModels;
+namespace Pilewise.ViewModels;
 
 /// <summary>
 /// Drives the shared "connect to a store" flow (Epic / GOG): restore a cached session,

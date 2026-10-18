@@ -13,7 +13,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
 
-namespace SteamDb.Tests.Ui;
+namespace Pilewise.Tests.Ui;
 
 /// <summary>
 /// Runs Avalonia headlessly (real Skia rendering, no screen) on one dedicated UI thread for all UI

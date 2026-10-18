@@ -1,12 +1,12 @@
 using System;
 using System.IO;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>What a file dropped onto the main window is.</summary>
 public enum DroppedFileKind
 {
-    /// <summary>A SteamDb game list (<c>Platform,Name,ID</c> or a legacy layout): run Update .csv on it.</summary>
+    /// <summary>A Pilewise game list (<c>Platform,Name,ID</c> or a legacy layout): run Update .csv on it.</summary>
     GameCsv,
 
     /// <summary>A Save settings file (<c>Key: value</c> lines): import it.</summary>

@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
-/// When SteamDb first saw each game, so the library viewer can show what was added recently (no
+/// When Pilewise first saw each game, so the library viewer can show what was added recently (no
 /// store reports a purchase date). Every library fetch records the games it got
 /// (<see cref="Record"/>); a game is keyed like <see cref="IgnoredGames.KeysOf"/>, so it keeps its
 /// date when it later shows up on another store too.
@@ -63,8 +63,8 @@ public sealed class FirstSeenGames
     }
 
     /// <summary>
-    /// The day SteamDb first saw this game, when that's after its stores' baselines (so it was really
-    /// added then); null for games owned before SteamDb started tracking, or never seen.
+    /// The day Pilewise first saw this game, when that's after its stores' baselines (so it was really
+    /// added then); null for games owned before Pilewise started tracking, or never seen.
     /// </summary>
     public DateOnly? AddedOn(CsvGameExportRow row)
     {

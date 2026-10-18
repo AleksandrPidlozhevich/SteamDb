@@ -1,10 +1,10 @@
 using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
-using SteamDb.ViewModels;
+using Pilewise.ViewModels;
 using System;
 using System.Threading.Tasks;
 
-namespace SteamDb.Services;
+namespace Pilewise.Services;
 
 /// <summary>
 /// Window-level UI affordances the view model needs — file pickers, the error dialog, link
