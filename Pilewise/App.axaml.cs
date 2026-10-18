@@ -135,7 +135,7 @@ public partial class App : Application
         }
     }
 
-    private static readonly Uri AppIconUri = new("avares://Pilewise/Assets/gamedate.ico");
+    private static readonly Uri AppIconUri = new("avares://Pilewise/Assets/Pilewise.ico");
 
     // The app icon with a red dot in the corner, drawn once when the first failure needs it; null if
     // drawing fails (the plain icon is used then — a tray badge isn't worth a crash).

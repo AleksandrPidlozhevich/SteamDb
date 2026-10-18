@@ -63,7 +63,7 @@ jobs:
           - rid: win-x64
             os: windows-latest
             exe: Pilewise.exe
-            icon: Pilewise/gamedate.ico
+            icon: Pilewise/Pilewise.ico
           - rid: linux-x64
             os: ubuntu-latest
             exe: Pilewise
@@ -71,11 +71,11 @@ jobs:
           - rid: osx-arm64
             os: macos-latest
             exe: Pilewise
-            icon: Pilewise/Assets/gamedate.icns
+            icon: Pilewise/Assets/Pilewise.icns
           - rid: osx-x64
             os: macos-latest
             exe: Pilewise
-            icon: Pilewise/Assets/gamedate.icns
+            icon: Pilewise/Assets/Pilewise.icns
     runs-on: ${{ matrix.os }}
     defaults:
       run:

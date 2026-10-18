@@ -8,7 +8,7 @@
                     mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="480"
                     x:Class="Pilewise.Views.NotionExportPreviewWindow"
                     x:DataType="vm:NotionExportPreviewViewModel"
-                    Icon="/Assets/gamedate.ico"
+                    Icon="/Assets/Pilewise.ico"
                     Title="Export to Notion: preview"
                     Width="680" Height="520" MinWidth="460" MinHeight="300"
                     WindowStartupLocation="CenterOwner">

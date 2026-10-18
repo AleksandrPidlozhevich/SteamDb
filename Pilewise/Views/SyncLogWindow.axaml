@@ -7,7 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="460"
         x:Class="Pilewise.Views.SyncLogWindow"
         x:DataType="vm:SyncLogViewModel"
-        Icon="/Assets/gamedate.ico"
+        Icon="/Assets/Pilewise.ico"
         Title="Sync history"
         Width="760" Height="480" MinWidth="520" MinHeight="280"
         WindowStartupLocation="CenterOwner">

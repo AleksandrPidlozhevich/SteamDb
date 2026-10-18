@@ -6,7 +6,7 @@
                     mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="300"
                     x:Class="Pilewise.Views.ErrorWindow"
                     x:DataType="views:ErrorWindow"
-                    Icon="/Assets/gamedate.ico"
+                    Icon="/Assets/Pilewise.ico"
                     Title="Error"
                     Width="560" Height="320" MinWidth="400" MinHeight="240"
                     WindowStartupLocation="CenterOwner">

@@ -8,7 +8,7 @@
                     mc:Ignorable="d" d:DesignWidth="680" d:DesignHeight="520"
                     x:Class="Pilewise.Views.DuplicatesWindow"
                     x:DataType="vm:DuplicatesViewModel"
-                    Icon="/Assets/gamedate.ico"
+                    Icon="/Assets/Pilewise.ico"
                     Title="{Binding Title}"
                     Width="680" Height="520" MinWidth="460" MinHeight="300"
                     WindowStartupLocation="CenterOwner">

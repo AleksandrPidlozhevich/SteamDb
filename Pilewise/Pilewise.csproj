@@ -6,7 +6,7 @@
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-        <ApplicationIcon>gamedate.ico</ApplicationIcon>
+        <ApplicationIcon>Pilewise.ico</ApplicationIcon>
         <EnableNETAnalyzers>true</EnableNETAnalyzers>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <!-- No generated InitializeComponent / named-control fields: views load their XAML with
@@ -20,7 +20,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="gamedate.ico" />
+        <Content Include="Pilewise.ico" />
     </ItemGroup>
 
     <ItemGroup>

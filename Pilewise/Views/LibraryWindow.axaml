@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="980" d:DesignHeight="640"
         x:Class="Pilewise.Views.LibraryWindow"
         x:DataType="vm:LibraryViewModel"
-        Icon="/Assets/gamedate.ico"
+        Icon="/Assets/Pilewise.ico"
         Title="Game library"
         Width="980" Height="660" MinWidth="680" MinHeight="400"
         WindowStartupLocation="CenterOwner">

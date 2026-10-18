@@ -8,7 +8,7 @@
         mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="640"
         x:Class="Pilewise.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/gamedate.ico"
+        Icon="/Assets/Pilewise.ico"
         Title="Pilewise"
         Width="900" Height="640" MinWidth="720" MinHeight="480"
         DragDrop.AllowDrop="True"
@@ -87,7 +87,7 @@
                             Command="{Binding ToggleSidebarCommand}">
                         <PathIcon Width="18" Height="18" Data="{DynamicResource MenuIcon}" />
                     </Button>
-                    <Image Source="/Assets/gamedate.ico" Width="26" Height="26" IsVisible="{Binding IsSidebarExpanded}" />
+                    <Svg Path="/Assets/Pilewise.svg" Width="36" Height="36" VerticalAlignment="Center" IsVisible="{Binding IsSidebarExpanded}" />
                     <TextBlock Text="Pilewise" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"
                                IsVisible="{Binding IsSidebarExpanded}" />
                 </StackPanel>
