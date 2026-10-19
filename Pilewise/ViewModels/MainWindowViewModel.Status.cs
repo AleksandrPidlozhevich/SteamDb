@@ -123,7 +123,7 @@ public partial class MainWindowViewModel
     public string UpdateButtonText => $"Update to v{AvailableUpdateVersion}";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UpdateStatus), nameof(CheckUpdatesLabel))]
+    [NotifyPropertyChangedFor(nameof(UpdateStatus), nameof(CheckUpdatesLabel), nameof(CheckUpdatesTip))]
     private bool isCheckingForUpdate;
 
     [ObservableProperty]
@@ -134,6 +134,11 @@ public partial class MainWindowViewModel
     public bool CanCheckForUpdates => _updates.IsInstalled;
 
     public string CheckUpdatesLabel => IsCheckingForUpdate ? "Checking…" : "Check for updates";
+
+    /// <summary>The ⟳ button's tooltip (it stays visible, disabled, in a development build).</summary>
+    public string CheckUpdatesTip => CanCheckForUpdates
+        ? CheckUpdatesLabel
+        : "Only the installed app can check for updates";
 
     /// <summary>The Updates panel's line: up to date / a version is available / why it can't tell.</summary>
     public string UpdateStatus =>
@@ -147,12 +152,18 @@ public partial class MainWindowViewModel
     /// <summary>How often a long-running app (in the tray) looks for a new version.</summary>
     private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(12);
 
-    private async Task CheckForUpdateAsync()
+    /// <summary>A check started from the ⟳ button spins at least this long, so a quick answer from
+    /// GitHub still reads as "checked".</summary>
+    private static readonly TimeSpan MinManualCheckDuration = TimeSpan.FromMilliseconds(800);
+
+    private async Task CheckForUpdateAsync(TimeSpan minDuration = default)
     {
         IsCheckingForUpdate = true;
         try
         {
-            AvailableUpdateVersion = await _updates.CheckForUpdateAsync();
+            var check = _updates.CheckForUpdateAsync();
+            await Task.WhenAll(check, Task.Delay(minDuration));
+            AvailableUpdateVersion = await check;
             LastUpdateCheck = DateTimeOffset.Now;
         }
         finally
@@ -161,9 +172,10 @@ public partial class MainWindowViewModel
         }
     }
 
-    /// <summary>Settings → Updates → Check for updates.</summary>
+    /// <summary>Settings → Updates → ⟳.</summary>
     [RelayCommand]
-    private Task CheckForUpdates() => IsCheckingForUpdate ? Task.CompletedTask : CheckForUpdateAsync();
+    private Task CheckForUpdates() =>
+        IsCheckingForUpdate ? Task.CompletedTask : CheckForUpdateAsync(MinManualCheckDuration);
 
     // Called from the minute timer: re-check when the last check is older than UpdateCheckInterval.
     private async Task CheckForUpdatesIfStaleAsync()

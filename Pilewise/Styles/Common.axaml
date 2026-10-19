@@ -16,6 +16,7 @@
 
         <StreamGeometry x:Key="MenuIcon">M3,6H21V8H3Z M3,11H21V13H3Z M3,16H21V18H3Z</StreamGeometry>
         <StreamGeometry x:Key="DownloadIcon">M11,4H13V12.17L16.59,8.59L18,10L12,16L6,10L7.41,8.59L11,12.17Z M5,18H19V20H5Z</StreamGeometry>
+        <StreamGeometry x:Key="RefreshIcon">M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4Z</StreamGeometry>
         <StreamGeometry x:Key="NavSettingsIcon">M3,6H13V8H3Z M17,6H21V8H17Z M13,4H15V10H13Z M3,16H7V18H3Z M11,16H21V18H11Z M7,14H9V20H7Z</StreamGeometry>
     </Styles.Resources>
 
@@ -36,6 +37,34 @@
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="CornerRadius" Value="6" />
         <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- ⟳ that starts a check (Settings → Updates); the arrow turns while .spinning is set. -->
+    <Style Selector="Button.refresh">
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="18" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.refresh PathIcon">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+    </Style>
+    <Style Selector="Button.refresh.spinning PathIcon">
+        <Style.Animations>
+            <Animation Duration="0:0:0.9" IterationCount="Infinite">
+                <KeyFrame Cue="0%">
+                    <Setter Property="RotateTransform.Angle" Value="0" />
+                </KeyFrame>
+                <KeyFrame Cue="100%">
+                    <Setter Property="RotateTransform.Angle" Value="360" />
+                </KeyFrame>
+            </Animation>
+        </Style.Animations>
     </Style>
 
     <!-- A single gentle scale-up on hover (no looping animation). -->

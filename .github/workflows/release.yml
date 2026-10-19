@@ -245,7 +245,7 @@ jobs:
               --repoUrl "${{ github.server_url }}/${{ github.repository }}" \
               --token "$GH_TOKEN" \
               --tag "v$VERSION" \
-              --releaseName "Pilewise $VERSION" \
+              --releaseName "v$VERSION" \
               --publish --merge $pre
           done
 
