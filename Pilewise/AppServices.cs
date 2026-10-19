@@ -22,6 +22,8 @@ public static class AppServices
 
         services.AddSingleton<ILogService, FileLogService>();
         services.AddSingleton<ISecretStore, MsalSecretStore>();
+        services.AddSingleton<IStateStore>(sp =>
+            new FileStateStore(sp.GetRequiredService<ILogService>(), sp.GetRequiredService<ISecretStore>()));
         services.AddSingleton<IStoreClientFactory, StoreClientFactory>();
         services.AddSingleton<IDialogService, WindowDialogService>();
         services.AddSingleton<IWebAuthenticator>(_ => new EmbeddedWebViewAuthenticator(MainWindow));
@@ -30,10 +32,10 @@ public static class AppServices
         services.AddSingleton<IAutoStart, AutoStart>();
 
         services.AddSingleton<StoreSelection>();
-        services.AddSingleton<IgnoredGames>(sp => new IgnoredGames(sp.GetRequiredService<ISecretStore>()));
-        services.AddSingleton<BacklogProgress>(sp => new BacklogProgress(sp.GetRequiredService<ISecretStore>()));
-        services.AddSingleton<SyncLog>(sp => new SyncLog(sp.GetRequiredService<ISecretStore>()));
-        services.AddSingleton<FirstSeenGames>(sp => new FirstSeenGames(sp.GetRequiredService<ISecretStore>()));
+        services.AddSingleton<IgnoredGames>(sp => new IgnoredGames(sp.GetRequiredService<IStateStore>()));
+        services.AddSingleton<BacklogProgress>(sp => new BacklogProgress(sp.GetRequiredService<IStateStore>()));
+        services.AddSingleton<SyncLog>(sp => new SyncLog(sp.GetRequiredService<IStateStore>()));
+        services.AddSingleton<FirstSeenGames>(sp => new FirstSeenGames(sp.GetRequiredService<IStateStore>()));
         services.AddSingleton<IGameLibraryService, GameLibraryService>();
         services.AddSingleton<INotionGateway, NotionGateway>();
         services.AddSingleton<NotionGameExporter>();

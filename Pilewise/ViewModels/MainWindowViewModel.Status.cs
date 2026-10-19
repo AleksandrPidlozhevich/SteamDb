@@ -189,8 +189,8 @@ public partial class MainWindowViewModel
     private void ShowWhatsNew()
     {
         var current = _updates.CurrentVersion;
-        var message = UpdateNotice.Message(_secrets.Load(UpdateNotice.SecretKey), current);
-        _secrets.Save(UpdateNotice.SecretKey, current);
+        var message = UpdateNotice.Message(_state.Load(UpdateNotice.StateKey), current);
+        _state.Save(UpdateNotice.StateKey, current);
         if (message == null) return;
 
         _log.WriteInfo($"Updated to {current}.");

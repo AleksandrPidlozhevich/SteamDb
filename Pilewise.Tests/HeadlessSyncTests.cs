@@ -235,7 +235,7 @@ public class HeadlessSyncTests : IDisposable
         var log = new SilentLog();
         var library = new FixedLibrary(new GameLibraryResult(rows.ToList(), false, false, false, false, false, false, true));
         return new HeadlessSync(
-            secrets, library,
+            secrets, secrets, library,
             new NotionGameExporter(library, new NotionGateway(log), log),
             new GoogleSheetsGameExporter(secrets, library, log),
             log, output, null, syncLog, source);
@@ -253,7 +253,7 @@ public class HeadlessSyncTests : IDisposable
         var library = new FixedLibrary(new GameLibraryResult(rows.ToList(), false, false, false, false, false, false, true));
         var output = new StringWriter();
         var sync = new HeadlessSync(
-            secrets, library,
+            secrets, secrets, library,
             new NotionGameExporter(library, new NotionGateway(log), log),
             new GoogleSheetsGameExporter(secrets, library, log),
             log, output);
@@ -267,7 +267,7 @@ public class HeadlessSyncTests : IDisposable
             Action<string>? onStatus = null, CancellationToken ct = default) => Task.FromResult(result);
     }
 
-    private sealed class MemorySecrets : ISecretStore
+    private sealed class MemorySecrets : ISecretStore, IStateStore
     {
         private readonly Dictionary<string, string> _values = new();
         public string? Load(string key) => _values.GetValueOrDefault(key);

@@ -19,7 +19,7 @@ public class RecentlyAddedTests
     [Fact]
     public void FirstFetch_IsTheBaseline_SoNothingIsNew()
     {
-        var seen = new FirstSeenGames(new MemorySecretStore());
+        var seen = new FirstSeenGames(new MemoryStateStore());
         seen.Record([Steam("Portal", "400")], Stores("Steam"), Day1);
 
         Assert.Null(seen.AddedOn(Steam("Portal", "400")));
@@ -28,7 +28,7 @@ public class RecentlyAddedTests
     [Fact]
     public void GameAppearingLater_GetsTheDayItWasFirstSeen()
     {
-        var seen = new FirstSeenGames(new MemorySecretStore());
+        var seen = new FirstSeenGames(new MemoryStateStore());
         seen.Record([Steam("Portal", "400")], Stores("Steam"), Day1);
         seen.Record([Steam("Portal", "400"), Steam("Hades", "1145360")], Stores("Steam"), Day2);
         seen.Record([Steam("Hades", "1145360")], Stores("Steam"), Day2.AddDays(5)); // seen again later
@@ -39,7 +39,7 @@ public class RecentlyAddedTests
     [Fact]
     public void NewlyConnectedStore_StartsItsOwnBaseline()
     {
-        var seen = new FirstSeenGames(new MemorySecretStore());
+        var seen = new FirstSeenGames(new MemoryStateStore());
         seen.Record([Steam("Portal", "400")], Stores("Steam"), Day1);
 
         // GOG connected for the first time: its whole library was already owned.
@@ -52,7 +52,7 @@ public class RecentlyAddedTests
     [Fact]
     public void GameAlsoBoughtOnAnotherStore_KeepsItsOriginalDate()
     {
-        var seen = new FirstSeenGames(new MemorySecretStore());
+        var seen = new FirstSeenGames(new MemoryStateStore());
         seen.Record([], Stores("Steam", "GOG"), Day1);
         seen.Record([Steam("Hades", "1145360")], Stores("Steam", "GOG"), Day2);
 
@@ -65,11 +65,11 @@ public class RecentlyAddedTests
     [Fact]
     public void State_SurvivesAReload()
     {
-        var secrets = new MemorySecretStore();
-        new FirstSeenGames(secrets).Record([], Stores("Steam"), Day1);
-        new FirstSeenGames(secrets).Record([Steam("Hades", "1145360")], Stores("Steam"), Day2);
+        var state = new MemoryStateStore();
+        new FirstSeenGames(state).Record([], Stores("Steam"), Day1);
+        new FirstSeenGames(state).Record([Steam("Hades", "1145360")], Stores("Steam"), Day2);
 
-        Assert.Equal(Day2, new FirstSeenGames(secrets).AddedOn(Steam("Hades", "1145360")));
+        Assert.Equal(Day2, new FirstSeenGames(state).AddedOn(Steam("Hades", "1145360")));
     }
 
     [Theory]
@@ -113,7 +113,7 @@ public class RecentlyAddedTests
     public void UpdateNotice_LinksTheReleaseNotes() =>
         Assert.Equal("https://github.com/AleksandrPidlozhevich/Pilewise/releases/tag/v1.2.0", UpdateNotice.ReleaseUrl("1.2.0"));
 
-    private sealed class MemorySecretStore : ISecretStore
+    private sealed class MemoryStateStore : IStateStore
     {
         private readonly Dictionary<string, string> _values = [];
         public string? Load(string key) => _values.GetValueOrDefault(key);

@@ -7,7 +7,7 @@ namespace Pilewise.Services;
 
 /// <summary>
 /// Remembers when each export target was last synced successfully (shown under its button).
-/// Kept in the encrypted secret store next to the settings: not secret, but it avoids another file.
+/// Kept in the state store (see <see cref="IStateStore"/>).
 /// Format: one <c>Target=ISO-8601</c> line per target.
 /// </summary>
 public sealed class SyncHistory
@@ -16,15 +16,15 @@ public sealed class SyncHistory
     public const string Notion = "Notion";
     public const string GoogleSheets = "Google Sheets";
 
-    private const string SecretKey = "last-sync";
+    private const string StateKey = "last-sync";
 
-    private readonly ISecretStore _secrets;
+    private readonly IStateStore _store;
     private readonly Dictionary<string, DateTimeOffset> _entries;
 
-    public SyncHistory(ISecretStore secrets)
+    public SyncHistory(IStateStore store)
     {
-        _secrets = secrets;
-        _entries = Parse(secrets.Load(SecretKey));
+        _store = store;
+        _entries = Parse(store.Load(StateKey));
     }
 
     /// <summary>The history key of a command-line / auto-sync target.</summary>
@@ -47,7 +47,7 @@ public sealed class SyncHistory
     {
         Reload();
         _entries[target] = when;
-        _secrets.Save(SecretKey, string.Join("\n",
+        _store.Save(StateKey, string.Join("\n",
             _entries.Select(e => $"{e.Key}={e.Value.ToString("O", CultureInfo.InvariantCulture)}")));
     }
 
@@ -70,7 +70,7 @@ public sealed class SyncHistory
     private void Reload()
     {
         _entries.Clear();
-        foreach (var (key, value) in Parse(_secrets.Load(SecretKey))) _entries[key] = value;
+        foreach (var (key, value) in Parse(_store.Load(StateKey))) _entries[key] = value;
     }
 
     private static Dictionary<string, DateTimeOffset> Parse(string? content)

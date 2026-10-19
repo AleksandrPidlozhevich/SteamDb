@@ -21,7 +21,7 @@ public sealed record SyncLogEntry(DateTimeOffset When, string Target, bool Ok, s
 /// <summary>
 /// The last <see cref="MaxEntries"/> sync runs (manual exports, auto-sync, tray "Sync now" and
 /// <c>--sync</c>), newest first, so what happened while the app sat in the tray can be looked up.
-/// JSON in the secret store (key <c>sync-log</c>), re-read on every access like <see cref="SyncHistory"/>.
+/// JSON in the state store (key <c>sync-log</c>), re-read on every access like <see cref="SyncHistory"/>.
 /// </summary>
 public sealed class SyncLog
 {
@@ -29,15 +29,15 @@ public sealed class SyncLog
     public const string CommandLine = "Command line";
     public const int MaxEntries = 50;
 
-    private const string SecretKey = "sync-log";
+    private const string StateKey = "sync-log";
     private const int MaxSummaryLength = 500;
 
-    private readonly ISecretStore? _secrets;
+    private readonly IStateStore? _store;
     private List<SyncLogEntry> _entries = [];
 
-    public SyncLog(ISecretStore? secrets = null)
+    public SyncLog(IStateStore? store = null)
     {
-        _secrets = secrets;
+        _store = store;
     }
 
     /// <summary>Raised after an entry is added (on the adding thread).</summary>
@@ -93,8 +93,8 @@ public sealed class SyncLog
 
     private void Reload()
     {
-        if (_secrets != null) _entries = Parse(_secrets.Load(SecretKey));
+        if (_store != null) _entries = Parse(_store.Load(StateKey));
     }
 
-    private void Save() => _secrets?.Save(SecretKey, Serialize(_entries));
+    private void Save() => _store?.Save(StateKey, Serialize(_entries));
 }

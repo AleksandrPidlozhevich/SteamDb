@@ -14,7 +14,7 @@ namespace Pilewise.Services;
 /// </summary>
 /// <remarks>
 /// The first fetch of a store sets that store's <b>baseline</b>: its games were already owned, so they
-/// get no "added" date. Only games that appear after it count. Kept in the secret store (key
+/// get no "added" date. Only games that appear after it count. Kept in the state store (key
 /// <c>first-seen</c>, JSON); re-read on every access so the app and <c>--sync</c> agree.
 /// </remarks>
 public sealed class FirstSeenGames
@@ -25,15 +25,15 @@ public sealed class FirstSeenGames
     /// <summary>Baseline for games known only by name (no store id): the earliest store baseline.</summary>
     private const string NameKeyPrefix = "Name:";
 
-    private const string SecretKey = "first-seen";
+    private const string StateKey = "first-seen";
     private const string DateFormat = "yyyy-MM-dd";
 
-    private readonly ISecretStore? _secrets;
+    private readonly IStateStore? _store;
     private State _state = new();
 
-    public FirstSeenGames(ISecretStore? secrets = null)
+    public FirstSeenGames(IStateStore? store = null)
     {
-        _secrets = secrets;
+        _store = store;
         Reload();
     }
 
@@ -100,10 +100,10 @@ public sealed class FirstSeenGames
 
     private void Reload()
     {
-        if (_secrets == null) return;
+        if (_store == null) return;
         try
         {
-            _state = JsonConvert.DeserializeObject<State>(_secrets.Load(SecretKey) ?? "") ?? new State();
+            _state = JsonConvert.DeserializeObject<State>(_store.Load(StateKey) ?? "") ?? new State();
         }
         catch (JsonException)
         {
@@ -114,7 +114,7 @@ public sealed class FirstSeenGames
         _state.Keys ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
-    private void Save() => _secrets?.Save(SecretKey, JsonConvert.SerializeObject(_state));
+    private void Save() => _store?.Save(StateKey, JsonConvert.SerializeObject(_state));
 
     private sealed class State
     {

@@ -4,11 +4,11 @@ namespace Pilewise.Services;
 
 /// <summary>
 /// "Updated to v1.2.0 — What's new": shown once, on the first start after the app was updated. The
-/// version that last ran is remembered in the secret store (key <c>last-version</c>).
+/// version that last ran is remembered in the state store (key <c>last-version</c>).
 /// </summary>
 public static class UpdateNotice
 {
-    public const string SecretKey = "last-version";
+    public const string StateKey = "last-version";
 
     /// <summary>The banner text when <paramref name="current"/> is newer than the version that last
     /// ran; null on a first install, the same version, a downgrade or an unparsable version.</summary>

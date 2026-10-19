@@ -71,14 +71,14 @@ public class BacklogProgressTests
     [Fact]
     public void Store_KeepsTheLatestPerTarget_AndSurvivesARoundTrip()
     {
-        var secrets = new MemorySecretStore();
-        var store = new BacklogProgress(secrets);
+        var state = new MemoryStateStore();
+        var store = new BacklogProgress(state);
         var older = new BacklogSnapshot("Notion", DateTimeOffset.Now.AddDays(-1), 1, 10, ["Steam:400"]);
         var newer = new BacklogSnapshot("Google Sheets", DateTimeOffset.Now, 3, 10, []);
         store.Record(older);
         store.Record(newer);
 
-        var reloaded = new BacklogProgress(secrets);
+        var reloaded = new BacklogProgress(state);
         Assert.Equal(1, reloaded.Get("Notion")?.Completed);
         Assert.Equal(["Steam:400"], reloaded.Get("Notion")?.CompletedKeys);
         Assert.Equal("Google Sheets", reloaded.Latest()?.Target);
@@ -141,7 +141,7 @@ public class BacklogProgressTests
         Assert.DoesNotContain(vm.Filters, f => f.Key == LibraryViewModel.CompletedKey);
     }
 
-    private sealed class MemorySecretStore : ISecretStore
+    private sealed class MemoryStateStore : IStateStore
     {
         private readonly Dictionary<string, string> _values = [];
         public string? Load(string key) => _values.GetValueOrDefault(key);

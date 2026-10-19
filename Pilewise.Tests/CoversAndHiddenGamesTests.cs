@@ -73,16 +73,16 @@ public class CoversAndHiddenGamesTests
     [Fact]
     public void IgnoredGames_MatchByAnyStoreId_AndPersist()
     {
-        var secrets = new MemorySecretStore();
-        var ignored = new IgnoredGames(secrets);
+        var state = new MemoryStateStore();
+        var ignored = new IgnoredGames(state);
         ignored.Ignore(CsvGameExportService.CreateRow("Steam/GOG", "Demo", "Steam:9; GOG:5"));
 
-        var reloaded = new IgnoredGames(secrets);
+        var reloaded = new IgnoredGames(state);
         Assert.True(reloaded.IsIgnored(CsvGameExportService.CreateRow("GOG", "Demo (GOG)", "GOG:5")));
         Assert.False(reloaded.IsIgnored(CsvGameExportService.CreateRow("Steam", "Demo", "Steam:10")));
 
         reloaded.Unignore(CsvGameExportService.CreateRow("Steam/GOG", "Demo", "Steam:9; GOG:5"));
-        Assert.Equal(0, new IgnoredGames(secrets).Count);
+        Assert.Equal(0, new IgnoredGames(state).Count);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class CoversAndHiddenGamesTests
     [Fact]
     public void LibraryViewer_HideMovesTheGameToHidden_AndSavesIt()
     {
-        var ignored = new IgnoredGames(new MemorySecretStore());
+        var ignored = new IgnoredGames(new MemoryStateStore());
         var vm = new LibraryViewModel(
             [CsvGameExportService.CreateRow("Steam", "Portal", "Steam:400"),
              CsvGameExportService.CreateRow("Steam", "Demo", "Steam:9")],
@@ -136,7 +136,7 @@ public class CoversAndHiddenGamesTests
         Assert.False(ignored.IsIgnored(CsvGameExportService.CreateRow("Steam", "Old Tool", "Steam:7")));
     }
 
-    private sealed class MemorySecretStore : ISecretStore
+    private sealed class MemoryStateStore : IStateStore
     {
         private readonly Dictionary<string, string> _values = [];
         public string? Load(string key) => _values.GetValueOrDefault(key);

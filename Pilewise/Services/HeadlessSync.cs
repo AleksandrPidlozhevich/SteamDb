@@ -15,6 +15,7 @@ namespace Pilewise.Services;
 public sealed class HeadlessSync
 {
     private readonly ISecretStore _secrets;
+    private readonly IStateStore _state;
     private readonly IGameLibraryService _library;
     private readonly NotionGameExporter _notion;
     private readonly GoogleSheetsGameExporter _sheets;
@@ -27,7 +28,7 @@ public sealed class HeadlessSync
     /// <param name="syncLog">Where each run is listed for the Sync history window (null: not listed).</param>
     /// <param name="source">What started the run, as shown in the history ("Auto-sync", "Command line"…).</param>
     public HeadlessSync(
-        ISecretStore secrets, IGameLibraryService library, NotionGameExporter notion,
+        ISecretStore secrets, IStateStore state, IGameLibraryService library, NotionGameExporter notion,
         GoogleSheetsGameExporter sheets, ILogService log, TextWriter output, StoreSelection? selection = null,
         SyncLog? syncLog = null, string source = SyncLog.CommandLine)
     {
@@ -35,6 +36,7 @@ public sealed class HeadlessSync
         _source = source;
         _selection = selection;
         _secrets = secrets;
+        _state = state;
         _library = library;
         _notion = notion;
         _sheets = sheets;
@@ -46,7 +48,7 @@ public sealed class HeadlessSync
     public async Task<int> RunAsync(SyncOptions options, CancellationToken ct = default)
     {
         var settings = AppSettingsService.Parse(_secrets.Load(AppSettingsService.SecretKey) ?? string.Empty);
-        var history = new SyncHistory(_secrets);
+        var history = new SyncHistory(_state);
         // Same stores as the app: the ones unticked there are skipped here too.
         _selection?.Load(settings.ExcludedStores);
         var failed = false;
