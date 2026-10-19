@@ -56,9 +56,12 @@ the file for your system:
 | System | File |
 | :--- | :--- |
 | Windows | `Pilewise-win-x64-Setup.exe` (installer) or `Pilewise-win-x64-Portable.zip` |
-| macOS (Apple Silicon, M1 and later) | `Pilewise-osx-arm64-Portable.zip` |
-| macOS (Intel) | `Pilewise-osx-x64-Portable.zip` |
+| macOS (Apple Silicon, M1 and later) | `Pilewise-osx-arm64.dmg` (drag to Applications) or `Pilewise-osx-arm64-Portable.zip` |
+| macOS (Intel) | `Pilewise-osx-x64.dmg` (drag to Applications) or `Pilewise-osx-x64-Portable.zip` |
 | Linux | `Pilewise-linux-x64.AppImage` |
+
+The macOS app is signed with a Developer ID and notarized by Apple, so it opens without Gatekeeper
+warnings.
 
 > [!TIP]
 > **Pilewise updates itself.** When a new version is out, a banner appears at the top of the

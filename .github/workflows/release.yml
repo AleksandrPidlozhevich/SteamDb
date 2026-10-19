@@ -1,10 +1,18 @@
 # Builds Pilewise for Windows, macOS and Linux with Velopack and publishes a GitHub Release that the
-# app's built-in updater reads. Runs only when a version tag is pushed:
+# app's built-in updater reads. The macOS app is signed with a Developer ID certificate and notarized,
+# and also shipped as a notarized .dmg. Runs only when a version tag is pushed:
 #
 #   1. set the new version in VERSION (e.g. 1.2.0) and commit it
 #   2. git tag v1.2.0 && git push origin v1.2.0
 #
 # The tag must match VERSION, otherwise the run fails before building anything.
+#
+# macOS signing needs these repository secrets (Settings → Secrets and variables → Actions):
+#   MACOS_CERTIFICATE_P12       base64 of the "Developer ID Application" certificate + key (.p12)
+#   MACOS_CERTIFICATE_PASSWORD  password of that .p12
+#   APPLE_ID                    Apple Account e-mail of the developer account
+#   APPLE_APP_PASSWORD          app-specific password for it (account.apple.com → Sign-In and Security)
+#   APPLE_TEAM_ID               10-character Team ID (developer.apple.com → Membership)
 
 name: Release
 
@@ -89,6 +97,55 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - run: dotnet tool install -g vpk --version "$VPK_VERSION"
 
+      # A throwaway keychain with the Developer ID certificate and a notarytool profile; vpk and
+      # make-dmg.sh sign and notarize with them.
+      - name: Set up macOS signing
+        if: runner.os == 'macOS'
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in CERTIFICATE_P12 CERTIFICATE_PASSWORD APPLE_ID APPLE_APP_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret for $name is not set; macOS builds must be signed and notarized."
+              exit 1
+            fi
+          done
+
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password=$(openssl rand -base64 32)
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+          # codesign only finds identities in keychains on the search list.
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+
+          identity=$(security find-identity -v -p codesigning "$keychain" \
+            | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')
+          if [ -z "$identity" ]; then
+            echo "::error::MACOS_CERTIFICATE_P12 has no 'Developer ID Application' identity."
+            exit 1
+          fi
+
+          xcrun notarytool store-credentials pilewise-notary \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" \
+            --keychain "$keychain"
+
+          {
+            echo "KEYCHAIN=$keychain"
+            echo "SIGN_IDENTITY=$identity"
+            echo "NOTARY_PROFILE=pilewise-notary"
+          } >> "$GITHUB_ENV"
+
       # The version comes from VERSION via Directory.Build.props.
       - name: Publish
         run: dotnet publish Pilewise/Pilewise.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish
@@ -103,19 +160,49 @@ jobs:
           -o releases
           || echo "No previous release for ${{ matrix.rid }}; building a full package only."
 
+      # On macOS vpk signs the .app with the hardened runtime, notarizes and staples it, so the
+      # portable zip and the update packages carry the notarized app. No .pkg installer (--noInst):
+      # that would need a separate "Developer ID Installer" certificate; the .dmg replaces it.
       - name: Pack
-        run: >
-          vpk pack
-          --packId Pilewise
-          --packVersion "$VERSION"
-          --packTitle Pilewise
-          --packAuthors "Aliaksandr Pidlazhevich"
-          --packDir publish
-          --mainExe ${{ matrix.exe }}
-          --icon ${{ matrix.icon }}
-          --runtime ${{ matrix.rid }}
-          --channel ${{ matrix.rid }}
-          -o releases
+        run: |
+          mac_args=()
+          if [ "$RUNNER_OS" = macOS ]; then
+            mac_args=(
+              --bundleId com.aleksandrpidlozhevich.pilewise
+              --noInst
+              --signAppIdentity "$SIGN_IDENTITY"
+              --signEntitlements build/macos/Pilewise.entitlements
+              --notaryProfile "$NOTARY_PROFILE"
+              --keychain "$KEYCHAIN"
+            )
+          fi
+          vpk pack \
+            --packId Pilewise \
+            --packVersion "$VERSION" \
+            --packTitle Pilewise \
+            --packAuthors "Aliaksandr Pidlazhevich" \
+            --packDir publish \
+            --mainExe ${{ matrix.exe }} \
+            --icon ${{ matrix.icon }} \
+            --runtime ${{ matrix.rid }} \
+            --channel ${{ matrix.rid }} \
+            -o releases \
+            "${mac_args[@]}"
+
+      - name: Build DMG
+        if: runner.os == 'macOS'
+        run: build/macos/make-dmg.sh "releases/Pilewise-${{ matrix.rid }}-Portable.zip" "dmg/Pilewise-${{ matrix.rid }}.dmg"
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: dmg-${{ matrix.rid }}
+          path: dmg/
+          if-no-files-found: error
+
+      - name: Remove signing keychain
+        if: always() && runner.os == 'macOS' && env.KEYCHAIN != ''
+        run: security delete-keychain "$KEYCHAIN" || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -139,6 +226,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: releases-*
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dmg-*
+          path: dmg
+          merge-multiple: true
 
       # vpk uploads only this version's files (plus the channel feed) and merges every platform
       # into the one release v<VERSION>.
@@ -156,6 +248,10 @@ jobs:
               --releaseName "Pilewise $VERSION" \
               --publish --merge $pre
           done
+
+      # The .dmg files aren't part of the Velopack feed, so they go up separately.
+      - name: Upload DMGs
+        run: gh release upload "v$VERSION" dmg/*.dmg --repo "${{ github.repository }}" --clobber
 
       - name: Add release notes
         run: |
