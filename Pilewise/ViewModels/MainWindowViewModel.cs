@@ -47,6 +47,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public ProgressViewModel Progress { get; } = new();
 
     private readonly ISecretStore _secrets;
+    private readonly IStateStore _state;
     private readonly IWebAuthenticator _webAuth;
     private readonly IStoreClientFactory _clients;
     private readonly IGameLibraryService _library;
@@ -66,6 +67,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel(
         ISecretStore secrets,
+        IStateStore state,
         IWebAuthenticator webAuth,
         IStoreClientFactory clients,
         IGameLibraryService library,
@@ -84,6 +86,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _firstSeen = firstSeen;
         _secrets = secrets;
+        _state = state;
         _webAuth = webAuth;
         _clients = clients;
         _library = library;
@@ -98,7 +101,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _autoStart = autoStart;
         _backlog = backlog;
         _syncLog = syncLog;
-        _syncHistory = new SyncHistory(secrets);
+        _syncHistory = new SyncHistory(state);
 
         LoadPersistedSettings();
         RefreshLastSync();
@@ -175,7 +178,7 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     private MainWindowViewModel(Dependencies d)
-        : this(d.Secrets, d.WebAuth, d.Clients, d.Library, d.NotionExporter, d.SheetsExporter, d.Dialogs,
+        : this(d.Secrets, d.State, d.WebAuth, d.Clients, d.Library, d.NotionExporter, d.SheetsExporter, d.Dialogs,
             d.Csv, d.Log, d.Updates, d.Selection, d.Ignored, d.AutoStart, d.Backlog, d.SyncLog, d.FirstSeen)
     {
     }
@@ -186,14 +189,16 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         ILogService log = new DesignTimeLog();
         ISecretStore secrets = new DesignTimeSecretStore();
+        IStateStore state = new DesignTimeStateStore();
         var clients = new StoreClientFactory(secrets, log);
         var selection = new StoreSelection();
-        var ignored = new IgnoredGames(secrets);
-        var backlog = new BacklogProgress(secrets);
-        var firstSeen = new FirstSeenGames(secrets);
+        var ignored = new IgnoredGames(state);
+        var backlog = new BacklogProgress(state);
+        var firstSeen = new FirstSeenGames(state);
         var library = new GameLibraryService(clients, selection, ignored, firstSeen);
         return new Dependencies(
             secrets,
+            state,
             new EmbeddedWebViewAuthenticator(DefaultTopLevel),
             clients,
             library,
@@ -207,12 +212,13 @@ public partial class MainWindowViewModel : ViewModelBase
             ignored,
             new AutoStart(log),
             backlog,
-            new SyncLog(secrets),
+            new SyncLog(state),
             firstSeen);
     }
 
     private sealed record Dependencies(
         ISecretStore Secrets,
+        IStateStore State,
         IWebAuthenticator WebAuth,
         IStoreClientFactory Clients,
         IGameLibraryService Library,

@@ -27,6 +27,15 @@ public sealed class MsalSecretStore : ISecretStore
 
     private const string FolderName = "SecretStorage";
 
+    // macOS ties each Keychain item to the binary that created it; any other binary reading it gets
+    // an access prompt. A Debug build (run from the IDE) is a different binary from the installed app,
+    // so it keeps its own items rather than claiming, or prompting for, the installed app's.
+#if DEBUG
+    private const string KeychainPrefix = "Pilewise-dev.";
+#else
+    private const string KeychainPrefix = "Pilewise.";
+#endif
+
     // Older builds kept the store next to the exe. Copy it once into the per-user data folder so
     // users keep their sessions (on Windows the DPAPI-encrypted .bin files are the secrets).
     private void MigrateLegacyFolder()
@@ -94,7 +103,7 @@ public sealed class MsalSecretStore : ISecretStore
         var fileName = SafeFileName(key) + ".bin";
 
         var props = new StorageCreationPropertiesBuilder(fileName, _folder)
-            .WithMacKeyChain($"Pilewise.{key}", key)
+            .WithMacKeyChain($"{KeychainPrefix}{key}", key)
             .WithLinuxKeyring(
                 $"com.pilewise.secrets.{key}",
                 "default",

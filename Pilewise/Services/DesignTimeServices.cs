@@ -21,6 +21,18 @@ internal sealed class DesignTimeSecretStore : ISecretStore
     public void Delete(string key) => _values.Remove(key);
 }
 
+/// <inheritdoc cref="DesignTimeSecretStore"/>
+internal sealed class DesignTimeStateStore : IStateStore
+{
+    private readonly Dictionary<string, string> _values = [];
+
+    public string? Load(string key) => _values.GetValueOrDefault(key);
+
+    public void Save(string key, string value) => _values[key] = value;
+
+    public void Delete(string key) => _values.Remove(key);
+}
+
 /// <summary>
 /// No update checks in the previewer: Velopack's <c>UpdateManager</c> throws unless
 /// <c>VelopackApp.Build().Run()</c> ran, which only <c>Program.Main</c> does.

@@ -102,7 +102,7 @@ public class OwnershipAndSyncHistoryTests
     [Fact]
     public void Record_PersistsAcrossInstances()
     {
-        var store = new MemorySecretStore();
+        var store = new MemoryStateStore();
         new SyncHistory(store).Record(SyncHistory.Notion, Now);
 
         var reloaded = new SyncHistory(store);
@@ -111,7 +111,7 @@ public class OwnershipAndSyncHistoryTests
         Assert.Null(reloaded.Get(SyncHistory.Csv));
     }
 
-    private sealed class MemorySecretStore : ISecretStore
+    private sealed class MemoryStateStore : IStateStore
     {
         private readonly Dictionary<string, string> _values = new();
         public string? Load(string key) => _values.GetValueOrDefault(key);

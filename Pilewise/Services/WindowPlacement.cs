@@ -10,11 +10,11 @@ public readonly record struct ScreenArea(int X, int Y, int Width, int Height);
 
 /// <summary>
 /// The main window's position (physical pixels), size (DIPs) and maximized state, remembered between
-/// runs (secret-store key <c>window</c>). Pure, so it's unit-tested; <c>MainWindow</c> applies it.
+/// runs (state-store key <c>window</c>). Pure, so it's unit-tested; <c>MainWindow</c> applies it.
 /// </summary>
 public sealed record WindowPlacement(int X, int Y, double Width, double Height, bool Maximized)
 {
-    public const string SecretKey = "window";
+    public const string StateKey = "window";
 
     public string Serialize() => string.Join(",",
         X.ToString(CultureInfo.InvariantCulture), Y.ToString(CultureInfo.InvariantCulture),

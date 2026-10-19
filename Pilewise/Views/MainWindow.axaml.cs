@@ -18,7 +18,7 @@ public partial class MainWindow : Window
 {
     private readonly IStoreClientFactory? _clients;
     private readonly ILogService? _log;
-    private readonly ISecretStore? _secrets;
+    private readonly IStateStore? _state;
 
     // Named controls from MainWindow.axaml.
     private readonly Border _dropOverlay;
@@ -46,11 +46,11 @@ public partial class MainWindow : Window
         AddHandler(KeyDownEvent, OnShortcut, RoutingStrategies.Tunnel);
     }
 
-    public MainWindow(IStoreClientFactory clients, ILogService log, ISecretStore secrets) : this()
+    public MainWindow(IStoreClientFactory clients, ILogService log, IStateStore state) : this()
     {
         _clients = clients;
         _log = log;
-        _secrets = secrets;
+        _state = state;
         RestorePlacement();
         _ = PrewarmGogLoginAsync();
     }
@@ -61,7 +61,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var saved = WindowPlacement.Parse(_secrets!.Load(WindowPlacement.SecretKey));
+            var saved = WindowPlacement.Parse(_state!.Load(WindowPlacement.StateKey));
             if (saved == null) return;
 
             var screens = Screens.All
@@ -89,17 +89,17 @@ public partial class MainWindow : Window
     /// <summary>Remembers the size / position / maximized state (called when the window closes or hides).</summary>
     public void SavePlacement()
     {
-        if (_secrets == null || !IsVisible) return;
+        if (_state == null || !IsVisible) return;
         try
         {
             var maximized = WindowState == WindowState.Maximized;
             // A maximized window's bounds are the screen's; keep the last normal size instead.
-            var previous = WindowPlacement.Parse(_secrets.Load(WindowPlacement.SecretKey));
+            var previous = WindowPlacement.Parse(_state.Load(WindowPlacement.StateKey));
             var placement = maximized && previous != null
                 ? previous with { Maximized = true }
                 : new WindowPlacement(Position.X, Position.Y, Width, Height, maximized);
             if (WindowState == WindowState.Minimized) return;
-            _secrets.Save(WindowPlacement.SecretKey, placement.Serialize());
+            _state.Save(WindowPlacement.StateKey, placement.Serialize());
         }
         catch (Exception ex)
         {

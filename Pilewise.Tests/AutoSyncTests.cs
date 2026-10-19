@@ -95,17 +95,17 @@ public class AutoSyncTests
     [Fact]
     public void SyncHistory_SeesRecordsMadeThroughAnotherInstance()
     {
-        var secrets = new MemorySecretStore();
-        var app = new SyncHistory(secrets);
+        var state = new MemoryStateStore();
+        var app = new SyncHistory(state);
         app.Record(SyncHistory.Csv, Now.AddDays(-1));
 
         // e.g. the auto-sync's HeadlessSync records Notion through its own instance…
-        new SyncHistory(secrets).Record(SyncHistory.Notion, Now);
+        new SyncHistory(state).Record(SyncHistory.Notion, Now);
 
         // …the app's instance sees it, and a later Record doesn't drop it.
         Assert.Equal(Now, app.Get(SyncHistory.Notion));
         app.Record(SyncHistory.Csv, Now);
-        Assert.Equal(Now, new SyncHistory(secrets).Get(SyncHistory.Notion));
+        Assert.Equal(Now, new SyncHistory(state).Get(SyncHistory.Notion));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class AutoSyncTests
         Assert.Equal(["== Notion ==", "Done: 1", "next"], lines);
     }
 
-    private sealed class MemorySecretStore : ISecretStore
+    private sealed class MemoryStateStore : IStateStore
     {
         private readonly Dictionary<string, string> _values = [];
         public string? Load(string key) => _values.GetValueOrDefault(key);

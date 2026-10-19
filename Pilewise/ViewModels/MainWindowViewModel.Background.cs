@@ -198,7 +198,7 @@ public partial class MainWindowViewModel
                     Dispatcher.UIThread.Post(() => Progress.Status = $"{label} {name}: {line}");
                 });
                 var sync = new HeadlessSync(
-                    _secrets, _library, _notionExporter, _sheetsExporter, _log, output, _selection, _syncLog, label);
+                    _secrets, _state, _library, _notionExporter, _sheetsExporter, _log, output, _selection, _syncLog, label);
                 var code = await sync.RunAsync(new SyncOptions([target], null, null, false), Progress.Token);
 
                 if (Progress.Token.IsCancellationRequested)

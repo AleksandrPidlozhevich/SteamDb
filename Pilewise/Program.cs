@@ -71,6 +71,7 @@ internal sealed class Program
 
         var sync = new HeadlessSync(
             services.GetRequiredService<ISecretStore>(),
+            services.GetRequiredService<IStateStore>(),
             services.GetRequiredService<IGameLibraryService>(),
             services.GetRequiredService<NotionGameExporter>(),
             services.GetRequiredService<GoogleSheetsGameExporter>(),

@@ -8,20 +8,20 @@ namespace Pilewise.Services;
 /// Games the user hid in the library viewer (demos, test servers, tools…). Hidden games are left out
 /// of every export, but a page / row already in a target is left alone (never "no longer owned").
 /// A game is remembered by its store ids (<c>Steam:400</c>, <c>GOG:123</c>…), or by its name when it
-/// has none, so it stays hidden whichever store lists it. Kept in the encrypted secret store
+/// has none, so it stays hidden whichever store lists it. Kept in the state store
 /// (key <c>ignored-games</c>, one key per line); a DI singleton shared by the app and <c>--sync</c>.
 /// </summary>
 public sealed class IgnoredGames
 {
-    private const string SecretKey = "ignored-games";
+    private const string StateKey = "ignored-games";
 
-    private readonly ISecretStore? _secrets;
+    private readonly IStateStore? _store;
     private readonly HashSet<string> _keys = new(StringComparer.OrdinalIgnoreCase);
 
-    public IgnoredGames(ISecretStore? secrets = null)
+    public IgnoredGames(IStateStore? store = null)
     {
-        _secrets = secrets;
-        var stored = secrets?.Load(SecretKey);
+        _store = store;
+        var stored = store?.Load(StateKey);
         if (string.IsNullOrEmpty(stored)) return;
         foreach (var key in stored.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             _keys.Add(key);
@@ -70,5 +70,5 @@ public sealed class IgnoredGames
     }
 
     private void Save() =>
-        _secrets?.Save(SecretKey, string.Join("\n", _keys.Order(StringComparer.OrdinalIgnoreCase)));
+        _store?.Save(StateKey, string.Join("\n", _keys.Order(StringComparer.OrdinalIgnoreCase)));
 }

@@ -14,12 +14,12 @@ public class SyncLogTests
     [Fact]
     public void Entries_AreNewestFirst_AndSurviveAReload()
     {
-        var secrets = new MemorySecretStore();
-        var log = new SyncLog(secrets);
+        var state = new MemoryStateStore();
+        var log = new SyncLog(state);
         log.Add(Entry(10, "Notion"));
         log.Add(Entry(5, "Google Sheets", ok: false, summary: "Google authorization failed."));
 
-        var reloaded = new SyncLog(secrets).Entries;
+        var reloaded = new SyncLog(state).Entries;
 
         Assert.Equal(["Google Sheets", "Notion"], reloaded.Select(e => e.Target));
         Assert.False(reloaded[0].Ok);
@@ -30,7 +30,7 @@ public class SyncLogTests
     [Fact]
     public void OnlyTheLatestRunsAreKept()
     {
-        var log = new SyncLog(new MemorySecretStore());
+        var log = new SyncLog(new MemoryStateStore());
         for (var i = 0; i < SyncLog.MaxEntries + 10; i++) log.Add(Entry(1000 - i));
 
         Assert.Equal(SyncLog.MaxEntries, log.Entries.Count);
@@ -40,7 +40,7 @@ public class SyncLogTests
     [Fact]
     public void LongSummaries_AreShortened()
     {
-        var log = new SyncLog(new MemorySecretStore());
+        var log = new SyncLog(new MemoryStateStore());
         log.Add(Entry(0, summary: new string('x', 2000)));
 
         Assert.True(log.Entries[0].Summary.Length <= 500);
@@ -50,7 +50,7 @@ public class SyncLogTests
     [Fact]
     public void Clear_EmptiesIt_AndRaisesChanged()
     {
-        var log = new SyncLog(new MemorySecretStore());
+        var log = new SyncLog(new MemoryStateStore());
         var changes = 0;
         log.Changed += () => changes++;
         log.Add(Entry(0));
@@ -73,7 +73,7 @@ public class SyncLogTests
         Assert.Equal([SyncTarget.Notion, SyncTarget.Csv], AutoSyncSettings.Parse("24h Notion, CSV").Targets);
     }
 
-    private sealed class MemorySecretStore : ISecretStore
+    private sealed class MemoryStateStore : IStateStore
     {
         private readonly Dictionary<string, string> _values = [];
         public string? Load(string key) => _values.GetValueOrDefault(key);

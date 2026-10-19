@@ -35,19 +35,19 @@ public sealed record BacklogSnapshot(
 
 /// <summary>
 /// The latest <see cref="BacklogSnapshot"/> per tracker (Notion / Google Sheets), recorded by the
-/// exporters after a real (not dry-run) export. Kept as JSON in the secret store (key
+/// exporters after a real (not dry-run) export. Kept as JSON in the state store (key
 /// <c>backlog</c>) like the sync history; re-read on every access so the app and <c>--sync</c> agree.
 /// </summary>
 public sealed class BacklogProgress
 {
-    private const string SecretKey = "backlog";
+    private const string StateKey = "backlog";
 
-    private readonly ISecretStore? _secrets;
+    private readonly IStateStore? _store;
     private Dictionary<string, BacklogSnapshot> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-    public BacklogProgress(ISecretStore? secrets = null)
+    public BacklogProgress(IStateStore? store = null)
     {
-        _secrets = secrets;
+        _store = store;
     }
 
     public BacklogSnapshot? Get(string target)
@@ -68,7 +68,7 @@ public sealed class BacklogProgress
         if (snapshot == null) return;
         Reload();
         _cache[snapshot.Target] = snapshot;
-        _secrets?.Save(SecretKey, Serialize(_cache.Values));
+        _store?.Save(StateKey, Serialize(_cache.Values));
     }
 
     public static string Serialize(IEnumerable<BacklogSnapshot> snapshots) =>
@@ -93,8 +93,8 @@ public sealed class BacklogProgress
 
     private void Reload()
     {
-        if (_secrets == null) return;
-        _cache = Parse(_secrets.Load(SecretKey))
+        if (_store == null) return;
+        _cache = Parse(_store.Load(StateKey))
             .GroupBy(s => s.Target, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.MaxBy(s => s.When)!, StringComparer.OrdinalIgnoreCase);
     }
